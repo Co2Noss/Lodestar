@@ -1,3 +1,21 @@
+# 1.9.0
+
+- Lodestar now asks what you care about at your first login instead of guessing. The window
+  opens on a welcome page listing every goal, and says there that Settings can change the
+  answer later.
+- Every goal now starts off. Previously endgame, solo content and professions were on and
+  mounts, reputation and questing were off, which silently hid recommendations from players who
+  never chose those defaults.
+- Nothing is ranked until at least one goal is on, so the welcome page asks for a choice rather
+  than letting you continue into an empty plan. "I care about all of it" turns on everything at
+  once.
+- An empty Today page now explains that every goal is off and links back to goal picking,
+  rather than only pointing at Settings.
+- Existing installs are untouched: goals you have already chosen count as an answer, so the
+  welcome page never interrupts an upgrade.
+- Added `.dev/run.py`, a headless harness that loads the addon into a stubbed client, fires the
+  real login events and clicks through the UI.
+
 # 1.8.0
 
 - Removed the time budget and its slider from both the Today page and Settings. Lodestar no

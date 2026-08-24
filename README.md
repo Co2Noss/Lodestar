@@ -1,6 +1,18 @@
-# Lodestar 1.8.0
+# Lodestar 1.9.0
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
+
+## First login
+
+Lodestar asks what you care about before it recommends anything. Every goal starts off, the
+window opens on the welcome page at your first login, and nothing is ranked until you pick at
+least one goal. It says there and then that Settings can change your answer at any time.
+
+The reason it asks instead of guessing: a goal that is off silently removes recommendations,
+and a player who never chose those defaults has no way to know what is missing.
+
+Existing installs are left alone. Goals you already chose count as an answer, so the welcome
+page never interrupts an upgrade.
 
 ## Pages
 
@@ -12,7 +24,8 @@ Lodestar answers one question: what is the best use of your next hour in World o
 
 ## Ranking and categories
 
-Recommendations are scored against the goals you turn on in Settings, then grouped by where
+Recommendations are scored against the goals you chose on first login, which Settings can
+change at any time, then grouped by where
 the work happens: Great Vault, Professions, Reputation, Solo content, Questing. Categories are
 ordered by the best thing inside them, so the most valuable one is always on top.
 
@@ -111,3 +124,8 @@ position are saved.
 - `/ls compact`
 - `/ls compact single`
 - `/ls reset`
+
+## Development
+
+`.dev/run.py` loads every file into a stubbed client, fires the real login events and clicks
+through the UI to check behaviour without launching the game. It needs `lupa`.

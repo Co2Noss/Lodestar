@@ -230,7 +230,9 @@ function LS:ShowPage(page)
   self.page = page
   self:Clear()
   self:ApplyTheme()
-  if page == "VAULT" then
+  if page == "WELCOME" then
+    self:WelcomePage()
+  elseif page == "VAULT" then
     self:VaultPage()
   elseif page == "PROFESSIONS" then
     self:ProfessionsPage()
@@ -382,6 +384,82 @@ function LS:CategoryHeader(parent, group, y, width)
   return header
 end
 
+-- Shown once, before anything has been recommended. Every goal starts off, so this is the
+-- one place Lodestar has to ask instead of assuming.
+function LS:WelcomePage()
+  self:Heading("Welcome to Lodestar",
+    "Blizzard shows you everything you can do. Lodestar tells you what is worth doing.")
+
+  local body = self:Body(76)
+  local width = math.min(460, body.width)
+  local y = 0
+
+  local intro = text(body, width, 11)
+  intro:SetPoint("TOPLEFT", 0, y)
+  intro:SetText("To do that it needs to know what you care about. Pick anything that applies, and Lodestar will rank the work that feeds those goals and stay quiet about the rest.")
+  y = y - 44
+
+  local chosen = 0
+  for _, goal in ipairs(goalList) do
+    if self.db.goals[goal[1]] then chosen = chosen + 1 end
+  end
+
+  for _, goal in ipairs(goalList) do
+    local key, label = goal[1], goal[2]
+    local on = self.db.goals[key]
+    local toggle = button(body, (on and "ON  •  " or "OFF  •  ") .. label, width, 32)
+    toggle:SetPoint("TOPLEFT", 0, y)
+    if on then
+      highlight(toggle)
+    else
+      toggle.text:SetTextColor(0.62, 0.65, 0.7, 1)
+    end
+    toggle:SetScript("OnMouseUp", function()
+      self.db.goals[key] = not on
+      self:MarkGoalsChosen()
+      self:ShowPage("WELCOME")
+    end)
+    y = y - 38
+  end
+
+  y = y - 10
+  local everything = button(body, chosen == #goalList and "Clear all" or "I care about all of it", 200, 30)
+  everything:SetPoint("TOPLEFT", 0, y)
+  everything:SetScript("OnMouseUp", function()
+    local turnOn = chosen < #goalList
+    for _, goal in ipairs(goalList) do
+      self.db.goals[goal[1]] = turnOn
+    end
+    self:MarkGoalsChosen()
+    self:ShowPage("WELCOME")
+  end)
+
+  local continue = button(body, "Show me my plan", 200, 30)
+  continue:SetPoint("TOPLEFT", 214, y)
+  if chosen > 0 then
+    highlight(continue)
+    continue:SetScript("OnMouseUp", function()
+      self.db.welcomed = true
+      self:ShowPage("TODAY")
+    end)
+  else
+    continue.text:SetTextColor(0.62, 0.65, 0.7, 1)
+  end
+  y = y - 42
+
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  if chosen > 0 then
+    note:SetText("You can change these at any time in Settings, and nothing here is permanent.")
+  else
+    note:SetText("Choose at least one. With everything off Lodestar has nothing to recommend.")
+    note:SetTextColor(unpack(self.colors.warn))
+  end
+  y = y - 34
+
+  body:finish(-y + 10)
+end
+
 function LS:Today()
   local filled, total, upgradable = self:VaultSummary()
   local groups, count = self:GetCategories()
@@ -412,8 +490,12 @@ function LS:Today()
   if #groups == 0 then
     local none = text(body, body.width, 11)
     none:SetPoint("TOPLEFT", 0, 0)
-    none:SetText("Nothing matches your goals. Turn one on in Settings.")
-    body:finish(40)
+    none:SetText("Every goal is off, so Lodestar has nothing to weigh against. Pick what you care about and the plan fills in.")
+    local pick = button(body, "Choose my goals", 200, 30)
+    pick:SetPoint("TOPLEFT", 0, -42)
+    highlight(pick)
+    pick:SetScript("OnMouseUp", function() self:ShowPage("WELCOME") end)
+    body:finish(90)
     return
   end
 
@@ -910,6 +992,7 @@ function LS:Settings()
     end
     toggle:SetScript("OnMouseUp", function()
       self.db.goals[key] = not self.db.goals[key]
+      self:MarkGoalsChosen()
       self:ShowPage("SETTINGS")
     end)
     y = y - 38
@@ -1026,6 +1109,11 @@ function LS:Refresh()
   if self.UpdateCompact then self:UpdateCompact() end
 end
 
+function LS:LandingPage()
+  if not self.db.welcomed then return "WELCOME" end
+  return self.page or "TODAY"
+end
+
 function LS:Toggle()
   if self.frame:IsShown() then
     self.frame:Hide()
@@ -1034,5 +1122,5 @@ function LS:Toggle()
   self:ScanVault()
   if self.ScanProfessions then self:ScanProfessions() end
   self.frame:Show()
-  self:ShowPage(self.page or "TODAY")
+  self:ShowPage(self:LandingPage())
 end

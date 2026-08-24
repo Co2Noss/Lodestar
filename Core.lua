@@ -1,13 +1,15 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.8.0"
+LS.version = "1.9.0"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
 LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
 
 LS.defaults = {
-  goals = { ENDGAME = true, SOLO = true, CRAFTING = true, MOUNTS = false, REPUTATION = false, QUESTING = false },
+  -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
+  -- a goal that is off silently removes recommendations the player never learns existed.
+  goals = { ENDGAME = false, SOLO = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false },
   dismissed = {},
   completed = {},
   tracked = {},
@@ -37,8 +39,32 @@ local function merge(a, b)
   return b
 end
 
+local function anyGoal(goals)
+  for _, on in pairs(goals or {}) do
+    if on then return true end
+  end
+  return false
+end
+
+-- Having a goal on is the record that the player has been asked, whether that happened on
+-- the welcome page or in Settings.
+function LS:GoalsChosen()
+  return anyGoal(self.db and self.db.goals)
+end
+
+function LS:MarkGoalsChosen()
+  if self:GoalsChosen() then
+    self.db.welcomed = true
+  end
+end
+
 local function migrate(db)
   db.allowResize = nil
+  -- Anyone who already has goals chose them before the welcome page existed, so it should
+  -- not interrupt them on the next login.
+  if db.welcomed == nil and anyGoal(db.goals) then
+    db.welcomed = true
+  end
   -- The time budget is gone: recommendations are ranked and grouped instead of being
   -- squeezed into a session length.
   db.timeBudget = nil
@@ -117,7 +143,12 @@ events:SetScript("OnEvent", function(_, event, arg)
   end
   if event == "PLAYER_LOGIN" then
     RefreshState()
-    print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")
+    if LS.db.welcomed then
+      print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")
+    else
+      print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. Pick what you care about to get started.")
+      LS:OpenFull("WELCOME")
+    end
   else
     RefreshSoon()
   end
