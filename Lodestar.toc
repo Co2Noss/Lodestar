@@ -1,13 +1,17 @@
 ## Interface: 120100
 ## Title: Lodestar
-## Notes: Personalized priorities for World of Warcraft.
-## Author: Your Name
-## Version: 0.3.0
+## Notes: Find what matters. Ignore the rest.
+## Version: 1.8.0
 ## SavedVariables: LodestarDB
-
 Core.lua
 PlayerData.lua
-Data.lua
+Knowledge.lua
+Professions.lua
+Vault.lua
+Catalog.lua
 Scoring.lua
+Warband.lua
 Themes.lua
+Minimap.lua
 UI.lua
+Compact.lua

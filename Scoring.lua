@@ -1,16 +1,71 @@
-local _,LS=...
+local _, LS = ...
+
 function LS:GetRecommendations()
- local ranked={}
- for _,a in ipairs(self.activities) do
-  if not self.db.dismissed[a.id] then
-   local score=0
-   for goal,on in pairs(self.db.goals) do if on then score=score+(a.tags[goal] or 0) end end
-   if a.needsProfession and #self.profile.professions==0 then score=0 end
-   local faction=a.faction and self:GetFaction(a.faction)
-   if faction and faction.total>0 and faction.progress>=faction.total then score=math.max(0,score-8) end
-   if score>0 then table.insert(ranked,{activity=a,score=score,faction=faction}) end
+  local out = {}
+
+  local function consider(activity, baseScore)
+    if self.db.dismissed[activity.id] or self.db.completed[activity.id] then return end
+    local score = baseScore or 0
+    for goal, on in pairs(self.db.goals) do
+      if on then
+        score = score + (activity.tags and activity.tags[goal] or 0)
+      end
+    end
+    if score <= 0 then return end
+    if self.db.tracked[activity.id] then
+      score = score + 25
+    end
+    activity.score = score
+    table.insert(out, activity)
   end
- end
- table.sort(ranked,function(a,b) return a.score==b.score and a.activity.effort<b.activity.effort or a.score>b.score end)
- return ranked
+
+  for _, activity in ipairs(self.activities or {}) do
+    if not activity.requiresProfession or #(self.profile.professions or {}) > 0 then
+      consider(activity)
+    end
+  end
+
+  if self.db.goals.ENDGAME then
+    for _, vault in ipairs(self:GetVaultRecommendations()) do
+      consider(vault, vault.score)
+    end
+  end
+
+  if self.db.goals.CRAFTING then
+    for _, profession in ipairs(self:GetProfessionRecommendations()) do
+      consider(profession, profession.score)
+    end
+  end
+
+  table.sort(out, function(a, b)
+    if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
+    return a.title < b.title
+  end)
+  return out
+end
+
+-- Recommendations grouped into the categories the Today page can collapse. Categories are
+-- ordered by the best thing inside them, so the most valuable one is always on top.
+function LS:GetCategories()
+  local list = self:GetRecommendations()
+  local groups, index = {}, {}
+
+  for _, activity in ipairs(list) do
+    local name = activity.category or "Other"
+    local group = index[name]
+    if not group then
+      group = { name = name, activities = {}, minutes = 0, best = 0 }
+      index[name] = group
+      table.insert(groups, group)
+    end
+    table.insert(group.activities, activity)
+    group.minutes = group.minutes + (activity.minutes or 0)
+    group.best = math.max(group.best, activity.score or 0)
+  end
+
+  table.sort(groups, function(a, b)
+    if a.best ~= b.best then return a.best > b.best end
+    return a.name < b.name
+  end)
+  return groups, #list
 end

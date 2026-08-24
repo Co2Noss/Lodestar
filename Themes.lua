@@ -1,75 +1,184 @@
-local _,LS=...
+local _, LS = ...
 
-LS.themeOrder={"AUTO","BLIZZARD","ELVUI","ELLESMERE","MINIMAL"}
+LS.palettes = {
+  BLIZZARD = {
+    bg = { .035, .045, .06, .98 }, panel = { .055, .07, .09, .98 }, card = { .07, .085, .105, .98 },
+    border = { .22, .28, .34, 1 }, accent = { .95, .72, .22, 1 }, text = { .92, .94, .96, 1 },
+    warn = { .93, .38, .36, 1 }, muted = { .58, .62, .68, 1 },
+  },
+  ELVUI = {
+    bg = { .025, .025, .025, .98 }, panel = { .045, .045, .045, .98 }, card = { .065, .065, .065, .98 },
+    border = { .18, .18, .18, 1 }, accent = { .25, .75, .70, 1 }, text = { .9, .9, .9, 1 },
+    warn = { .9, .35, .33, 1 }, muted = { .58, .58, .58, 1 },
+  },
+  ELLESMERE = {
+    bg = { .02, .025, .035, .98 }, panel = { .035, .045, .06, .98 }, card = { .055, .07, .09, .98 },
+    border = { .12, .2, .25, 1 }, accent = { .32, .82, .72, 1 }, text = { .9, .94, .96, 1 },
+    warn = { .92, .4, .4, 1 }, muted = { .56, .62, .66, 1 },
+  },
+  MINIMAL = {
+    bg = { .018, .02, .024, .98 }, panel = { .028, .03, .035, .98 }, card = { .04, .043, .05, .98 },
+    border = { .12, .13, .15, 1 }, accent = { .55, .65, .75, 1 }, text = { .9, .9, .92, 1 },
+    warn = { .88, .42, .42, 1 }, muted = { .55, .58, .62, 1 },
+  },
+}
 
-local function IsLoaded(name)
- if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
- if IsAddOnLoaded then return IsAddOnLoaded(name) end
- return false
+LS.themeOrder = { "AUTO", "BLIZZARD", "ELVUI", "ELLESMERE", "MINIMAL" }
+
+local function loaded(name)
+  return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
 end
 
 function LS:DetectTheme()
- -- EllesmereUI is modular; its Blizzard-skin module is the strongest signal.
- if IsLoaded("EllesmereUIBlizzardSkin") or IsLoaded("EllesmereUI") then return "ELLESMERE" end
- if IsLoaded("ElvUI") and _G.ElvUI then return "ELVUI" end
- return "BLIZZARD"
+  if loaded("EllesmereUI") or loaded("EllesmereUIBlizzardSkin") then return "ELLESMERE" end
+  if loaded("ElvUI") then return "ELVUI" end
+  return "BLIZZARD"
 end
 
-function LS:GetActiveTheme()
- local wanted=(self.db and self.db.theme) or "AUTO"
- return wanted=="AUTO" and self:DetectTheme() or wanted
+function LS:CurrentTheme()
+  local wanted = self.db.theme or "AUTO"
+  if wanted == "AUTO" then return self:DetectTheme() end
+  return self.palettes[wanted] and wanted or "BLIZZARD"
 end
 
-function LS:GetThemePalette(theme)
- local palettes={
-  BLIZZARD={bg={.035,.05,.075,.96},border={.35,.29,.18,1},accent={1,.82,.28,1},muted={.72,.72,.72,1}},
-  ELLESMERE={bg={.025,.028,.035,.97},border={.18,.20,.24,1},accent={.32,.82,.72,1},muted={.68,.72,.76,1}},
-  MINIMAL={bg={.025,.025,.028,.96},border={.12,.12,.14,1},accent={.49,.83,.78,1},muted={.65,.65,.68,1}},
- }
- if theme=="ELVUI" and _G.ElvUI then
-  local ok,E=pcall(unpack,_G.ElvUI)
-  if ok and E then
-   local bg=(E.media and E.media.backdropcolor) or {.06,.06,.06}
-   local border=(E.media and E.media.bordercolor) or {.15,.15,.15}
-   local r,g,b=E:ClassColor(E.myclass)
-   return {bg={bg[1] or .06,bg[2] or .06,bg[3] or .06,.97},border={border[1] or .15,border[2] or .15,border[3] or .15,1},accent={r or .3,g or .8,b or .7,1},muted={.70,.70,.70,1},E=E}
+-- Real ElvUI handshake: pull the user's actual media instead of guessing at colors.
+function LS:GetElvUI()
+  if not loaded("ElvUI") or not _G.ElvUI then return nil end
+  local ok, engine = pcall(unpack, _G.ElvUI)
+  if not ok or type(engine) ~= "table" then return nil end
+  return engine
+end
+
+local function color(value, fallback)
+  if type(value) == "table" then
+    if value.r then
+      return { value.r, value.g or 0, value.b or 0, value.a or 1 }
+    end
+    if value[1] then
+      return { value[1], value[2] or 0, value[3] or 0, value[4] or 1 }
+    end
   end
- end
- return palettes[theme] or palettes.BLIZZARD
+  return fallback
 end
 
-local function Color(texture,c) texture:SetColorTexture(c[1],c[2],c[3],c[4] or 1) end
+local function shade(rgba, factor, alpha)
+  return { rgba[1] * factor, rgba[2] * factor, rgba[3] * factor, alpha or rgba[4] or 1 }
+end
+
+-- Builds a palette out of ElvUI's own backdrop, border, texture and font settings.
+function LS:BuildElvUIPalette()
+  local E = self:GetElvUI()
+  if not E or type(E.media) ~= "table" then return nil end
+  local base = self.palettes.ELVUI
+  local backdrop = color(E.media.backdropcolor, base.bg)
+  local fade = color(E.media.backdropfadecolor, backdrop)
+  local border = color(E.media.bordercolor, base.border)
+  local value = E.db and E.db.general and E.db.general.valuecolor
+  local accent = color(value, base.accent)
+
+  self.skin = {
+    texture = E.media.normTex or E.media.blankTex,
+    font = E.media.normFont,
+    fontSize = (E.db and E.db.general and E.db.general.fontSize) or 12,
+  }
+
+  return {
+    bg = { backdrop[1], backdrop[2], backdrop[3], 0.98 },
+    panel = { fade[1], fade[2], fade[3], math.max(0.85, fade[4] or 0.9) },
+    card = shade({ fade[1], fade[2], fade[3], 1 }, 1.35, 0.95),
+    border = border,
+    accent = accent,
+    text = base.text,
+    warn = base.warn,
+    muted = base.muted,
+  }
+end
+
+function LS:ResolvePalette()
+  local name = self:CurrentTheme()
+  if name == "ELVUI" then
+    local palette = self:BuildElvUIPalette()
+    if palette then
+      return palette, name, true
+    end
+  end
+  self.skin = nil
+  return self.palettes[name], name, false
+end
+
+-- Inline colour for text that mixes tones in one font string, so urgency stays readable
+-- on whichever palette is active.
+function LS:Colorize(value, key)
+  local color = self.colors and self.colors[key]
+  if not color then return tostring(value) end
+  return string.format("|cff%02x%02x%02x%s|r",
+    math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5),
+    math.floor(color[3] * 255 + 0.5), tostring(value))
+end
+
+function LS:ThemeFont()
+  return (self.skin and self.skin.font) or STANDARD_TEXT_FONT
+end
+
+function LS:ThemeTexture()
+  return (self.skin and self.skin.texture) or "Interface/Buttons/WHITE8X8"
+end
+
+function LS:SetTheme(name)
+  name = (name or ""):upper()
+  local valid = name == "AUTO" or self.palettes[name] ~= nil
+  if not valid then
+    self:PrintThemes()
+    return
+  end
+  self.db.theme = name
+  self:ApplyTheme()
+  self:Refresh()
+  print("|cff59d8c9Lodestar|r theme: " .. self:CurrentTheme() .. (self.skin and " (ElvUI media)" or ""))
+end
+
+function LS:PrintThemes()
+  print("Lodestar themes: auto, blizzard, elvui, ellesmere, minimal")
+end
 
 function LS:ApplyTheme()
- if not self.frame then return end
- local theme=self:GetActiveTheme(); local p=self:GetThemePalette(theme); local f=self.frame
- f.activeTheme=theme
- if f.NineSlice then f.NineSlice:Hide() end
- if f.Bg then f.Bg:Hide() end
- if f.TitleBg then f.TitleBg:Hide() end
- if not f.LodestarBackdrop then
-  f.LodestarBackdrop=CreateFrame("Frame",nil,f,"BackdropTemplate")
-  f.LodestarBackdrop:SetAllPoints(); f.LodestarBackdrop:SetFrameLevel(math.max(0,f:GetFrameLevel()-1))
-  f.LodestarBackdrop:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
- end
- f.LodestarBackdrop:SetBackdropColor(unpack(p.bg)); f.LodestarBackdrop:SetBackdropBorderColor(unpack(p.border)); f.LodestarBackdrop:Show()
- if f.TitleText then f.TitleText:SetTextColor(unpack(p.accent)) end
- for _,r in ipairs(self.rows or {}) do
-  r:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
-  r:SetBackdropColor(p.bg[1]+.025,p.bg[2]+.025,p.bg[3]+.025,.94); r:SetBackdropBorderColor(unpack(p.border))
-  r.n:SetTextColor(unpack(p.accent)); r.s:SetTextColor(unpack(p.muted))
- end
- if self.themeLabel then self.themeLabel:SetText("Theme: "..theme) end
-end
+  if not self.frame then return end
+  local palette, name, native = self:ResolvePalette()
+  self.colors = palette
+  self.themeName = name
+  self.themeNative = native
 
-function LS:SetThemePreference(choice)
- local valid=false
- for _,v in ipairs(self.themeOrder) do if v==choice then valid=true break end end
- if not valid then self:PrintThemeHelp(); return end
- self.db.theme=choice; self:ApplyTheme(); self:Refresh()
- print("|cff7dd3c7Lodestar|r theme set to "..choice..".")
-end
-function LS:PrintThemeHelp()
- print("|cff7dd3c7Lodestar themes:|r auto, blizzard, elvui, ellesmere, minimal")
- print("Use |cffffffff/ls theme auto|r or choose a named theme.")
+  local texture = self:ThemeTexture()
+  for _, frame in ipairs({ self.frame, self.header, self.sidebar }) do
+    if frame and frame.SetBackdrop then
+      frame:SetBackdrop({ bgFile = texture, edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+    end
+  end
+
+  self.frame:SetBackdropColor(unpack(palette.bg))
+  self.frame:SetBackdropBorderColor(unpack(palette.border))
+  self.sidebar:SetBackdropColor(unpack(palette.panel))
+  self.sidebar:SetBackdropBorderColor(unpack(palette.border))
+  self.header:SetBackdropColor(unpack(palette.panel))
+  self.header:SetBackdropBorderColor(unpack(palette.border))
+  self.title:SetTextColor(unpack(palette.accent))
+
+  if self.themeText then
+    self.themeText:SetText("Theme: " .. name .. (native and " (native)" or ""))
+  end
+  if self.closeButton then
+    self.closeButton:SetBackdropColor(unpack(palette.card))
+    self.closeButton:SetBackdropBorderColor(unpack(palette.border))
+    -- ElvUI's backdrop is nearly black, so the glyph needs the theme's text color
+    -- rather than the font object's default.
+    self.closeButton.text:SetFont(self:ThemeFont(), 20, "")
+    self.closeButton.text:SetTextColor(unpack(palette.text))
+  end
+  if self.UpdateCompact then self:UpdateCompact() end
+  for key, nav in pairs(self.nav or {}) do
+    local active = key == self.page
+    nav:SetBackdropColor(unpack(palette.card))
+    nav:SetBackdropBorderColor(unpack(active and palette.accent or palette.border))
+    nav.text:SetTextColor(unpack(active and palette.accent or palette.text))
+  end
 end
