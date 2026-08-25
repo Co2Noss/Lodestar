@@ -399,6 +399,9 @@ function LS:GetVaultRecommendations()
             },
           })
         end
+        -- Later slots are not useful until this one is filled. An upgrade on a
+        -- filled slot can still sit next to unlocking the following chest.
+        if not slot.complete then break end
       end
     end
   end

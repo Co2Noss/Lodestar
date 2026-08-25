@@ -1,4 +1,4 @@
-# Lodestar 1.17.0
+# Lodestar 1.17.2
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
@@ -65,14 +65,16 @@ Skill level, unspent knowledge, points already spent and remaining tree cost com
 APIs and are always accurate. Click a profession to open its window; professions with a
 knowledge tree also have a Specializations button. Cooking, Fishing and Archaeology have no
 knowledge tree, so the page shows skill, and Today recommends leveling them until they are
-at the cap.
+at the cap. Recipe lists and specialization builds stay in the profession window; Lodestar
+ranks what is still worth doing, then Specializations opens the live tree.
 
 Knowledge is split by what it actually asks of you:
 
 - **Weekly quests** — treatises and trainer or Consortium quests. Where a trainer offers several
   quests but only rewards one, that counts as a single task.
 - **Weekly drops** — knowledge that drops while gathering, mining, skinning or disenchanting.
-- **Treasures** — one-time world pickups, which never expire.
+- **Treasures** — eight one-time world pickups per Midnight profession, plus vendor books.
+  They never expire.
 - **Catch-up** — for gathering professions and Enchanting this unlocks once the week's fixed
   sources are exhausted, so the page shows which gates are still closed. For crafting professions
   it comes from Patron Orders, which the client does not expose, so it is described rather than
@@ -118,28 +120,28 @@ waiting still appear.
 
 ## Gold making
 
-The Gold making goal ranks gathering you have trained and a few pet farms that never expire.
-Prices come from **TSM**, **Auctionator** or **RECrystallize**. Lodestar does not invent an
-auction house. Settings → Goals lets you pick the source: Auto uses the first of those
-addons that is loaded. If none is loaded, or the one you picked is not, Lodestar stays quiet
-about gold.
+The Gold making goal ranks gathering you have trained, cloth from humanoids, and a few pet
+farms that never expire. Herbalism, Mining and Skinning each get Midnight and Khaz Algar
+loops. Tailors get Midnight and Khaz Algar cloth; anyone can farm older cloth such as
+Frostweave and Netherweave. Prices come from **TSM**, **Auctionator** or **RECrystallize**.
+Lodestar does not invent an auction house. Settings → Goals lets you pick the source: Auto
+uses the first of those addons that is loaded. If none is loaded, or the one you picked is
+not, Lodestar stays quiet about gold.
 
 The farm list lives in `Gold.lua`. It is the collector circuit, not every node in the game.
 
 ## Compact mode
 
-A small window that sits on your screen with just the next three things to do, each showing
-its priority, estimated time and score. Turn it on in Settings, with `/ls compact`, or by
-right-clicking the minimap button.
+A small window that sits on your screen with the next thing to do, or two when more than
+one goal is on. Each row shows its priority, estimated time and score. Turn it on in
+Settings, with `/ls compact`, or by right-clicking the minimap button.
 
 - Click an entry to open its details page. Double click anywhere to open the full window.
-- Single recommendation mode narrows it to the highest-scoring activity.
-- It hides itself while the full window is open, since both show the same plan, and comes
-  back when you close it.
-- It collapses to its title bar in combat and comes back when you leave. If you collapsed it
-  yourself, combat ending leaves it collapsed.
-- Drag to move, drag the right edge to set the width. Both are saved. Height follows the
-  number of recommendations rather than being dragged, so entries are never clipped.
+- Single recommendation mode keeps it to one row even when several goals are on.
+- Height follows the number of rows: one goal contracts it, a second goal expands it, and
+  collapsing in combat leaves just the title bar.
+- It hides while the full window is open and comes back when you close it.
+- Drag to move, drag the right edge to set the width. Both are saved.
 
 Priority is High, Medium or Low. Unspent knowledge is High because spending it is free. A
 one-time treasure is Low because it waits.

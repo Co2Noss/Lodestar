@@ -1,7 +1,8 @@
 local _, LS = ...
 
--- Compact mode: a small always-on window with just the next few things to do. It reads
--- the same plan as the Today page, so both always agree.
+-- Compact mode: a small always-on window with the next one or two things to do.
+-- One goal keeps it to a single row; more goals grow it to two. It reads the same
+-- plan as the Today page, so both always agree.
 
 local HEADER = 24
 local ROW = 46
@@ -15,7 +16,13 @@ end
 
 function LS:CompactCount()
   local settings = db()
-  return (settings and settings.single) and 1 or 3
+  if settings and settings.single then return 1 end
+  local n = 0
+  for _, on in pairs(self.db and self.db.goals or {}) do
+    if on then n = n + 1 end
+  end
+  if n <= 1 then return 1 end
+  return 2
 end
 
 local TONES = { HIGH = "warn", MEDIUM = "accent", LOW = "muted" }
@@ -53,12 +60,25 @@ function LS:Urgency(activity)
   return Rank("LOW")
 end
 
+-- Compact is the next action, not a second copy of the same vault row.
+local function CompactFamily(activity)
+  local id = (activity and activity.id) or ""
+  local row = id:match("^vault_(raid)_") or id:match("^vault_(activities)_") or id:match("^vault_(world)_")
+  if row then return "vault_" .. row end
+  if id:find("^vault_claim_", 1, true) then return "vault_claim" end
+  return activity.category or id
+end
+
 function LS:CompactActivities()
-  local out = {}
+  local out, seen = {}, {}
   local wanted = self:CompactCount()
   for _, activity in ipairs(self:GetRecommendations()) do
-    if #out >= wanted then break end
-    table.insert(out, activity)
+    local family = CompactFamily(activity)
+    if not seen[family] then
+      seen[family] = true
+      table.insert(out, activity)
+      if #out >= wanted then break end
+    end
   end
   return out
 end
@@ -144,7 +164,7 @@ function LS:CreateCompact()
   local w = self.widgets
   local frame = w.panel(UIParent)
   self.compact = frame
-  frame:SetSize(300, HEADER + ROW * 3 + PADDING)
+  frame:SetSize(300, HEADER + ROW * 2 + PADDING)
   frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -220)
   frame:SetFrameStrata("DIALOG")
   frame:SetToplevel(true)
@@ -218,7 +238,7 @@ function LS:CreateCompact()
   frame.surface = surface
 
   frame.rows = {}
-  for i = 1, 3 do
+  for i = 1, 2 do
     frame.rows[i] = CreateRow(frame)
   end
 

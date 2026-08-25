@@ -43,7 +43,7 @@ There is no time-budget slider. Lodestar ranks everything that matches your goal
 
 ## Compact mode
 
-A small always-on window with the next three things to do (or just the single best one).
+A small always-on window with the next thing to do, or two when more goals are on.
 
 - Toggle it in Settings, with `/ls compact`, or by right-clicking the minimap button.
 - Click an entry for details. Double-click to open the full window.

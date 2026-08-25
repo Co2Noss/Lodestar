@@ -961,8 +961,8 @@ function LS:ProfessionCard(parent, prof, y, width)
         add(line)
         local pending = section[2].pending
         for index, item in ipairs(pending) do
-          if index > 8 then
-            add(string.format("and %d more", #pending - 8), 1)
+          if index > 12 then
+            add(string.format("and %d more", #pending - 12), 1)
             break
           end
           local label = item.label
@@ -1497,7 +1497,7 @@ function LS:SettingsCompact(body, width, y)
 
   local compactNote = text(body, width, 10)
   compactNote:SetPoint("TOPLEFT", 0, y)
-  compactNote:SetText("Click an entry for details, double click for the full window. It collapses on its own in combat.")
+  compactNote:SetText("One goal keeps this to a single row; more goals grow it to two. Click an entry for details, double click for the full window. It collapses on its own in combat.")
   y = y - 32
 
   local resetCompact = button(body, "Reset compact position", width, 32)

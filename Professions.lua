@@ -468,16 +468,20 @@ function LS:GetProfessionRecommendations()
       })
     end
 
-    if prof.secondary and not prof.tracked
-       and (prof.maxSkill or 0) > 0 and (prof.skill or 0) < prof.maxSkill then
+    local needsSkill = (prof.maxSkill or 0) > 0 and (prof.skill or 0) < prof.maxSkill
+    if needsSkill and (not prof.secondary or not prof.tracked) then
       local left = prof.maxSkill - prof.skill
+      local secondary = prof.secondary and not prof.tracked
       table.insert(out, {
         id = "prof_level_" .. prof.skillLineID,
         title = string.format("Level %s (%d / %d)", prof.baseName or prof.name, prof.skill, prof.maxSkill),
         minutes = math.max(15, math.min(60, left)),
-        score = 20,
-        why = string.format("%s is a secondary profession. Skill is the progress that matters, and this character is not at the cap yet.",
-          prof.baseName or prof.name),
+        score = secondary and 20 or 18,
+        why = secondary
+          and string.format("%s is a secondary profession. Skill is the progress that matters, and this character is not at the cap yet.",
+            prof.baseName or prof.name)
+          or string.format("%s is not at the skill cap. First crafts and trainer recipes in the profession window are the leveling path.",
+            prof.baseName or prof.name),
         category = "Professions",
         tags = { CRAFTING = 7 },
         urgency = "MEDIUM",

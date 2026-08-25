@@ -358,13 +358,47 @@ end)()""")
 check("an unclaimed Great Vault is recommended after reset",
       claim == "Claim last week's Great Vault", claim)
 s.exec("C_WeeklyRewards.HasAvailableRewards = function() return false end")
+s.exec("""
+  _G.__oldGetActivities = C_WeeklyRewards.GetActivities
+  C_WeeklyRewards.GetActivities = function(kind)
+    local all = {
+      { type = 1, index = 1, level = 0, threshold = 2, progress = 0, id = 1 },
+      { type = 1, index = 2, level = 0, threshold = 4, progress = 0, id = 2 },
+      { type = 1, index = 3, level = 0, threshold = 6, progress = 0, id = 3 },
+    }
+    if not kind then return all end
+    local out = {}
+    for _, activity in ipairs(all) do
+      if activity.type == kind then table.insert(out, activity) end
+    end
+    return out
+  end
+  __LS:ScanVault()
+""")
+raid_slots = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetVaultRecommendations()) do
+    local why = r.why or ""
+    if why:find("Raid Vault slot", 1, true) then table.insert(out, why) end
+  end
+  return table.concat(out, "\\n")
+end)()""")
+check("an empty Raid Vault only recommends the first unfilled slot",
+      "slot 1" in raid_slots and "slot 2" not in raid_slots and "slot 3" not in raid_slots,
+      raid_slots)
+s.exec("""
+  C_WeeklyRewards.GetActivities = _G.__oldGetActivities
+  __LS:ScanVault()
+""")
 check("gold making stays quiet without a price addon",
       s.eval("#__LS:GetGoldRecommendations()") == 0)
 s.exec("""
   __LS.db.goals.GOLD = true
   Auctionator = { API = { v1 = { GetAuctionPriceByItemID = function(_, id)
     local prices = { [210796] = 8000, [210805] = 25000, [210808] = 22000, [210802] = 18000, [210807] = 20000,
-                     [10822] = 450000 }
+                     [236767] = 9000, [236770] = 22000, [236774] = 20000, [236776] = 18000, [236778] = 21000,
+                     [212664] = 10000, [238511] = 12000, [236963] = 9000, [237015] = 25000, [237017] = 24000,
+                     [224828] = 8000, [33470] = 9000, [21877] = 7000, [10822] = 450000 }
     return prices[id]
   end } } }
 """)
@@ -375,11 +409,43 @@ gold = s.eval("""(function()
 end)()""")
 check("herbalism gold farms rank once Auctionator has prices",
       "Herb Khaz Algar" in gold, gold)
+check("midnight herbalism ranks with the same profession",
+      "Herb Midnight" in gold, gold)
 check("a pet farm ranks when it has an AH listing",
       "Dark Whelplings" in gold, gold)
 check("mining stays quiet without that profession",
-      "Mine Khaz Algar" not in gold, gold)
-s.exec("__LS.db.goals.GOLD = false; Auctionator = nil")
+      "Mine Khaz Algar" not in gold and "Mine Midnight" not in gold, gold)
+check("skinning stays quiet without that profession",
+      "Skin Khaz Algar" not in gold and "Skin Midnight" not in gold, gold)
+check("legacy cloth ranks without tailoring",
+      "Frostweave" in gold and "Netherweave" in gold, gold)
+check("expansion cloth stays quiet without tailoring",
+      "Midnight cloth" not in gold and "Khaz Algar cloth" not in gold, gold)
+s.exec("table.insert(__LS.professions, { parentID = 393, name = 'Skinning' })")
+gold = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetGoldRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("skinning gold farms rank once that profession is trained",
+      "Skin Midnight" in gold and "Skin Khaz Algar" in gold, gold)
+s.exec("table.insert(__LS.professions, { parentID = 197, name = 'Tailoring' })")
+gold = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetGoldRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("tailoring cloth farms rank once that profession is trained",
+      "Midnight cloth" in gold and "Khaz Algar cloth" in gold, gold)
+s.exec("""
+  for i = #__LS.professions, 1, -1 do
+    if __LS.professions[i].parentID == 393 or __LS.professions[i].parentID == 197 then
+      table.remove(__LS.professions, i)
+    end
+  end
+  __LS.db.goals.GOLD = false
+  Auctionator = nil
+""")
 check("a world slot below the cap is not called maxed",
       "Maxed" not in (s.eval("""(function()
         local out = {}
@@ -438,6 +504,22 @@ levels = s.eval("""(function()
 end)()""")
 check("an unmaxed secondary profession is recommended for leveling",
       "Fishing" in levels and "Cooking" in levels and "Archaeology" in levels, levels)
+check("midnight tailoring tracks eight world treasures plus vendor books",
+      s.eval("""(function()
+        local n = 0
+        for _, o in ipairs(__LS.knowledgeSources[2918].objectives) do
+          if o.kind == "TREASURE" then n = n + 1 end
+        end
+        return n
+      end)()""") == 10)
+check("midnight skinning tracks eight world treasures plus vendor books",
+      s.eval("""(function()
+        local n = 0
+        for _, o in ipairs(__LS.knowledgeSources[2917].objectives) do
+          if o.kind == "TREASURE" then n = n + 1 end
+        end
+        return n
+      end)()""") == 11)
 check("cards rank as High, Medium or Low",
       s.eval('(function() local a = __LS:Urgency({urgency="HIGH"}); return a end)()') == "High"
       and s.eval('(function() local a = __LS:Urgency({urgency="MEDIUM"}); return a end)()') == "Medium"
@@ -628,6 +710,25 @@ check("the main window is registered to close on Escape",
 s.exec("__LS:SetCompact(true); __LS.frame:Hide(); __LS:UpdateCompact()")
 s.timers()
 check("compact mode still has rows", s.eval("#__LS:CompactActivities()") > 0)
+s.exec("""
+  for k in pairs(__LS.db.goals) do __LS.db.goals[k] = false end
+  __LS.db.goals.ENDGAME = true
+  __LS.db.compact.single = false
+  __LS.db.compact.collapsed = false
+  __LS:UpdateCompact()
+""")
+check("one goal keeps compact to a single row",
+      s.eval("__LS:CompactCount()") == 1 and s.eval("#__LS:CompactActivities()") == 1)
+height1 = s.eval("__LS.compact:GetHeight()")
+s.exec("__LS.db.goals.CRAFTING = true; __LS:UpdateCompact()")
+check("a second goal expands compact to two rows",
+      s.eval("__LS:CompactCount()") == 2 and s.eval("#__LS:CompactActivities()") == 2)
+height2 = s.eval("__LS.compact:GetHeight()")
+check("compact grows taller when a second row appears", height2 > height1, (height1, height2))
+s.exec("__LS.db.compact.collapsed = true; __LS:UpdateCompact()")
+height0 = s.eval("__LS.compact:GetHeight()")
+check("collapsing compact contracts to the title bar", height0 < height1, (height0, height1))
+s.exec("__LS.db.compact.collapsed = false; __LS:UpdateCompact()")
 check("the window sits above nameplates",
       s.eval('__LS.frame.frameStrata') == "DIALOG")
 check("compact sits above nameplates",

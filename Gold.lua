@@ -2,8 +2,8 @@ local _, LS = ...
 
 -- Gold making is a goal, not a default. Prices come from TSM, Auctionator or
 -- RECrystallize; Lodestar does not invent an AH. The farm list is the collector
--- circuit, not every node in the game: gathering you have trained, plus a few
--- pet farms that never expire.
+-- circuit, not every node in the game: gathering you have trained, cloth from
+-- humanoids, plus a few pet farms that never expire.
 
 LS.goldSourceOrder = { "AUTO", "TSM", "AUCTIONATOR", "RECRYSTALLIZE" }
 LS.goldSourceLabels = {
@@ -25,9 +25,24 @@ local ADDONS = {
     ready = function() return RECrystallize_PriceCheckItemID or RECrystallize_PriceCheck end },
 }
 
--- Khaz Algar rates are conservative node estimates, not a promise. Pets are ranked
+-- Rates are conservative node estimates, not a promise. Pets are ranked
 -- by listing price rather than an invented drop rate.
 local FARMS = {
+  {
+    id = "gold_herb_midnight",
+    title = "Herb Midnight",
+    minutes = 30,
+    profession = 182,
+    where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
+    kind = "gather",
+    items = {
+      { id = 236767, perHour = 36 }, -- Tranquility Bloom
+      { id = 236770, perHour = 10 }, -- Sanguithorn
+      { id = 236774, perHour = 10 }, -- Azeroot
+      { id = 236776, perHour = 8 },  -- Argentleaf
+      { id = 236778, perHour = 8 },  -- Mana Lily
+    },
+  },
   {
     id = "gold_herb_ka",
     title = "Herb Khaz Algar",
@@ -44,6 +59,19 @@ local FARMS = {
     },
   },
   {
+    id = "gold_mine_midnight",
+    title = "Mine Midnight",
+    minutes = 30,
+    profession = 186,
+    where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
+    kind = "gather",
+    items = {
+      { id = 237359, perHour = 30 }, -- Refulgent Copper Ore
+      { id = 237362, perHour = 8 },  -- Umbral Tin Ore
+      { id = 237365, perHour = 8 },  -- Brilliant Silver Ore
+    },
+  },
+  {
     id = "gold_mine_ka",
     title = "Mine Khaz Algar",
     minutes = 30,
@@ -54,6 +82,80 @@ local FARMS = {
       { id = 210928, perHour = 30 }, -- Bismuth
       { id = 210931, perHour = 8 },  -- Aqirite
       { id = 210933, perHour = 8 },  -- Ironclaw Ore
+    },
+  },
+  {
+    id = "gold_skin_midnight",
+    title = "Skin Midnight",
+    minutes = 30,
+    profession = 393,
+    where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
+    kind = "gather",
+    items = {
+      { id = 238511, perHour = 30 }, -- Void-Tempered Leather
+      { id = 238514, perHour = 20 }, -- Void-Tempered Scales
+      { id = 238518, perHour = 4 },  -- Void-Tempered Hide
+      { id = 238520, perHour = 4 },  -- Void-Tempered Plating
+      { id = 238525, perHour = 6 },  -- Fantastic Fur
+      { id = 238522, perHour = 4 },  -- Peerless Plumage
+    },
+  },
+  {
+    id = "gold_skin_ka",
+    title = "Skin Khaz Algar",
+    minutes = 30,
+    profession = 393,
+    where = "Khaz Algar",
+    kind = "gather",
+    items = {
+      { id = 212664, perHour = 30 }, -- Stormcharged Leather
+      { id = 212667, perHour = 20 }, -- Gloom Chitin
+      { id = 212670, perHour = 4 },  -- Thunderous Hide
+      { id = 212674, perHour = 4 },  -- Sunless Carapace
+    },
+  },
+  {
+    id = "gold_cloth_midnight",
+    title = "Farm Midnight cloth",
+    minutes = 30,
+    profession = 197,
+    where = "Eversong Woods Amani trolls, Zul'Aman",
+    kind = "cloth",
+    items = {
+      { id = 236963, perHour = 36 }, -- Bright Linen
+      { id = 237015, perHour = 8 },  -- Sunfire Silk
+      { id = 237017, perHour = 8 },  -- Arcanoweave
+    },
+  },
+  {
+    id = "gold_cloth_ka",
+    title = "Farm Khaz Algar cloth",
+    minutes = 30,
+    profession = 197,
+    where = "Hallowfall Veneration Grounds, Priory follower dungeon",
+    kind = "cloth",
+    items = {
+      { id = 224828, perHour = 36 }, -- Weavercloth
+    },
+  },
+  {
+    id = "gold_cloth_frostweave",
+    title = "Farm Frostweave Cloth",
+    minutes = 30,
+    where = "Icecrown humanoids",
+    kind = "cloth",
+    items = {
+      { id = 33470, perHour = 40 }, -- Frostweave Cloth
+    },
+  },
+  {
+    id = "gold_cloth_netherweave",
+    title = "Farm Netherweave Cloth",
+    minutes = 30,
+    where = "Netherstorm humanoids",
+    kind = "cloth",
+    items = {
+      { id = 21877, perHour = 45 }, -- Netherweave Cloth
     },
   },
   {
@@ -181,29 +283,38 @@ function LS:GetGoldRecommendations()
   for _, farm in ipairs(FARMS) do
     if not farm.profession or KnowsProfession(farm.profession) then
       local copper, priced = 0, 0
+      local hourly = farm.kind == "gather" or farm.kind == "cloth"
       for _, item in ipairs(farm.items or {}) do
         local price = self:GetItemPrice(item.id)
         if price then
           priced = priced + 1
-          if farm.kind == "gather" then
+          if hourly then
             copper = copper + price * (item.perHour or 0)
           elseif price > copper then
             copper = price
           end
         end
       end
-      local minCopper = farm.kind == "gather" and 50000 or 10000
+      local minCopper = hourly and 50000 or 10000
       if priced > 0 and copper >= minCopper then
         local why
         if farm.kind == "gather" then
           why = string.format("About %s an hour at %s prices. You have the profession, so the nodes are yours to take.",
             self:FormatGold(copper), sourceName)
+        elseif farm.kind == "cloth" then
+          if farm.profession then
+            why = string.format("About %s an hour at %s prices. Humanoids drop it; Tailoring is the gather skill.",
+              self:FormatGold(copper), sourceName)
+          else
+            why = string.format("About %s an hour at %s prices. Anyone can loot this cloth, no gathering profession required.",
+              self:FormatGold(copper), sourceName)
+          end
         else
           why = string.format("Listed around %s on the AH (%s). The farm never expires.",
             self:FormatGold(copper), sourceName)
         end
         local score
-        if farm.kind == "gather" then
+        if hourly then
           score = 16 + math.min(18, math.floor(copper / 20000))
         else
           score = 14 + math.min(16, math.floor(copper / 50000))
@@ -219,7 +330,7 @@ function LS:GetGoldRecommendations()
           urgency = "LOW",
           detail = {
             source = farm.where or farm.title,
-            potential = farm.kind == "gather" and (self:FormatGold(copper) .. " / hour") or self:FormatGold(copper),
+            potential = hourly and (self:FormatGold(copper) .. " / hour") or self:FormatGold(copper),
             matters = why,
           },
         })

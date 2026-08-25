@@ -1,3 +1,18 @@
+# 1.17.2
+
+- Compact mode shows one row when a single goal is on and two when more are. Height
+  follows that, so the window contracts and expands instead of always listing three.
+- A Great Vault row only recommends the next slot that still needs work. Later empty
+  slots stay quiet until the earlier one is filled.
+
+# 1.17.1
+
+- Gold making now ranks Midnight herbs, ore, skins and cloth, Khaz Algar skins and cloth,
+  and older cloth anyone can loot. Same price addons, same quiet if none is loaded.
+- Midnight professions now track all eight world knowledge treasures plus the vendor books,
+  from the WeeklyKnowledge data set. Unspent knowledge, weeklies, drops and the live
+  specialization tree were already ranked; recipe checklists stay in the profession window.
+
 # 1.17.0
 
 - If last week's Great Vault is still sitting there after Tuesday reset, Today tells you
