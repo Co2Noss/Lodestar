@@ -1,3 +1,16 @@
+# 1.1.1
+
+- Treasure cards with a known location get a **Waypoint** button. TomTom pins every
+  remaining pickup and aims the arrow at the closest; without it, Lodestar uses the
+  client's single map pin. Midnight gathering farms get a **Map** button for the zone
+  circuit. Treasure coordinates come from WeeklyKnowledge, the same source as the quest IDs.
+- With HandyNotes loaded, Solo content ranks rares it is currently showing in your zone.
+  Known rewards stay hidden because HandyNotes already hid them. Lodestar does not invent
+  spawn data.
+- README and CurseForge now list optional addons: TSM / Auctionator / RECrystallize for
+  gold prices, TomTom for multiple waypoints, HandyNotes for rares, and ElvUI for live
+  theme media.
+
 # 1.0.1
 
 - `/ls debug` turns off every other addon and reloads, so you can tell if an error is

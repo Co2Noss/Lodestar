@@ -35,6 +35,15 @@
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
+## Optional addons
+
+Lodestar works on its own. These addons unlock extra behaviour if they are loaded:
+
+- **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house.
+- **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
+- **HandyNotes** — nearby rares that HandyNotes is currently showing (known rewards stay hidden if that plugin hid them). Without it, Lodestar stays quiet about rares and does not invent spawn data.
+- **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture and font.
+
 ## First login
 
 Lodestar asks what you care about before it recommends anything. Every goal starts off, the
@@ -67,7 +76,7 @@ page is remembered.
 Every card shows its priority, estimated time and score. Priority is High, Medium or Low.
 Unspent knowledge, weekly lockouts and an unclaimed Great Vault are High, because missing
 them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
-catch-up, dungeon mount farms, unfinished reputations and gold farms are Low, because they
+HandyNotes rares, catch-up, dungeon mount farms, unfinished reputations and gold farms are Low, because they
 wait. Score still decides the order.
 
 There is no time budget. Lodestar ranks and groups everything instead of asking how long you
@@ -214,6 +223,23 @@ position are saved. Escape closes the main window; compact mode stays up.
 - `/ls debug` — disable every other addon and reload, so you can tell if an error is Lodestar
 - `/ls debug off` — turn those addons back on (this character only)
 - `/ls reset`
+
+## Waypoints
+
+Treasure recommendations that have a known location get a **Waypoint** button. With
+[TomTom](https://www.curseforge.com/wow/addons/tomtom) loaded, that pins every remaining
+pickup and points the arrow at the closest. Without TomTom, Lodestar uses the client's one
+map pin and super-tracks it.
+
+HandyNotes rares get the same button: Lodestar pins what HandyNotes is currently showing
+in your zone, not a separate spawn list.
+
+Midnight gathering farms get a **Map** button that opens the zone circuit (Eversong Woods →
+Zul'Aman → Harandar → Voidstorm). Node-by-node herb/ore routes are not invented; those pins
+only appear when coordinates are in the data.
+
+Coordinates for profession treasures come from
+[WeeklyKnowledge](https://github.com/DennisRas/WeeklyKnowledge), the same source as the quest IDs.
 
 ## Debug isolation
 

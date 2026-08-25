@@ -45,6 +45,7 @@ function LS:FindActivity(id)
     self.GetMountRecommendations and self:GetMountRecommendations() or {},
     self.GetReputationRecommendations and self:GetReputationRecommendations() or {},
     self.GetGoldRecommendations and self:GetGoldRecommendations() or {},
+    self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {},
   }) do
     for _, activity in ipairs(list) do
       if activity.id == id then return activity end

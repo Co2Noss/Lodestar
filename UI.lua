@@ -675,6 +675,16 @@ function LS:DetailsPage()
     table.insert(rows, { "Still open", table.concat(detail.steps, "\n") })
   end
 
+  if activity.waypoints then
+    local lines = {}
+    for _, point in ipairs(activity.waypoints) do
+      table.insert(lines, (point.title or "Location") .. " — " .. self:FormatWaypoint(point))
+    end
+    if #lines > 0 then
+      table.insert(rows, { "On the map", table.concat(lines, "\n") })
+    end
+  end
+
   local rewards = detail.rewards
   if rewards then
     local parts = {}
@@ -704,6 +714,15 @@ function LS:DetailsPage()
   end
 
   y = y - 8
+  if activity.waypoints then
+    local way = button(body, self:WaypointButtonLabel(activity.waypoints) or "Waypoint", 130)
+    way:SetPoint("TOPLEFT", 0, y)
+    highlight(way)
+    way:SetScript("OnMouseUp", function()
+      self:MarkWaypoints(activity.waypoints, activity.title)
+    end)
+    y = y - 40
+  end
   local tracked = self.db.tracked[activity.id]
   local trackButton = button(body, tracked and "Untrack" or "Track", 130)
   trackButton:SetPoint("TOPLEFT", 0, y)
@@ -1302,6 +1321,23 @@ function LS:SettingsGoals(body, width, y)
     goldNote:SetText("No price addon is loaded. Install TSM, Auctionator or RECrystallize. Lodestar does not invent an auction house.")
   end
   y = y - 40
+
+  local hnHeading = text(body, width, 13)
+  hnHeading:SetPoint("TOPLEFT", 0, y)
+  hnHeading:SetTextColor(unpack(self.colors.accent))
+  hnHeading:SetText("HandyNotes")
+  y = y - 24
+
+  local hnNote = text(body, width, 10)
+  hnNote:SetPoint("TOPLEFT", 0, y)
+  if not self.db.goals.SOLO then
+    hnNote:SetText("Solo content stays off the plan until that goal is on. HandyNotes rares follow once it is.")
+  elseif self.HasHandyNotes and self:HasHandyNotes() then
+    hnNote:SetText("HandyNotes is loaded. Today will rank rares it is currently showing in your zone. Known rewards stay hidden because HandyNotes already hid them.")
+  else
+    hnNote:SetText("Install HandyNotes and a rares plugin to rank nearby rares. Lodestar does not invent spawn data.")
+  end
+  y = y - 48
   return y
 end
 

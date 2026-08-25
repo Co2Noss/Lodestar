@@ -114,6 +114,10 @@ local function Tally(objectives)
           kind = objective.kind,
           count = missing,
           points = points,
+          map = objective.map,
+          x = objective.x,
+          y = objective.y,
+          note = objective.note,
         })
       end
     end
@@ -359,6 +363,11 @@ local function Plural(count, word)
   return count == 1 and word or (word .. "s")
 end
 
+local function WaypointsFromPending(pending)
+  if not LS.NormalizeWaypoints then return nil end
+  return LS:NormalizeWaypoints(pending)
+end
+
 function LS:GetProfessionRecommendations()
   local out = {}
   for _, prof in ipairs(self:VisibleProfessions()) do
@@ -426,6 +435,7 @@ function LS:GetProfessionRecommendations()
     local treasures = prof.treasures
     if treasures and treasures.done < treasures.total then
       local left = treasures.total - treasures.done
+      local points = WaypointsFromPending(treasures.pending)
       table.insert(out, {
         id = "kp_treasure_" .. prof.skillLineID,
         title = string.format("Collect %d %s %s", left, prof.name, Plural(left, "treasure")),
@@ -437,6 +447,9 @@ function LS:GetProfessionRecommendations()
         tags = { CRAFTING = 8 },
         urgency = "LOW",
         priority = "ONE TIME",
+        waypoints = points,
+        openLabel = points and (LS:WaypointButtonLabel(points) or "Waypoint") or nil,
+        open = points and function() LS:MarkWaypoints(points, prof.name .. " treasures") end or nil,
         detail = {
           source = prof.name,
           current = treasures.done .. "/" .. treasures.total .. " collected",

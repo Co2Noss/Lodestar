@@ -128,6 +128,24 @@ end
 UIParent = new("Frame", "UIParent")
 Minimap = new("Frame", "Minimap")
 GameTooltip = new("Frame", "GameTooltip")
+GameTooltipTextLeft1 = { GetText = function(self) return self._text end }
+function GameTooltip:SetText(t)
+  self._tip = t
+  GameTooltipTextLeft1._text = t
+end
+function GameTooltip:AddLine(t)
+  if not GameTooltipTextLeft1._text then
+    GameTooltipTextLeft1._text = t
+    self._tip = t
+  end
+end
+function GameTooltip:ClearLines()
+  self._tip = nil
+  GameTooltipTextLeft1._text = nil
+end
+function GameTooltip:GetText()
+  return self._tip
+end
 SlashCmdList = {}
 UISpecialFrames = {}
 tinsert = table.insert
@@ -306,6 +324,41 @@ C_UIWidgetManager = {
   end,
 }
 C_QuestLog = { IsQuestFlaggedCompleted = function() return false end }
+
+MAP_NAMES = {
+  [2393] = "Silvermoon City",
+  [2395] = "Eversong Woods",
+  [2413] = "Harandar",
+  [2405] = "Voidstorm",
+  [2437] = "Zul'Aman",
+}
+UserWaypoint = nil
+SuperTrackedUserWaypoint = false
+OpenedWorldMaps = {}
+TomTomWaypoints = {}
+
+UiMapPoint = {
+  CreateFromCoordinates = function(map, x, y)
+    return { uiMapID = map, position = { x = x, y = y } }
+  end,
+}
+C_Map = {
+  GetMapInfo = function(id) return MAP_NAMES[id] and { name = MAP_NAMES[id], mapID = id } or { name = "Map " .. tostring(id), mapID = id } end,
+  GetBestMapForUnit = function() return 2393 end,
+  GetPlayerMapPosition = function()
+    return { x = 0.5, y = 0.5, GetXY = function(s) return s.x, s.y end }
+  end,
+  CanSetUserWaypointOnMap = function() return true end,
+  SetUserWaypoint = function(point) UserWaypoint = point end,
+  ClearUserWaypoint = function() UserWaypoint = nil end,
+  HasUserWaypoint = function() return UserWaypoint ~= nil end,
+}
+C_SuperTrack = {
+  SetSuperTrackedUserWaypoint = function(on) SuperTrackedUserWaypoint = on and true or false end,
+}
+function OpenWorldMap(id)
+  table.insert(OpenedWorldMaps, id)
+end
 
 C_Reputation = {
   ExpandAllFactionHeaders = function() end,

@@ -17,7 +17,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.0.1](https://github.com/Co2Noss/Lodestar/releases/tag/v1.0.1)
+**Latest release:** [v1.1.1](https://github.com/Co2Noss/Lodestar/releases/tag/v1.1.1)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -26,6 +26,13 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 ## What it does
 
 On first login Lodestar asks what you care about: Great Vault and endgame, solo content, professions, mounts, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
+
+Lodestar works on its own. Optional addons unlock extra behaviour if they are loaded:
+
+- **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet.
+- **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
+- **HandyNotes** — nearby rares that HandyNotes is currently showing. Known rewards stay hidden if that plugin hid them. Without it, Lodestar stays quiet about rares.
+- **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture, and font.
 
 From there it builds a plan:
 
@@ -36,7 +43,7 @@ From there it builds a plan:
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status.
 - **Settings** — Goals, Appearance, Compact, and Layout on their own tabs.
 
-Each recommendation shows **priority**, estimated time, and score. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
+Each recommendation shows **priority**, estimated time, and score. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
 
 There is no time-budget slider. Lodestar ranks everything that matches your goals instead of hiding whatever does not fit a session length.
 
@@ -75,6 +82,8 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls debug` | Disable every other addon and reload, to see if an error is Lodestar |
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |
+
+Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes rares get the same button for pins it is currently showing. Midnight gathering farms have a **Map** button for the zone circuit.
 
 Left-click the minimap button for the full window. Right-click for compact mode.
 

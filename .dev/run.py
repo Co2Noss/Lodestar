@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "PlayerData.lua",
+    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
     "Vault.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "UI.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -592,6 +592,148 @@ check("midnight skinning tracks eight world treasures plus vendor books",
         end
         return n
       end)()""") == 11)
+
+# --- waypoints ----------------------------------------------------------
+print()
+print("-- waypoints --")
+check("alchemy peacebloom has a WeeklyKnowledge coordinate",
+      s.eval("__LS.knowledgeSources[2906].objectives[3].map") == 2393
+      and abs(s.eval("__LS.knowledgeSources[2906].objectives[3].x") - 49.11) < 0.01,
+      s.eval("__LS.knowledgeSources[2906].objectives[3].map"))
+s.exec("UserWaypoint = nil; SuperTrackedUserWaypoint = false")
+s.exec("""
+  __LS:MarkWaypoints({ { map = 2393, x = 49.11, y = 75.84, title = "Peacebloom" } })
+""")
+check("without TomTom the client pin is used",
+      s.eval("UserWaypoint ~= nil and UserWaypoint.uiMapID") == 2393)
+check("the client pin is super-tracked",
+      s.eval("SuperTrackedUserWaypoint") is True)
+s.exec("""
+  TomTomWaypoints = {}
+  TomTomClosest = false
+  TomTom = {
+    AddWaypoint = function(_, map, x, y, opts)
+      local uid = { map = map, x = x, y = y, title = opts and opts.title }
+      table.insert(TomTomWaypoints, uid)
+      return uid
+    end,
+    RemoveWaypoint = function() end,
+    SetClosestWaypoint = function() TomTomClosest = true end,
+  }
+  UserWaypoint = nil
+  __LS:MarkWaypoints({
+    { map = 2393, x = 49.11, y = 75.84, title = "A" },
+    { map = 2393, x = 47.75, y = 51.67, title = "B" },
+  })
+""")
+check("TomTom pins every remaining point",
+      s.eval("#TomTomWaypoints") == 2, s.eval("#TomTomWaypoints"))
+check("TomTom aims the arrow at the closest pin",
+      s.eval("TomTomClosest") is True)
+s.exec("OpenedWorldMaps = {}; TomTom = nil")
+s.exec("""
+  __LS:MarkWaypoints({
+    { map = 2395, title = "Eversong Woods" },
+    { map = 2437, title = "Zul'Aman" },
+  })
+""")
+check("a zone circuit opens the first map when there are no coordinates",
+      s.eval("OpenedWorldMaps[1]") == 2395, s.eval("OpenedWorldMaps[1]"))
+
+print()
+print("-- handynotes rares --")
+check("without HandyNotes rares stay off the plan",
+      s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
+s.exec("""
+  local A, B = 49117584, 47755167
+  local visible = { [A] = true, [B] = true }
+  HandyNotes = {
+    plugins = {
+      Rares = {
+        GetNodes2 = function(_, mapID)
+          if mapID ~= 2393 then return function() end end
+          return pairs(visible)
+        end,
+        OnEnter = function(_, _, coord)
+          GameTooltip:SetText(coord == A and "Peacebloom Rare" or "Other Rare")
+        end,
+      },
+      Known = {
+        GetNodes2 = function() return function() end end,
+      },
+    },
+    db = { profile = { enabled = true, enabledPlugins = { Rares = true, Known = true } } },
+    getXY = function(_, id)
+      return math.floor(id / 10000) / 10000, (id % 10000) / 10000
+    end,
+  }
+""")
+hn = s.eval("""(function()
+  local recs = __LS:GetHandyNotesRecommendations()
+  local r = recs[1]
+  if not r then return "none" end
+  local titles = {}
+  for _, p in ipairs(r.waypoints or {}) do table.insert(titles, p.title) end
+  return table.concat({
+    tostring(#recs), r.id, r.title, r.category, tostring(#r.waypoints),
+    table.concat(titles, ","),
+  }, "|")
+end)()""")
+check("HandyNotes ranks one solo rec for the visibles it is showing",
+      hn.startswith("1|hn_rares_2393|Hunt 2 rares HandyNotes is showing in Silvermoon City|Solo content|2|")
+      and "Peacebloom Rare" in hn and "Other Rare" in hn, hn)
+check("FindActivity can open that HandyNotes rec",
+      s.eval('__LS:FindActivity("hn_rares_2393") ~= nil') is True)
+ranked = s.eval("""(function()
+  for _, r in ipairs(__LS:GetRecommendations()) do
+    if r.id == "hn_rares_2393" then return r.title end
+  end
+end)()""")
+check("Solo content ranks HandyNotes rares",
+      ranked and "HandyNotes" in ranked, ranked)
+s.exec("__LS.db.goals.SOLO = false")
+check("HandyNotes rares stay quiet while Solo content is off",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "hn_rares_2393" then return true end
+        end
+        return false
+      end)()""") is False)
+s.exec("__LS.db.goals.SOLO = true")
+s.exec("HandyNotes.db.profile.enabledPlugins.Rares = false")
+check("a disabled HandyNotes plugin is skipped",
+      s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
+s.exec("HandyNotes.db.profile.enabledPlugins.Rares = true")
+s.exec("HandyNotes.plugins.Rares.GetNodes2 = function() return function() end end")
+check("known-hidden HandyNotes pins stay off the plan",
+      s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
+s.exec("""
+  local many = {}
+  for i = 1, 12 do
+    many[(4800 + i) * 10000 + 5000] = true
+  end
+  many[500 * 10000 + 500] = true
+  many[600 * 10000 + 500] = true
+  many[700 * 10000 + 500] = true
+  HandyNotes.plugins.Rares.GetNodes2 = function(_, mapID)
+    if mapID ~= 2393 then return function() end end
+    return pairs(many)
+  end
+  HandyNotes.plugins.Rares.OnEnter = nil
+""")
+capped = s.eval("""(function()
+  local r = __LS:GetHandyNotesRecommendations()[1]
+  if not r then return "none" end
+  return tostring(#r.waypoints) .. "|" .. r.title
+end)()""")
+check("HandyNotes waypoints cap at the closest 12",
+      capped.startswith("12|Hunt 15 rares"), capped)
+s.exec("__LS:SetPageTab('SETTINGS', 'GOALS'); __LS:ShowPage('SETTINGS')")
+s.timers()
+check("Settings notes that HandyNotes is loaded",
+      "HandyNotes is loaded" in s.texts(), s.texts())
+s.exec("HandyNotes = nil")
+
 check("cards rank as High, Medium or Low",
       s.eval('(function() local a = __LS:Urgency({urgency="HIGH"}); return a end)()') == "High"
       and s.eval('(function() local a = __LS:Urgency({urgency="MEDIUM"}); return a end)()') == "Medium"

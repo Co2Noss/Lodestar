@@ -60,6 +60,12 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.db.goals.SOLO and self.GetHandyNotesRecommendations then
+    for _, rare in ipairs(self:GetHandyNotesRecommendations()) do
+      consider(rare, rare.score)
+    end
+  end
+
   table.sort(out, function(a, b)
     if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
     return a.title < b.title

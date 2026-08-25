@@ -35,6 +35,12 @@ local FARMS = {
     profession = 182,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
     kind = "gather",
+    route = {
+      { map = 2395, title = "Eversong Woods" },
+      { map = 2437, title = "Zul'Aman" },
+      { map = 2413, title = "Harandar" },
+      { map = 2405, title = "Voidstorm" },
+    },
     items = {
       { id = 236767, perHour = 36 }, -- Tranquility Bloom
       { id = 236770, perHour = 10 }, -- Sanguithorn
@@ -65,6 +71,12 @@ local FARMS = {
     profession = 186,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
     kind = "gather",
+    route = {
+      { map = 2395, title = "Eversong Woods" },
+      { map = 2437, title = "Zul'Aman" },
+      { map = 2413, title = "Harandar" },
+      { map = 2405, title = "Voidstorm" },
+    },
     items = {
       { id = 237359, perHour = 30 }, -- Refulgent Copper Ore
       { id = 237362, perHour = 8 },  -- Umbral Tin Ore
@@ -91,6 +103,12 @@ local FARMS = {
     profession = 393,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
     kind = "gather",
+    route = {
+      { map = 2395, title = "Eversong Woods" },
+      { map = 2437, title = "Zul'Aman" },
+      { map = 2413, title = "Harandar" },
+      { map = 2405, title = "Voidstorm" },
+    },
     items = {
       { id = 238511, perHour = 30 }, -- Void-Tempered Leather
       { id = 238514, perHour = 20 }, -- Void-Tempered Scales
@@ -121,6 +139,10 @@ local FARMS = {
     profession = 197,
     where = "Eversong Woods Amani trolls, Zul'Aman",
     kind = "cloth",
+    route = {
+      { map = 2395, title = "Eversong Woods" },
+      { map = 2437, title = "Zul'Aman" },
+    },
     items = {
       { id = 236963, perHour = 36 }, -- Bright Linen
       { id = 237015, perHour = 8 },  -- Sunfire Silk
@@ -328,6 +350,9 @@ function LS:GetGoldRecommendations()
           category = "Gold",
           tags = { GOLD = 12 },
           urgency = "LOW",
+          waypoints = farm.route,
+          openLabel = farm.route and LS:WaypointButtonLabel(farm.route) or nil,
+          open = farm.route and function() LS:MarkWaypoints(farm.route, farm.title) end or nil,
           detail = {
             source = farm.where or farm.title,
             potential = hourly and (self:FormatGold(copper) .. " / hour") or self:FormatGold(copper),
