@@ -1,3 +1,8 @@
+# 1.12.1
+
+- The window and compact mode now sit above nameplates, so Ellesmere's personal plate
+  no longer draws through the cards.
+
 # 1.12.0
 
 - Today, Great Vault and Professions now use the same tab strip as Settings, so moving

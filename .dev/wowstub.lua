@@ -40,6 +40,9 @@ function methods.GetWidth(self) return self.w end
 function methods.GetHeight(self) return self.h end
 function methods.GetPoint(self) return "CENTER", nil, "CENTER", 0, 0 end
 function methods.GetFrameLevel(self) return 1 end
+function methods.SetFrameStrata(self, strata) self.frameStrata = strata end
+function methods.GetFrameStrata(self) return self.frameStrata end
+function methods.SetToplevel(self, v) self.toplevel = v and true or false end
 function methods.GetVerticalScroll(self) return 0 end
 function methods.GetChildren(self) return unpack(self.children) end
 function methods.GetRegions(self) return unpack(self.regions) end

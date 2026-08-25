@@ -393,6 +393,10 @@ check("Today no longer has Collapse all", "Collapse all" not in today)
 s.exec("__LS:SetCompact(true); __LS.frame:Hide(); __LS:UpdateCompact()")
 s.timers()
 check("compact mode still has rows", s.eval("#__LS:CompactActivities()") > 0)
+check("the window sits above nameplates",
+      s.eval('__LS.frame.frameStrata') == "DIALOG")
+check("compact sits above nameplates",
+      s.eval('__LS.compact and __LS.compact.frameStrata') == "DIALOG")
 
 print()
 if failures:

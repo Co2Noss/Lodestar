@@ -163,6 +163,10 @@ function LS:CreateUI()
   self.frame = frame
   frame:SetSize(960, 680)
   frame:SetPoint("CENTER")
+  -- Nameplates, including Ellesmere's personal plate, live on HIGH. MEDIUM (UIParent's
+  -- default) lets them draw through the cards.
+  frame:SetFrameStrata("DIALOG")
+  frame:SetToplevel(true)
   frame:SetMovable(true)
   frame:SetResizable(true)
   frame:SetClampedToScreen(true)
