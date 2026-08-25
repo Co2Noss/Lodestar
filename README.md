@@ -138,6 +138,18 @@ position are saved.
 - `/ls compact single`
 - `/ls reset`
 
+## Releases
+
+CurseForge packages from git tags and sets the file type from the tag name:
+
+- `v1.13.0-alpha` — alpha (`alpha` anywhere in the tag)
+- `v1.12.1-beta` — beta (`beta` anywhere in the tag)
+- `v1.13.0` — release (no `alpha` or `beta` in the tag)
+
+The word `alpha` or `beta` in the tag is what CurseForge looks for. A tag with neither is a
+release. Untagged commits are only packaged if the webhook is set to package every commit,
+and those files are always marked alpha.
+
 ## Development
 
 `.dev/run.py` loads every file into a stubbed client, fires the real login events and clicks
