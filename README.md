@@ -58,9 +58,15 @@ page never interrupts an upgrade.
 
 ## Pages
 
-- **Today** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered. Mount farms sit on their own tab when that goal is on.
-- **Great Vault** — Raid, Dungeons and World each have their own tab, with every slot, its current reward quality, and what would improve it. If last week's chest is still sitting there, Today tells you to claim it.
-- **Professions** — one tab per trained profession, including Cooking, Fishing and Archaeology: skill, unspent knowledge, points already spent, weekly quests, drops, treasures and catch-up. The Open button, or a click on the page below the tabs, opens that profession. Specializations is there for trees. Secondaries have no knowledge tree, so they show skill.
+The left menu is workspaces, not content categories. Great Vault and Professions still
+exist as Progress and as tabs on Today's Plan; they are not a second top-level menu.
+
+- **Dashboard** — a snapshot of the plan, vault slots, unspent knowledge, and the next card.
+- **Today's Plan** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
+- **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge.
+- **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up. Which of those to rank is still chosen in Settings.
+- **Progress** — this character's Great Vault (Raid, Dungeons, World) and professions.
+- **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status.
 - **Settings** — split into Goals, Reputation, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
 
@@ -68,16 +74,16 @@ page never interrupts an upgrade.
 
 Recommendations are scored against the goals you chose on first login, which Settings can
 change at any time, then grouped by where the work happens: Great Vault, Professions,
-Mounts, Reputation, Solo content, Questing. Today, Great Vault, Professions and Settings each use
-the same tab strip, so moving between groups is a click rather than a scroll. Tab order on
-Today is stable; the work inside a tab is still ranked best first. The last tab on each
-page is remembered.
+Mounts, Reputation, Solo content, Questing. Today's Plan, Weekly Plan, Great Vault, Professions
+and Settings each use the same tab strip, so moving between groups is a click rather than a
+scroll. Tab order is stable; the work inside a tab is still ranked best first. The last tab
+on each page is remembered.
 
 Every card shows its priority and score. Priority is High, Medium or Low.
-Unspent knowledge, weekly lockouts and an unclaimed Great Vault are High, because missing
-them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
-HandyNotes rares, catch-up, dungeon mount farms, unfinished reputations and gold farms are Low, because they
-wait. Score still decides the order.
+Unspent knowledge, weekly lockouts, an unclaimed Great Vault and a stalled campaign are High,
+because missing them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
+HandyNotes rares, catch-up, dungeon mount farms, unfinished reputations, gold farms and an empty quest
+log asking you to check the map are Low, because they wait. Score still decides the order.
 
 There is no time budget. Lodestar ranks and groups everything instead of asking how long you
 have and hiding whatever does not fit.
@@ -97,7 +103,14 @@ separate job.
 
 A Bountiful Delve stays off Today once the World Vault is finished, you have no Restored
 Coffer Keys, you cannot make another key from shards, and this week's T11 Gilded Stashes
-are done.
+are done. While it is worth doing, Lodestar names today's bountiful delves from the map
+POIs rather than a stored list. If the client has not named them yet, the card still
+asks you to run one and to check the map.
+
+Questing ranks the current campaign (including catch-up when a chapter is stalled) and a
+few quests already in the log. World quests stay off that card. If the log is empty and
+no campaign work is waiting, Lodestar asks you to check the map and pick up quests
+instead of inventing a circuit.
 
 ## Professions and knowledge
 
@@ -233,6 +246,10 @@ map pin and super-tracks it.
 
 HandyNotes rares get the same button: Lodestar pins rares a notes pack is currently
 showing in your zone, not treasures or other map marks, and not a separate spawn list.
+
+Bountiful delves use the same pin when the map has named today's bountifuls and given
+coordinates. Campaign and quest-log cards open the map the client already associates
+with that quest.
 
 Midnight gathering farms get a **Map** button that opens the zone circuit (Eversong Woods →
 Zul'Aman → Harandar → Voidstorm). Node-by-node herb/ore routes are not invented; those pins

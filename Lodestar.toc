@@ -1,7 +1,7 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.2.0
+## Version: 1.3.0
 ## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI
 ## SavedVariables: LodestarDB, LodestarDebugDB
 Core.lua
@@ -11,6 +11,8 @@ Waypoints.lua
 Rares.lua
 Professions.lua
 Vault.lua
+Delves.lua
+Quests.lua
 Catalog.lua
 Mounts.lua
 Reputation.lua

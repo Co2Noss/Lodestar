@@ -15,7 +15,7 @@ ADDON = os.path.dirname(HERE)
 # Load order must match the .toc.
 FILES = [
     "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
-    "Vault.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
+    "Vault.lua", "Delves.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "UI.lua", "Compact.lua", "Minimap.lua",
 ]
 
@@ -164,6 +164,16 @@ check("Today shows the plan rather than an empty state",
 check("Today filters with tabs instead of collapsing",
       "Solo content" in page and "Collapse all" not in page and "Expand all" not in page,
       page)
+check("the sidebar is workspaces rather than content categories",
+      s.eval("""(function()
+        return __LS.nav.DASHBOARD ~= nil and __LS.nav.WEEKLY ~= nil
+          and __LS.nav.LONGTERM ~= nil and __LS.nav.PROGRESS ~= nil
+          and __LS.nav.IGNORED ~= nil and __LS.nav.COMPLETED ~= nil
+          and __LS.nav.VAULT == nil and __LS.nav.PROFESSIONS == nil
+      end)()""") is True)
+check("sidebar sections are higher-level workspaces",
+      "PLANNING" in page and "TRACKING" in page and "ACCOUNT" in page
+      and "Today's Plan" in page and "Dashboard" in page, page)
 check("the welcome page is not shown again",
       s.eval("__LS:LandingPage()") == "TODAY")
 
@@ -527,7 +537,8 @@ check("a world slot below the cap is not called maxed",
         return table.concat(out, "\\n")
       end)()""") or ""))
 check("the plan still groups into categories", s.eval("#(select(1, __LS:GetCategories()))") > 0)
-for name in ["TODAY", "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "WELCOME", "DETAILS"]:
+for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "PROGRESS", "IGNORED", "COMPLETED",
+             "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "WELCOME", "DETAILS"]:
     s.exec(f"__LS:ShowPage('{name}')")
     s.timers()
     check(f"the {name} page renders", len(s.texts()) > 0)
@@ -542,6 +553,32 @@ check("the Raid tab does not list World run tiers", "best 11" not in vault, vaul
 s.click("World")
 check("the World tab is remembered", s.eval("__LS:PageTab('VAULT')") == "world")
 check("the World tab shows this week's delve tiers", "best 11" in s.texts(), s.texts())
+
+s.exec("__LS:ShowPage('PROGRESS')")
+s.timers()
+progress = s.texts()
+check("Progress is a hub for Great Vault and Professions",
+      "Great Vault" in progress and "Professions" in progress
+      and "this character" in progress, progress)
+s.click("Open")
+check("Progress opens the Great Vault page", s.eval("__LS.page") == "VAULT")
+check("the Great Vault page still highlights the Progress workspace",
+      s.eval('__LS:NavActive("PROGRESS")') is True)
+weekly = s.eval("""(function()
+  local names = {}
+  for _, g in ipairs(__LS:GetCategories("WEEKLY")) do table.insert(names, g.name) end
+  return table.concat(names, ",")
+end)()""")
+check("weekly plan is reset work, not a second copy of every Today tab",
+      "Great Vault" in weekly, weekly)
+s.exec("__LS.db.dismissed.delve = true; __LS:ShowPage('IGNORED')")
+s.timers()
+ignored = s.texts()
+check("ignored tasks lists a dismissed card",
+      "Bountiful Delve" in ignored or "bountiful" in ignored.lower(), ignored)
+s.click("Restore")
+check("restore puts the card back on the plan",
+      s.eval("__LS.db.dismissed.delve") in (None, False))
 
 s.exec("__LS:ShowPage('PROFESSIONS')")
 s.timers()
@@ -816,6 +853,168 @@ s.exec("""
   __LS:ScanVault()
 """)
 
+print()
+print("-- bountiful delves from the map --")
+s.exec("""
+  local function pos(x, y)
+    return { x = x, y = y, GetXY = function(s) return s.x, s.y end }
+  end
+  DelvePOIs = {
+    [2395] = {
+      {
+        areaPoiID = 11, name = "Myconic Grotto", atlasName = "delves-bountiful",
+        isPrimaryMapForPOI = true, position = pos(0.42, 0.55),
+      },
+      {
+        areaPoiID = 12, name = "Ordinary Hollow", atlasName = "delves",
+        isPrimaryMapForPOI = true, position = pos(0.20, 0.30),
+      },
+    },
+    [2405] = {
+      {
+        areaPoiID = 21, name = "Nightfall Sanctum", atlasName = "delves-bountiful",
+        isPrimaryMapForPOI = true, position = pos(0.61, 0.44),
+      },
+    },
+    [2413] = {
+      {
+        areaPoiID = 31, name = "Fungal Folly Chest", atlasName = "vignetteloot",
+        isPrimaryMapForPOI = true, position = pos(0.50, 0.50),
+      },
+    },
+  }
+""")
+named = s.eval("""(function()
+  local r
+  for _, rec in ipairs(__LS:GetBountifulDelveRecommendations()) do
+    if rec.id == "delve" then r = rec break end
+  end
+  if not r then return "none" end
+  local titles = {}
+  for _, p in ipairs(r.waypoints or {}) do table.insert(titles, p.title) end
+  return table.concat({ r.title, r.why or "", table.concat(titles, ",") }, "|")
+end)()""")
+check("named bountiful delves come from the map POIs",
+      "Run today's bountiful delves" in named
+      and "Myconic Grotto" in named and "Nightfall Sanctum" in named, named)
+check("non-bountiful delves and treasure marks stay off that card",
+      "Ordinary Hollow" not in named and "Fungal Folly Chest" not in named, named)
+check("FindActivity can open the named bountiful rec",
+      s.eval('(__LS:FindActivity("delve") or {}).title')
+      == "Run today's bountiful delves")
+s.exec("DelvePOIs = {}")
+generic = s.eval("""(function()
+  for _, r in ipairs(__LS:GetBountifulDelveRecommendations()) do
+    if r.id == "delve" then return r.title end
+  end
+end)()""")
+check("with no named POIs the generic Bountiful Delve rec remains",
+      generic == "Complete a Bountiful Delve", generic)
+
+print()
+print("-- questing --")
+s.exec("__LS.db.goals.QUESTING = true")
+empty = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetQuestRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("an empty log with no campaign asks the player to check the map",
+      "Check your map and pick up quests" in empty, empty)
+check("the empty-log rec ranks while Questing is on",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "quest_check_map" then return true end
+        end
+        return false
+      end)()""") is True)
+s.exec("__LS.db.goals.QUESTING = false")
+check("Questing stays quiet while that goal is off",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.category == "Questing" then return true end
+        end
+        return false
+      end)()""") is False)
+s.exec("""
+  __LS.db.goals.QUESTING = true
+  AvailableCampaigns = { 9001 }
+  Campaigns[9001] = {
+    state = Enum.CampaignState.InProgress,
+    info = { name = "Midnight Campaign" },
+    chapterID = 12,
+    chapterInfo = { name = "Into the Void" },
+  }
+  QuestLog = {
+    {
+      title = "A Foothold in Harandar", questLogIndex = 1, questID = 101,
+      campaignID = 9001, isHeader = false, isOnMap = true,
+    },
+    {
+      title = "Kill ten moths", questLogIndex = 2, questID = 202,
+      isHeader = false, readyForTurnIn = true, isOnMap = true,
+    },
+    {
+      title = "World Quest: Do a thing", questLogIndex = 3, questID = 303,
+      isHeader = false, isTask = true,
+    },
+    {
+      title = "A side errand", questLogIndex = 4, questID = 404,
+      isHeader = false, isOnMap = false,
+    },
+  }
+""")
+questing = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetQuestRecommendations()) do
+    table.insert(out, r.id .. "=" .. r.title)
+  end
+  return table.concat(out, "\\n")
+end)()""")
+check("an in-progress campaign quest is recommended",
+      "campaign_9001=Continue: A Foothold in Harandar" in questing, questing)
+check("quest-log turn-ins are recommended alongside the campaign",
+      "quest_202=Turn in: Kill ten moths" in questing, questing)
+check("other log quests are recommended as options",
+      "quest_404=A side errand" in questing, questing)
+check("world quests in the log stay off the questing card",
+      "Do a thing" not in questing and "quest_check_map" not in questing, questing)
+check("FindActivity can open the campaign rec",
+      s.eval('__LS:FindActivity("campaign_9001") ~= nil') is True)
+s.exec("""
+  Campaigns[9001].state = Enum.CampaignState.Complete
+  QuestLog = {}
+  AvailableCampaigns = { 9001 }
+""")
+caught_up = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetQuestRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("a finished campaign with an empty log asks the player to check the map",
+      "Check your map and pick up quests" in caught_up
+      and "Midnight Campaign" not in caught_up, caught_up)
+s.exec("""
+  AvailableCampaigns = { 9001 }
+  Campaigns[9001].state = Enum.CampaignState.Stalled
+  QuestLog = {}
+""")
+stalled = s.eval("""(function()
+  for _, r in ipairs(__LS:GetQuestRecommendations()) do
+    if r.id == "campaign_9001" then return r.title .. "|" .. r.urgency end
+  end
+end)()""")
+check("a stalled campaign is ranked as catch-up",
+      stalled == "Catch up on Midnight Campaign|HIGH", stalled)
+s.exec("""
+  QuestLog = {}
+  AvailableCampaigns = {}
+  Campaigns = {}
+  SuperTrackedQuestID = nil
+  __LS.db.goals.QUESTING = false
+""")
+
+
 s.exec("__LS.db.goals.MOUNTS = true")
 s.exec("__LS:ShowPage('TODAY')")
 s.timers()
@@ -913,6 +1112,28 @@ rep_settings = s.texts()
 check("Settings Reputation lists expansions and factions from the client",
       "The War Within" in rep_settings and "Khaz Algar" in rep_settings
       and "Council of Dornogal" in rep_settings, rep_settings)
+sizes = s.eval("""(function()
+  local allW, allH, factionW, factionH
+  local function visit(frame, depth)
+    if depth > 16 or not frame then return end
+    local label
+    for _, r in ipairs(frame.regions or {}) do
+      if r.text_value then label = r.text_value end
+    end
+    if type(label) == "string" then
+      if label:find("Rank all of", 1, true) then allW, allH = frame.w, frame.h end
+      if label:find("Council of Dornogal", 1, true) then factionW, factionH = frame.w, frame.h end
+    end
+    for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+  end
+  visit(__LS.frame, 0)
+  return table.concat({ tostring(allW), tostring(allH), tostring(factionW), tostring(factionH) }, "|")
+end)()""")
+aw, ah, fw, fh = [int(x) for x in sizes.split("|")]
+check("Rank all is bigger than an individual faction toggle",
+      aw > fw and ah > fh, sizes)
+check("individual faction toggles are compact",
+      fh <= 22 and fw < aw, sizes)
 check("Settings Reputation opens on the first expansion tab",
       s.eval("__LS:PickTab(__LS:RepExpansionTabs(), __LS:PageTab('REP'))[1]")
       == "The War Within")

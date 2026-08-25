@@ -1,3 +1,17 @@
+# 1.3.0
+
+- The left menu is workspaces, not a second copy of Today's tabs: Dashboard, Today's Plan,
+  Weekly Plan, Long-Term Goals, Progress, Ignored, Completed, Warband and Settings. Great Vault
+  and Professions live under Progress.
+- Bountiful delves are named from the map when the client marks them. If it has not named them
+  yet, the card still asks you to run one and to check the map. The old quiet-when-done rule
+  is unchanged.
+- Questing ranks the current campaign (including catch-up when a chapter is stalled) and a few
+  quests already in the log. World quests stay off that card. If the log is empty and no
+  campaign work is waiting, Lodestar asks you to check the map.
+- Settings → Reputation uses denser rows: Rank all is the header, groups are smaller, and
+  individual factions are compact.
+
 # 1.2.0
 
 - Profession tabs only switch the card. The trade-skill window opens from the Open

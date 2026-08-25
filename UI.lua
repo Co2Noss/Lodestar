@@ -1,11 +1,23 @@
 local _, LS = ...
 
-local tabs = {
-  { "TODAY", "Today" },
-  { "VAULT", "Great Vault" },
-  { "PROFESSIONS", "Professions" },
-  { "WARBAND", "Warband" },
-  { "SETTINGS", "Settings" },
+-- Workspaces, not content categories. Great Vault and Professions live under Progress
+-- (and as Today tabs). The sidebar is which kind of work you are doing.
+local workspaces = {
+  { name = "TODAY", items = { { "DASHBOARD", "Dashboard" } } },
+  { name = "PLANNING", items = {
+      { "TODAY", "Today's Plan" },
+      { "WEEKLY", "Weekly Plan" },
+      { "LONGTERM", "Long-Term Goals" },
+    } },
+  { name = "TRACKING", items = {
+      { "PROGRESS", "Progress" },
+      { "IGNORED", "Ignored Tasks" },
+      { "COMPLETED", "Completed Tasks" },
+    } },
+  { name = "ACCOUNT", items = {
+      { "WARBAND", "Warband" },
+      { "SETTINGS", "Settings" },
+    } },
 }
 
 local goalList = {
@@ -40,10 +52,10 @@ local function paint(frame, key)
   frame:SetBackdropBorderColor(unpack(LS.colors.border))
 end
 
-local function button(parent, label, width, height)
+local function button(parent, label, width, height, size)
   local frame = panel(parent)
   frame:SetSize(width or 130, height or 34)
-  frame.text = text(frame, width or 130, 12)
+  frame.text = text(frame, width or 130, size or 12)
   frame.text:SetPoint("CENTER")
   frame.text:SetJustifyH("CENTER")
   frame.text:SetText(label)
@@ -113,7 +125,7 @@ function LS:LayoutFrame(pad)
   self.sidebar:SetPoint("BOTTOMLEFT", 12 + pad, 14 + pad)
 
   self.content:ClearAllPoints()
-  self.content:SetPoint("TOPLEFT", 195 + pad, -(76 + pad))
+  self.content:SetPoint("TOPLEFT", 208 + pad, -(76 + pad))
   self.content:SetPoint("BOTTOMRIGHT", -(30 + pad), 22 + pad)
 
   if self.resizeGrip then
@@ -250,19 +262,13 @@ function LS:CreateUI()
   self.sidebar = panel(frame)
   self.sidebar:SetPoint("TOPLEFT", 12, -68)
   self.sidebar:SetPoint("BOTTOMLEFT", 12, 14)
-  self.sidebar:SetWidth(165)
+  self.sidebar:SetWidth(180)
 
   self.content = CreateFrame("Frame", nil, frame)
-  self.content:SetPoint("TOPLEFT", 195, -76)
+  self.content:SetPoint("TOPLEFT", 208, -76)
   self.content:SetPoint("BOTTOMRIGHT", -30, 22)
 
-  self.nav = {}
-  for i, data in ipairs(tabs) do
-    local nav = button(self.sidebar, data[2], 140)
-    nav:SetPoint("TOP", 0, -16 - (i - 1) * 42)
-    nav:SetScript("OnMouseUp", function() self:ShowPage(data[1]) end)
-    self.nav[data[1]] = nav
-  end
+  self:BuildSidebar()
 
   local grip = CreateFrame("Button", nil, frame)
   grip:SetSize(18, 18)
@@ -288,6 +294,44 @@ function LS:CreateUI()
   self:ApplyTheme()
 end
 
+function LS:NavActive(key)
+  local page = self.page
+  if key == page then return true end
+  return key == "PROGRESS" and (page == "VAULT" or page == "PROFESSIONS")
+end
+
+function LS:BuildSidebar()
+  local scroll = CreateFrame("ScrollFrame", nil, self.sidebar)
+  scroll:SetPoint("TOPLEFT", 8, -8)
+  scroll:SetPoint("BOTTOMRIGHT", -4, 8)
+  local child = CreateFrame("Frame", nil, scroll)
+  child:SetWidth(164)
+  child:SetHeight(1)
+  if scroll.SetScrollChild then scroll:SetScrollChild(child) end
+  self.sidebarBody = child
+  self.nav = {}
+  self.navHeaders = {}
+
+  local y = 0
+  for _, group in ipairs(workspaces) do
+    local header = text(child, 160, 9)
+    header:SetPoint("TOPLEFT", 6, y)
+    header:SetText(group.name)
+    if self.colors then header:SetTextColor(unpack(self.colors.muted)) end
+    table.insert(self.navHeaders, header)
+    y = y - 18
+    for _, item in ipairs(group.items) do
+      local nav = button(child, item[2], 156, 26, 11)
+      nav:SetPoint("TOPLEFT", 4, y)
+      nav:SetScript("OnMouseUp", function() self:ShowPage(item[1]) end)
+      self.nav[item[1]] = nav
+      y = y - 30
+    end
+    y = y - 8
+  end
+  child:SetHeight(math.max(1, -y + 8))
+end
+
 function LS:Heading(title, subtitle)
   local width = self:ContentWidth()
   local heading = text(self.content, width, 22)
@@ -307,7 +351,7 @@ function LS:PickTab(tabs, selectedID)
   return tabs[1]
 end
 
--- Full-width strip used by Today, Great Vault, Professions and Settings. One click
+-- Full-width strip used by plan pages, Great Vault, Professions and Settings. One click
 -- replaces scrolling through every group on the page. Long lists wrap onto another row
 -- rather than shrinking the labels to nothing.
 function LS:TabStrip(tabs, selectedID, onChoose, y, parent, width)
@@ -350,6 +394,20 @@ function LS:ShowPage(page)
   self:ApplyTheme()
   if page == "WELCOME" then
     self:WelcomePage()
+  elseif page == "DASHBOARD" then
+    self:DashboardPage()
+  elseif page == "WEEKLY" then
+    self:WeeklyPlanPage()
+  elseif page == "LONGTERM" then
+    self:LongTermPage()
+  elseif page == "PROGRESS" then
+    self:ProgressPage()
+  elseif page == "IGNORED" then
+    self:FlaggedPage("dismissed", "Ignored tasks",
+      "Cards you hid from the plan. Restore one to put it back, or clear them in Settings.")
+  elseif page == "COMPLETED" then
+    self:FlaggedPage("completed", "Completed tasks",
+      "Cards you marked done. Undo one if it should rank again.")
   elseif page == "VAULT" then
     self:VaultPage()
   elseif page == "PROFESSIONS" then
@@ -453,8 +511,14 @@ function LS:ActivityCard(parent, activity, y, width)
     table.insert(actions, { activity.openLabel or "Open", activity.open })
   end
   table.insert(actions, { "Details", function() self:ShowDetails(activity.id) end })
-  table.insert(actions, { "Done", function() self.db.completed[activity.id] = true; self:ShowPage("TODAY") end })
-  table.insert(actions, { "Ignore", function() self.db.dismissed[activity.id] = true; self:ShowPage("TODAY") end })
+  table.insert(actions, { "Done", function()
+    self.db.completed[activity.id] = true
+    self:ShowPage(self.page == "DETAILS" and "TODAY" or (self.page or "TODAY"))
+  end })
+  table.insert(actions, { "Ignore", function()
+    self.db.dismissed[activity.id] = true
+    self:ShowPage(self.page == "DETAILS" and "TODAY" or (self.page or "TODAY"))
+  end })
   local height = CARD_HEIGHT + math.max(0, #actions - 3) * 30
   card:SetSize(width, height)
   for j, action in ipairs(actions) do
@@ -542,6 +606,286 @@ function LS:WelcomePage()
   body:finish(-y + 10)
 end
 
+function LS:CountFlags(store)
+  local n = 0
+  for _, on in pairs(self.db and self.db[store] or {}) do
+    if on then n = n + 1 end
+  end
+  return n
+end
+
+function LS:VaultSlotCounts()
+  local filled, total, upgradable = 0, 0, 0
+  for _, key in ipairs({ "raid", "activities", "world" }) do
+    local row = self.vault and self.vault.rows and self.vault.rows[key]
+    if row then
+      for _, slot in ipairs(row.slots or {}) do
+        total = total + 1
+        if slot.complete then filled = filled + 1 end
+        if slot.advice and slot.advice.upgradable then upgradable = upgradable + 1 end
+      end
+    end
+  end
+  return filled, total, upgradable
+end
+
+function LS:UnspentKnowledge()
+  local n = 0
+  for _, prof in ipairs(self.professions or {}) do
+    n = n + (prof.unspent or 0)
+  end
+  return n
+end
+
+function LS:RenderPlan(groups, pageKey, title)
+  local tabs = {}
+  for _, group in ipairs(groups) do
+    table.insert(tabs, { group.name, group.name })
+  end
+  local chosen = self:PickTab(tabs, self:PageTab(pageKey))
+  local group = groups[1]
+  for _, entry in ipairs(groups) do
+    if entry.name == chosen[1] then group = entry end
+  end
+
+  self:Heading(title,
+    string.format("%d %s",
+      #group.activities, #group.activities == 1 and "recommendation" or "recommendations"))
+  self:TabStrip(tabs, chosen[1], function(id)
+    self:SetPageTab(pageKey, id)
+    self:ShowPage(pageKey)
+  end)
+
+  local body = self:Body(96)
+  local y = 0
+  local lastSection
+  for _, activity in ipairs(group.activities) do
+    if activity.section and activity.section ~= lastSection then
+      local heading = text(body, body.width, 12)
+      heading:SetPoint("TOPLEFT", 0, y)
+      heading:SetTextColor(unpack(self.colors.accent))
+      heading:SetText(activity.section)
+      y = y - 22
+      lastSection = activity.section
+    end
+    local _, h = self:ActivityCard(body, activity, y, body.width)
+    y = y - ((h or CARD_HEIGHT) + CARD_GAP)
+  end
+  body:finish(-y + 10)
+end
+
+function LS:PlanEmpty(title, why, pickLabel, onPick)
+  self:Heading(title, "Nothing in this workspace right now.")
+  local body = self:Body(76)
+  local none = text(body, body.width, 11)
+  none:SetPoint("TOPLEFT", 0, 0)
+  none:SetText(why)
+  if pickLabel and onPick then
+    local pick = button(body, pickLabel, 200, 30)
+    pick:SetPoint("TOPLEFT", 0, -42)
+    highlight(pick)
+    pick:SetScript("OnMouseUp", onPick)
+    body:finish(90)
+  else
+    body:finish(50)
+  end
+end
+
+function LS:DashboardPage()
+  local recs = self:GetRecommendations()
+  local filled, total = self:VaultSlotCounts()
+  local ignored, completed = self:CountFlags("dismissed"), self:CountFlags("completed")
+  self:Heading("Dashboard", "Where things stand, then the next action.")
+  local body = self:Body(76)
+  local width = body.width
+  local y = 0
+
+  local columns = math.max(1, math.floor(width / 180))
+  local cellW = math.floor(width / columns) - 8
+  local stats = {
+    { #recs, "On the plan" },
+    { string.format("%d/%d", filled, total), "Vault slots filled" },
+    { self:UnspentKnowledge(), "Unspent knowledge" },
+    { ignored, "Ignored" },
+    { completed, "Completed" },
+  }
+  for i, stat in ipairs(stats) do
+    local col = (i - 1) % columns
+    local rowIndex = math.floor((i - 1) / columns)
+    local cell = panel(body)
+    cell:SetSize(cellW, 56)
+    cell:SetPoint("TOPLEFT", col * (cellW + 8), y - rowIndex * 64)
+    paint(cell)
+    local amount = text(cell, cellW - 24, 18)
+    amount:SetPoint("TOPLEFT", 12, -8)
+    amount:SetTextColor(unpack(self.colors.accent))
+    amount:SetText(tostring(stat[1]))
+    local name = text(cell, cellW - 24, 10)
+    name:SetPoint("TOPLEFT", 12, -32)
+    name:SetText(stat[2])
+  end
+  y = y - (math.ceil(#stats / columns) * 64) - 8
+
+  local jumps = {
+    { "Today's Plan", "TODAY" },
+    { "Weekly Plan", "WEEKLY" },
+    { "Progress", "PROGRESS" },
+  }
+  for i, jump in ipairs(jumps) do
+    local go = button(body, jump[1], 140, 28)
+    go:SetPoint("TOPLEFT", (i - 1) * 148, y)
+    go:SetScript("OnMouseUp", function() self:ShowPage(jump[2]) end)
+  end
+  y = y - 42
+
+  if #recs == 0 then
+    local none = text(body, width, 11)
+    none:SetPoint("TOPLEFT", 0, y)
+    if self:GoalsChosen() then
+      none:SetText("Nothing is currently worth ranking. That changes as the week does.")
+    else
+      none:SetText("Every goal is off, so there is nothing to weigh against.")
+      local pick = button(body, "Choose my goals", 200, 30)
+      pick:SetPoint("TOPLEFT", 0, y - 36)
+      highlight(pick)
+      pick:SetScript("OnMouseUp", function() self:ShowPage("WELCOME") end)
+      y = y - 36
+    end
+    body:finish(-y + 50)
+    return
+  end
+
+  local nextHeading = text(body, width, 13)
+  nextHeading:SetPoint("TOPLEFT", 0, y)
+  nextHeading:SetTextColor(unpack(self.colors.accent))
+  nextHeading:SetText("Next")
+  y = y - 24
+  local _, h = self:ActivityCard(body, recs[1], y, width)
+  y = y - ((h or CARD_HEIGHT) + CARD_GAP)
+  body:finish(-y + 10)
+end
+
+function LS:WeeklyPlanPage()
+  local groups = self:GetCategories("WEEKLY")
+  if #groups == 0 then
+    self:PlanEmpty("Weekly plan",
+      "Nothing on the plan disappears at weekly reset, or those goals are off.")
+    return
+  end
+  self:RenderPlan(groups, "WEEKLY", "Weekly plan")
+end
+
+function LS:LongTermPage()
+  local groups = self:GetCategories("LONG")
+  if #groups == 0 then
+    self:PlanEmpty("Long-term goals",
+      "Nothing long-term is being ranked. Turn on Mounts, Reputation or Gold in Settings, or finish this week's profession work to see treasures and catch-up.",
+      "Open Settings", function()
+        self:SetPageTab("SETTINGS", "GOALS")
+        self:ShowPage("SETTINGS")
+      end)
+    return
+  end
+  self:RenderPlan(groups, "LONGTERM", "Long-term goals")
+end
+
+function LS:ProgressPage()
+  local filled, total, upgradable = self:VaultSlotCounts()
+  local unspent = self:UnspentKnowledge()
+  local profs = #(self.professions or {})
+  self:Heading("Progress", "Vault slots and profession knowledge on this character.")
+  local body = self:Body(76)
+  local width = body.width
+  local y = 0
+
+  local vault = panel(body)
+  vault:SetSize(width, 72)
+  vault:SetPoint("TOPLEFT", 0, y)
+  paint(vault)
+  local vaultTitle = text(vault, width - 120, 13)
+  vaultTitle:SetPoint("TOPLEFT", 12, -10)
+  vaultTitle:SetTextColor(unpack(self.colors.accent))
+  vaultTitle:SetText("Great Vault")
+  local vaultLine = text(vault, width - 120, 11)
+  vaultLine:SetPoint("TOPLEFT", 12, -34)
+  vaultLine:SetText(string.format("%d of %d slots filled. %d can still be improved.",
+    filled, total, upgradable))
+  local vaultOpen = button(vault, "Open", 74, 26)
+  vaultOpen:SetPoint("TOPRIGHT", -10, -14)
+  paint(vaultOpen, "panel")
+  vaultOpen:SetScript("OnMouseUp", function() self:ShowPage("VAULT") end)
+  y = y - 82
+
+  local prof = panel(body)
+  prof:SetSize(width, 72)
+  prof:SetPoint("TOPLEFT", 0, y)
+  paint(prof)
+  local profTitle = text(prof, width - 120, 13)
+  profTitle:SetPoint("TOPLEFT", 12, -10)
+  profTitle:SetTextColor(unpack(self.colors.accent))
+  profTitle:SetText("Professions")
+  local profLine = text(prof, width - 120, 11)
+  profLine:SetPoint("TOPLEFT", 12, -34)
+  if profs == 0 then
+    profLine:SetText("Open a profession window once so the client sends its data.")
+  else
+    profLine:SetText(string.format("%d trained. %d unspent knowledge.", profs, unspent))
+  end
+  local profOpen = button(prof, "Open", 74, 26)
+  profOpen:SetPoint("TOPRIGHT", -10, -14)
+  paint(profOpen, "panel")
+  profOpen:SetScript("OnMouseUp", function() self:ShowPage("PROFESSIONS") end)
+  y = y - 82
+  body:finish(-y + 10)
+end
+
+function LS:FlaggedPage(store, title, why)
+  local ids = {}
+  for id, on in pairs(self.db and self.db[store] or {}) do
+    if on then table.insert(ids, id) end
+  end
+  table.sort(ids, function(a, b)
+    local aa, bb = self:FindActivity(a), self:FindActivity(b)
+    return (aa and aa.title or a) < (bb and bb.title or b)
+  end)
+
+  self:Heading(title, why)
+  local body = self:Body(76)
+  local width = body.width
+  local y = 0
+  if #ids == 0 then
+    local none = text(body, width, 11)
+    none:SetPoint("TOPLEFT", 0, 0)
+    none:SetText("Nothing here yet.")
+    body:finish(40)
+    return
+  end
+
+  for _, id in ipairs(ids) do
+    local activity = self:FindActivity(id)
+    local card = panel(body)
+    card:SetSize(width, 68)
+    card:SetPoint("TOPLEFT", 0, y)
+    paint(card)
+    local heading = text(card, width - 120, 13)
+    heading:SetPoint("TOPLEFT", 12, -10)
+    heading:SetTextColor(unpack(self.colors.accent))
+    heading:SetText((activity and activity.title) or id)
+    local line = text(card, width - 120, 11)
+    line:SetPoint("TOPLEFT", 12, -34)
+    line:SetText((activity and activity.why) or "That activity is no longer being generated.")
+    local action = button(card, store == "dismissed" and "Restore" or "Undo", 74, 26)
+    action:SetPoint("TOPRIGHT", -10, -14)
+    paint(action, "panel")
+    action:SetScript("OnMouseUp", function()
+      self.db[store][id] = nil
+      self:ShowPage(self.page)
+    end)
+    y = y - 76
+  end
+  body:finish(-y + 10)
+end
+
 function LS:Today()
   local groups = self:GetCategories()
 
@@ -582,40 +926,7 @@ function LS:Today()
     return
   end
 
-  local tabs = {}
-  for _, group in ipairs(groups) do
-    table.insert(tabs, { group.name, group.name })
-  end
-  local chosen = self:PickTab(tabs, self:PageTab("TODAY"))
-  local group = groups[1]
-  for _, entry in ipairs(groups) do
-    if entry.name == chosen[1] then group = entry end
-  end
-
-  self:Heading("Your plan for today",
-    string.format("%d %s",
-      #group.activities, #group.activities == 1 and "recommendation" or "recommendations"))
-  self:TabStrip(tabs, chosen[1], function(id)
-    self:SetPageTab("TODAY", id)
-    self:ShowPage("TODAY")
-  end)
-
-  local body = self:Body(96)
-  local y = 0
-  local lastSection
-  for _, activity in ipairs(group.activities) do
-    if activity.section and activity.section ~= lastSection then
-      local heading = text(body, body.width, 12)
-      heading:SetPoint("TOPLEFT", 0, y)
-      heading:SetTextColor(unpack(self.colors.accent))
-      heading:SetText(activity.section)
-      y = y - 22
-      lastSection = activity.section
-    end
-    local _, h = self:ActivityCard(body, activity, y, body.width)
-    y = y - ((h or CARD_HEIGHT) + CARD_GAP)
-  end
-  body:finish(-y + 10)
+  self:RenderPlan(groups, "TODAY", "Your plan for today")
 end
 
 function LS:ShowDetails(id)
@@ -1380,7 +1691,11 @@ function LS:SettingsReputation(body, width, y)
   end
 
   local expansionOn = (self.db.repExpansions and self.db.repExpansions[expansion]) == true
-  local all = button(body, (expansionOn and "ON  •  Rank all of " or "OFF  •  Rank all of ") .. expansion, width, 32)
+  -- Rank-all is the header for the list; groups and factions sit smaller underneath.
+  local allW = width
+  local groupW = math.max(220, width - 16)
+  local factionW = math.max(200, width - 48)
+  local all = button(body, (expansionOn and "ON  •  Rank all of " or "OFF  •  Rank all of ") .. expansion, allW, 32)
   all:SetPoint("TOPLEFT", 0, y)
   if expansionOn then
     highlight(all)
@@ -1395,19 +1710,21 @@ function LS:SettingsReputation(body, width, y)
 
   for _, row in ipairs(rows) do
     if row.kind ~= "expansion" and row.expansion == expansion then
-      local on, label, indent
+      local on, label, indent, rowW, rowH, font
       if row.kind == "group" then
         on = self:RepGroupOn(row.expansion, row.name)
         label = row.name
-        indent = 0
+        indent = 12
+        rowW, rowH, font = groupW, 24, 11
       else
         on = self:CaresAboutRep(row)
         local extra = row.isMajor and string.format("Renown %d", row.renown or 0)
           or (_G["FACTION_STANDING_LABEL" .. tostring(row.reaction or 0)] or "")
         label = extra ~= "" and (row.name .. "  •  " .. extra) or row.name
-        indent = row.group and 18 or 0
+        indent = row.group and 28 or 12
+        rowW, rowH, font = factionW, 20, 10
       end
-      local toggle = button(body, (on and "ON  •  " or "OFF  •  ") .. label, width - indent, 28)
+      local toggle = button(body, (on and "ON  •  " or "OFF  •  ") .. label, rowW, rowH, font)
       toggle:SetPoint("TOPLEFT", indent, y)
       if on then
         highlight(toggle)
@@ -1422,7 +1739,7 @@ function LS:SettingsReputation(body, width, y)
         end
         self:ShowPage("SETTINGS")
       end)
-      y = y - 32
+      y = y - (rowH + 4)
     end
   end
   y = y - 8
@@ -1580,7 +1897,7 @@ end
 
 function LS:LandingPage()
   if not self.db.welcomed then return "WELCOME" end
-  return self.page or "TODAY"
+  return self.page or "DASHBOARD"
 end
 
 function LS:Toggle()

@@ -13,6 +13,7 @@ LS.activities = {
     tags = { SOLO = 10, ENDGAME = 6 },
     why = "Compact solo run that also raises your World Vault tier.",
     skipIf = function()
+      if LS.GetBountifulDelveRecommendations then return true end
       return LS.BountifulDelveWorthDoing and not LS:BountifulDelveWorthDoing()
     end,
     detail = {
@@ -28,6 +29,9 @@ LS.activities = {
     urgency = "MEDIUM",
     tags = { QUESTING = 8 },
     why = "Bulk reputation and currency without a group.",
+    skipIf = function()
+      return LS.GetQuestRecommendations ~= nil
+    end,
     detail = {
       nextReward = "Reputation and currency",
       matters = "Only worth it while you still need the factions you chose.",
@@ -37,7 +41,14 @@ LS.activities = {
 
 function LS:FindActivity(id)
   for _, activity in ipairs(self.activities) do
-    if activity.id == id then return activity end
+    if activity.id == id then
+      local skip = false
+      if activity.skipIf then
+        local ok, hide = pcall(activity.skipIf)
+        skip = ok and hide
+      end
+      if not skip then return activity end
+    end
   end
   for _, list in ipairs({
     self:GetVaultRecommendations(),
@@ -46,6 +57,8 @@ function LS:FindActivity(id)
     self.GetReputationRecommendations and self:GetReputationRecommendations() or {},
     self.GetGoldRecommendations and self:GetGoldRecommendations() or {},
     self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {},
+    self.GetBountifulDelveRecommendations and self:GetBountifulDelveRecommendations() or {},
+    self.GetQuestRecommendations and self:GetQuestRecommendations() or {},
   }) do
     for _, activity in ipairs(list) do
       if activity.id == id then return activity end

@@ -323,7 +323,62 @@ C_UIWidgetManager = {
     end
   end,
 }
-C_QuestLog = { IsQuestFlaggedCompleted = function() return false end }
+QuestLog = {}
+SuperTrackedQuestID = nil
+C_QuestLog = {
+  IsQuestFlaggedCompleted = function() return false end,
+  GetNumQuestLogEntries = function() return #QuestLog, #QuestLog end,
+  GetInfo = function(i) return QuestLog[i] end,
+  IsComplete = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.readyForTurnIn or q.isComplete or false end
+    end
+    return false
+  end,
+  IsWorldQuest = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.isTask == true or q.isBounty == true end
+    end
+    return false
+  end,
+  GetQuestUiMapID = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.uiMapID end
+    end
+  end,
+  GetNextWaypoint = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id and q.waypoint then
+        return q.waypoint.map, q.waypoint.x, q.waypoint.y
+      end
+    end
+  end,
+}
+
+AvailableCampaigns = {}
+Campaigns = {}
+C_CampaignInfo = {
+  GetAvailableCampaigns = function() return AvailableCampaigns end,
+  GetState = function(id) return Campaigns[id] and Campaigns[id].state or 0 end,
+  GetCampaignInfo = function(id) return Campaigns[id] and Campaigns[id].info end,
+  GetCurrentChapterID = function(id) return Campaigns[id] and Campaigns[id].chapterID end,
+  GetChapterInfo = function(chapterID)
+    for _, c in pairs(Campaigns) do
+      if c.chapterID == chapterID then return c.chapterInfo end
+    end
+  end,
+  GetCampaignID = function(questID)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == questID then return q.campaignID end
+    end
+  end,
+  IsCampaignQuest = function(questID)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == questID then return q.campaignID ~= nil and q.campaignID ~= 0 end
+    end
+    return false
+  end,
+}
 
 MAP_NAMES = {
   [2393] = "Silvermoon City",
@@ -332,10 +387,35 @@ MAP_NAMES = {
   [2405] = "Voidstorm",
   [2437] = "Zul'Aman",
 }
+-- Stub-only parent chain so tests can walk maps. Production code does not hardcode these IDs.
+MAP_INFO = {
+  [947] = { name = "Azeroth", mapID = 947, mapType = 1, parentMapID = 946 },
+  [2400] = { name = "Midnight", mapID = 2400, mapType = 2, parentMapID = 947 },
+  [2395] = { name = "Eversong Woods", mapID = 2395, mapType = 3, parentMapID = 2400 },
+  [2393] = { name = "Silvermoon City", mapID = 2393, mapType = 5, parentMapID = 2395 },
+  [2413] = { name = "Harandar", mapID = 2413, mapType = 3, parentMapID = 2400 },
+  [2405] = { name = "Voidstorm", mapID = 2405, mapType = 3, parentMapID = 2400 },
+  [2437] = { name = "Zul'Aman", mapID = 2437, mapType = 3, parentMapID = 2400 },
+}
 UserWaypoint = nil
 SuperTrackedUserWaypoint = false
 OpenedWorldMaps = {}
 TomTomWaypoints = {}
+DelvePOIs = {}
+
+C_AreaPoiInfo = {
+  GetDelvesForMap = function(mapID)
+    local list = DelvePOIs[mapID] or {}
+    local ids = {}
+    for _, poi in ipairs(list) do table.insert(ids, poi.areaPoiID) end
+    return ids
+  end,
+  GetAreaPOIInfo = function(mapID, poiID)
+    for _, poi in ipairs(DelvePOIs[mapID] or {}) do
+      if poi.areaPoiID == poiID then return poi end
+    end
+  end,
+}
 
 UiMapPoint = {
   CreateFromCoordinates = function(map, x, y)
@@ -343,7 +423,34 @@ UiMapPoint = {
   end,
 }
 C_Map = {
-  GetMapInfo = function(id) return MAP_NAMES[id] and { name = MAP_NAMES[id], mapID = id } or { name = "Map " .. tostring(id), mapID = id } end,
+  GetMapInfo = function(id)
+    local info = MAP_INFO[id]
+    if info then
+      return { name = info.name, mapID = info.mapID, mapType = info.mapType, parentMapID = info.parentMapID }
+    end
+    return MAP_NAMES[id] and { name = MAP_NAMES[id], mapID = id } or { name = "Map " .. tostring(id), mapID = id }
+  end,
+  GetMapChildrenInfo = function(parent, mapType, allDescendants)
+    local out = {}
+    for _, info in pairs(MAP_INFO) do
+      if not mapType or info.mapType == mapType then
+        local match = info.parentMapID == parent
+        if not match and allDescendants then
+          local walk = info.parentMapID
+          for _ = 1, 8 do
+            if not walk then break end
+            if walk == parent then match = true break end
+            local up = MAP_INFO[walk]
+            walk = up and up.parentMapID
+          end
+        end
+        if match then
+          table.insert(out, { mapID = info.mapID, name = info.name, mapType = info.mapType, parentMapID = info.parentMapID })
+        end
+      end
+    end
+    return out
+  end,
   GetBestMapForUnit = function() return 2393 end,
   GetPlayerMapPosition = function()
     return { x = 0.5, y = 0.5, GetXY = function(s) return s.x, s.y end }
@@ -355,6 +462,7 @@ C_Map = {
 }
 C_SuperTrack = {
   SetSuperTrackedUserWaypoint = function(on) SuperTrackedUserWaypoint = on and true or false end,
+  GetSuperTrackedQuestID = function() return SuperTrackedQuestID end,
 }
 function OpenWorldMap(id)
   table.insert(OpenedWorldMaps, id)
@@ -445,7 +553,11 @@ GetSavedWorldBossInfo = function(i)
   return s.name, s.id or i, s.reset or 0
 end
 
-Enum = { WeeklyRewardChestThresholdType = { Raid = 1, Activities = 2, World = 3 } }
+Enum = {
+  WeeklyRewardChestThresholdType = { Raid = 1, Activities = 2, World = 3 },
+  UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
+  CampaignState = { Invalid = 0, Complete = 1, InProgress = 2, Stalled = 3 },
+}
 DifficultyUtil = {
   ID = { DungeonHeroic = 2, DungeonMythic = 23, DungeonChallenge = 8,
          PrimaryRaidLFR = 17, PrimaryRaidNormal = 14, PrimaryRaidHeroic = 15, PrimaryRaidMythic = 16 },

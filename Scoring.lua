@@ -66,6 +66,18 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.GetBountifulDelveRecommendations then
+    for _, delve in ipairs(self:GetBountifulDelveRecommendations()) do
+      consider(delve)
+    end
+  end
+
+  if self.GetQuestRecommendations then
+    for _, quest in ipairs(self:GetQuestRecommendations()) do
+      consider(quest)
+    end
+  end
+
   table.sort(out, function(a, b)
     if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
     return a.title < b.title
@@ -85,8 +97,37 @@ local CATEGORY_ORDER = {
   ["Questing"] = 7,
 }
 
-function LS:GetCategories()
+-- Weekly work disappears at reset. Long-term work waits. Everything else is for today.
+function LS:ActivityHorizon(activity)
+  local id = (activity and activity.id) or ""
+  local cat = (activity and activity.category) or ""
+  if cat == "Great Vault" or id == "delve" or id:sub(1, 6) == "vault_" then
+    return "WEEKLY"
+  end
+  if id:sub(1, 10) == "kp_weekly_" or id:sub(1, 10) == "kp_gather_" then
+    return "WEEKLY"
+  end
+  if cat == "Mounts" or cat == "Reputation" or cat == "Gold" then
+    return "LONG"
+  end
+  if id:sub(1, 12) == "kp_treasure_" or id:sub(1, 11) == "kp_catchup_"
+      or id:sub(1, 11) == "prof_level_" then
+    return "LONG"
+  end
+  return "TODAY"
+end
+
+function LS:GetCategories(horizon)
   local list = self:GetRecommendations()
+  if horizon then
+    local filtered = {}
+    for _, activity in ipairs(list) do
+      if self:ActivityHorizon(activity) == horizon then
+        table.insert(filtered, activity)
+      end
+    end
+    list = filtered
+  end
   local groups, index = {}, {}
 
   for _, activity in ipairs(list) do

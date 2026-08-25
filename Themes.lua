@@ -301,9 +301,12 @@ function LS:ApplyTheme()
   end
   if self.UpdateCompact then self:UpdateCompact() end
   for key, nav in pairs(self.nav or {}) do
-    local active = key == self.page
+    local active = self.NavActive and self:NavActive(key) or key == self.page
     nav:SetBackdropColor(unpack(palette.card))
     nav:SetBackdropBorderColor(unpack(active and palette.accent or palette.border))
     nav.text:SetTextColor(unpack(active and palette.accent or palette.text))
+  end
+  for _, header in ipairs(self.navHeaders or {}) do
+    header:SetTextColor(unpack(palette.muted))
   end
 end
