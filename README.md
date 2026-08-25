@@ -1,4 +1,4 @@
-# Lodestar 1.12.1
+# Lodestar 1.17.0
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
@@ -16,26 +16,26 @@ page never interrupts an upgrade.
 
 ## Pages
 
-- **Today** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
-- **Great Vault** — Raid, Dungeons and World each have their own tab, with every slot, its current reward quality, and what would improve it.
-- **Professions** — one tab per trained profession: skill, unspent knowledge, weekly quests, drops, treasures and catch-up.
+- **Today** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered. Mount farms sit on their own tab when that goal is on.
+- **Great Vault** — Raid, Dungeons and World each have their own tab, with every slot, its current reward quality, and what would improve it. If last week's chest is still sitting there, Today tells you to claim it.
+- **Professions** — one tab per trained profession, including Cooking, Fishing and Archaeology: skill, unspent knowledge, points already spent, weekly quests, drops, treasures and catch-up. Click a profession to open it. Specializations is there for trees. Secondaries have no knowledge tree, so they show skill.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status.
-- **Settings** — split into Goals, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
+- **Settings** — split into Goals, Reputation, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
 
 ## Ranking and categories
 
 Recommendations are scored against the goals you chose on first login, which Settings can
 change at any time, then grouped by where the work happens: Great Vault, Professions,
-Reputation, Solo content, Questing. Today, Great Vault, Professions and Settings each use
+Mounts, Reputation, Solo content, Questing. Today, Great Vault, Professions and Settings each use
 the same tab strip, so moving between groups is a click rather than a scroll. Tab order on
 Today is stable; the work inside a tab is still ranked best first. The last tab on each
 page is remembered.
 
-Every card shows its urgency, estimated time and score. Urgency answers "when does this stop
-being available" rather than "how good is it": a one-time treasure reads ANYTIME no matter how
-much knowledge it carries, unspent knowledge reads NOW because spending it is free, and
-renown reads ANYTIME because it never expires. Activities can state their own urgency, and
-anything that does not is derived from its type and score.
+Every card shows its priority, estimated time and score. Priority is High, Medium or Low.
+Unspent knowledge, weekly lockouts and an unclaimed Great Vault are High, because missing
+them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
+catch-up, dungeon mount farms, unfinished reputations and gold farms are Low, because they
+wait. Score still decides the order.
 
 There is no time budget. Lodestar ranks and groups everything instead of asking how long you
 have and hiding whatever does not fit.
@@ -49,11 +49,23 @@ Tier 8 or higher" reflects what is left rather than a guess.
 A slot is only called maxed when it reaches the tier cap in `LS.tierCaps` or the highest
 tier you have personally cleared. Edit that table when a patch changes the cap.
 
+If last week's Great Vault is still unclaimed after Tuesday reset, Today ranks that first:
+open the vault and pick a reward from each filled slot. Filling this week's chest is a
+separate job.
+
+A Bountiful Delve stays off Today once the World Vault is finished, you have no Restored
+Coffer Keys, you cannot make another key from shards, and this week's T11 Gilded Stashes
+are done.
+
 ## Professions and knowledge
 
 Only professions this character has trained are listed, filtered to the current expansion by
-default. Skill level, unspent knowledge and remaining tree cost come from live APIs and are
-always accurate.
+default: the two primaries, plus Cooking, Fishing and Archaeology when those slots are filled.
+Skill level, unspent knowledge, points already spent and remaining tree cost come from live
+APIs and are always accurate. Click a profession to open its window; professions with a
+knowledge tree also have a Specializations button. Cooking, Fishing and Archaeology have no
+knowledge tree, so the page shows skill, and Today recommends leveling them until they are
+at the cap.
 
 Knowledge is split by what it actually asks of you:
 
@@ -85,10 +97,39 @@ Lodestar:RegisterKnowledge(2918, {
 one-time pickups. `limit` caps how many quests in the set can count. Anything with no data says so
 rather than reporting itself complete.
 
+## Mounts
+
+The Mounts goal ranks farms you have not collected yet. Weekly raid and world-boss lockouts
+come first, because missing the week spends the roll: if you do not have Invincible and
+Icecrown Citadel 25 Heroic is still open, it is on the plan; if you already own it, or
+already killed the Lich King on that lockout, it stays off. Heroic dungeon farms with no
+weekly lockout still appear, as Low.
+
+The farm list lives in `Mounts.lua`. It is the collector circuit, not every mount in the
+game. Add a row there when a drop is worth a weekly check.
+
+## Reputation
+
+The Reputation goal ranks factions from the live reputation list, grouped by expansion and
+category. Settings → Reputation gives each expansion its own tab, then the categories and
+factions under it. Nothing is assumed: turn on an expansion, a category, or a single
+faction. Exalted standings and capped renown stay off the plan. Paragon chests that are
+waiting still appear.
+
+## Gold making
+
+The Gold making goal ranks gathering you have trained and a few pet farms that never expire.
+Prices come from **TSM**, **Auctionator** or **RECrystallize**. Lodestar does not invent an
+auction house. Settings → Goals lets you pick the source: Auto uses the first of those
+addons that is loaded. If none is loaded, or the one you picked is not, Lodestar stays quiet
+about gold.
+
+The farm list lives in `Gold.lua`. It is the collector circuit, not every node in the game.
+
 ## Compact mode
 
 A small window that sits on your screen with just the next three things to do, each showing
-its urgency, estimated time and score. Turn it on in Settings, with `/ls compact`, or by
+its priority, estimated time and score. Turn it on in Settings, with `/ls compact`, or by
 right-clicking the minimap button.
 
 - Click an entry to open its details page. Double click anywhere to open the full window.
@@ -100,9 +141,8 @@ right-clicking the minimap button.
 - Drag to move, drag the right edge to set the width. Both are saved. Height follows the
   number of recommendations rather than being dragged, so entries are never clipped.
 
-Urgency answers "when does this stop being available", not "how good is it". A one-time
-treasure reads ANYTIME no matter how much knowledge it carries, because it waits forever.
-Unspent knowledge reads NOW, because spending it is free.
+Priority is High, Medium or Low. Unspent knowledge is High because spending it is free. A
+one-time treasure is Low because it waits.
 
 ## Themes
 
@@ -128,7 +168,7 @@ have not touched keep following the active theme.
 ## Window
 
 Drag the frame to move it. Drag the grip in the bottom-right corner to resize it. Size and
-position are saved.
+position are saved. Escape closes the main window; compact mode stays up.
 
 ## Commands
 

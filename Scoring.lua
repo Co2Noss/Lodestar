@@ -20,7 +20,12 @@ function LS:GetRecommendations()
   end
 
   for _, activity in ipairs(self.activities or {}) do
-    if not activity.requiresProfession or #(self.profile.professions or {}) > 0 then
+    local skip = false
+    if activity.skipIf then
+      local ok, hide = pcall(activity.skipIf)
+      skip = ok and hide
+    end
+    if not skip and (not activity.requiresProfession or #(self.profile.professions or {}) > 0) then
       consider(activity)
     end
   end
@@ -37,6 +42,24 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.db.goals.MOUNTS and self.GetMountRecommendations then
+    for _, mount in ipairs(self:GetMountRecommendations()) do
+      consider(mount, mount.score)
+    end
+  end
+
+  if self.db.goals.REPUTATION and self.GetReputationRecommendations then
+    for _, rep in ipairs(self:GetReputationRecommendations()) do
+      consider(rep, rep.score)
+    end
+  end
+
+  if self.db.goals.GOLD and self.GetGoldRecommendations then
+    for _, gold in ipairs(self:GetGoldRecommendations()) do
+      consider(gold, gold.score)
+    end
+  end
+
   table.sort(out, function(a, b)
     if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
     return a.title < b.title
@@ -49,9 +72,11 @@ end
 local CATEGORY_ORDER = {
   ["Great Vault"] = 1,
   ["Professions"] = 2,
-  ["Reputation"] = 3,
-  ["Solo content"] = 4,
-  ["Questing"] = 5,
+  ["Mounts"] = 3,
+  ["Reputation"] = 4,
+  ["Gold"] = 5,
+  ["Solo content"] = 6,
+  ["Questing"] = 7,
 }
 
 function LS:GetCategories()
@@ -69,6 +94,18 @@ function LS:GetCategories()
     table.insert(group.activities, activity)
     group.minutes = group.minutes + (activity.minutes or 0)
     group.best = math.max(group.best, activity.score or 0)
+  end
+
+  for _, group in ipairs(groups) do
+    if group.name == "Reputation" then
+      table.sort(group.activities, function(a, b)
+        if (a.section or "") ~= (b.section or "") then
+          return (a.section or "") < (b.section or "")
+        end
+        if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
+        return (a.title or "") < (b.title or "")
+      end)
+    end
   end
 
   table.sort(groups, function(a, b)

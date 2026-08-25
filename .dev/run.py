@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Themes.lua", "Catalog.lua", "Knowledge.lua", "PlayerData.lua",
+    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "PlayerData.lua",
     "Vault.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "UI.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -119,7 +119,7 @@ class Session:
         self.timers()
 
 
-GOALS = ["Great Vault & endgame", "Solo content", "Professions", "Mounts", "Reputation", "Questing"]
+GOALS = ["Great Vault & endgame", "Solo content", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
 
 # --- a fresh install ------------------------------------------------------
 print("-- fresh install --")
@@ -178,7 +178,7 @@ check("select all turns on every goal",
         local n = 0
         for _, on in pairs(__LS.db.goals) do if on then n = n + 1 end end
         return n
-      end)()""") == 6)
+      end)()""") == 7)
 check("the same button becomes clear all", "Clear all" in s.texts())
 s.click("Clear all")
 check("clear all turns every goal off", not s.eval("__LS:GoalsChosen()"))
@@ -258,8 +258,8 @@ s.exec("__LS:ShowPage('SETTINGS')")
 s.timers()
 settings = s.texts()
 check("Settings opens on Goals", s.eval("__LS:SettingsTab()[1]") == "GOALS")
-check("the four settings tabs are on the strip",
-      all(name in settings for name in ["Goals", "Appearance", "Compact", "Layout"]),
+check("the five settings tabs are on the strip",
+      all(name in settings for name in ["Goals", "Reputation", "Appearance", "Compact", "Layout"]),
       settings)
 check("Goals does not bury colors underneath it",
       "Click a color to change it" not in settings and "Accent" not in settings, settings)
@@ -349,6 +349,37 @@ s.exec("""
   __LS:ScanProfessions()
 """)
 check("vault recommendations still generate", s.eval("#__LS:GetVaultRecommendations()") > 0)
+s.exec("C_WeeklyRewards.HasAvailableRewards = function() return true end")
+claim = s.eval("""(function()
+  for _, r in ipairs(__LS:GetVaultRecommendations()) do
+    if (r.title or ""):find("Claim", 1, true) then return r.title end
+  end
+end)()""")
+check("an unclaimed Great Vault is recommended after reset",
+      claim == "Claim last week's Great Vault", claim)
+s.exec("C_WeeklyRewards.HasAvailableRewards = function() return false end")
+check("gold making stays quiet without a price addon",
+      s.eval("#__LS:GetGoldRecommendations()") == 0)
+s.exec("""
+  __LS.db.goals.GOLD = true
+  Auctionator = { API = { v1 = { GetAuctionPriceByItemID = function(_, id)
+    local prices = { [210796] = 8000, [210805] = 25000, [210808] = 22000, [210802] = 18000, [210807] = 20000,
+                     [10822] = 450000 }
+    return prices[id]
+  end } } }
+""")
+gold = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetGoldRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("herbalism gold farms rank once Auctionator has prices",
+      "Herb Khaz Algar" in gold, gold)
+check("a pet farm ranks when it has an AH listing",
+      "Dark Whelplings" in gold, gold)
+check("mining stays quiet without that profession",
+      "Mine Khaz Algar" not in gold, gold)
+s.exec("__LS.db.goals.GOLD = false; Auctionator = nil")
 check("a world slot below the cap is not called maxed",
       "Maxed" not in (s.eval("""(function()
         local out = {}
@@ -379,9 +410,38 @@ s.timers()
 prof = s.texts()
 check("Professions tabs include each trained profession",
       "Alchemy" in prof and "Herbalism" in prof, prof)
+check("Professions tabs include Cooking, Fishing and Archaeology",
+      "Cooking" in prof and "Fishing" in prof and "Archaeology" in prof, prof)
+check("a primary profession offers the trade skill window and specializations",
+      "Open Alchemy" in prof and "Specializations" in prof, prof)
+s.exec("OpenedTradeSkills = {}")
 s.click("Herbalism")
 check("the selected profession tab is remembered",
       s.eval("__LS:PageTab('PROFESSIONS')") is not None)
+check("clicking a profession tab opens that profession",
+      s.eval("OpenedTradeSkills[#OpenedTradeSkills]") == 2823,
+      s.eval("table.concat(OpenedTradeSkills, ',')"))
+s.click("Fishing")
+fish = s.texts()
+check("a secondary profession shows skill instead of a knowledge tree",
+      "Skill 50 / 100" in fish
+      and "no knowledge tree" in fish
+      and "tree size unknown" not in fish, fish)
+check("a secondary profession opens the skill window without specializations",
+      "Open Fishing" in fish and "Specializations" not in fish, fish)
+levels = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+    if (r.id or ""):find("prof_level_", 1, true) then table.insert(out, r.title) end
+  end
+  return table.concat(out, "\\n")
+end)()""")
+check("an unmaxed secondary profession is recommended for leveling",
+      "Fishing" in levels and "Cooking" in levels and "Archaeology" in levels, levels)
+check("cards rank as High, Medium or Low",
+      s.eval('(function() local a = __LS:Urgency({urgency="HIGH"}); return a end)()') == "High"
+      and s.eval('(function() local a = __LS:Urgency({urgency="MEDIUM"}); return a end)()') == "Medium"
+      and s.eval('(function() local a = __LS:Urgency({urgency="LOW"}); return a end)()') == "Low")
 
 s.exec("__LS:ShowPage('TODAY')")
 s.timers()
@@ -389,6 +449,181 @@ today = s.texts()
 check("Today with several goals shows a tab per category",
       "Great Vault" in today and "Solo content" in today, today)
 check("Today no longer has Collapse all", "Collapse all" not in today)
+
+s.exec("""
+  local oldWorld = C_WeeklyRewards.GetActivities
+  C_WeeklyRewards.GetActivities = function(kind)
+    local data = oldWorld(kind)
+    for _, activity in ipairs(data) do
+      if activity.type == 3 then
+        activity.level = 11
+        activity.progress = activity.threshold
+      end
+    end
+    return data
+  end
+  C_WeeklyRewards.GetSortedProgressForActivity = function(kind)
+    local id = type(kind) == "table" and kind.type or kind
+    if id == 3 then
+      local out = {}
+      for i = 1, 8 do out[i] = { difficulty = 11, numPoints = 1 } end
+      return out
+    end
+    return {}
+  end
+  Currencies[3028] = { quantity = 0 }
+  Currencies[3310] = { quantity = 0, quantityEarnedThisWeek = 600, maxWeeklyQuantity = 600 }
+  GildedStashTooltip = "4/4"
+  __LS:ScanVault()
+""")
+delve_done = s.eval("""(function()
+  for _, r in ipairs(__LS:GetRecommendations()) do
+    if r.id == "delve" then return true end
+  end
+  return false
+end)()""")
+check("a finished World Vault with no keys, no shards and Gilded Stashes done stays quiet about Bountiful Delves",
+      delve_done is False)
+s.exec("""
+  Currencies[3028] = { quantity = 2 }
+  GildedStashTooltip = nil
+  __LS:ScanVault()
+""")
+
+s.exec("__LS.db.goals.MOUNTS = true")
+s.exec("__LS:ShowPage('TODAY')")
+s.timers()
+mounts = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetMountRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("a missing Invincible is recommended while ICC is open",
+      "Invincible" in mounts and "Icecrown" in mounts, mounts)
+check("Today grows a Mounts tab once that goal is on",
+      "Mounts" in s.texts(), s.texts())
+
+s.exec("CollectedMounts[363] = true; __LS:ScanMounts()")
+after_collect = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetMountRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("a collected Invincible is not recommended again",
+      "Invincible" not in after_collect, after_collect)
+
+s.exec("CollectedMounts[363] = nil; __LS:ScanMounts()")
+s.exec("""
+  SavedInstances[1] = {
+    name = "Icecrown Citadel", difficulty = 6, locked = true, instanceID = 631,
+    numEncounters = 12, encounterProgress = 12,
+    encounters = { [12] = { name = "The Lich King", killed = true } },
+  }
+""")
+after_lock = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetMountRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("ICC 25 Heroic with the Lich King dead is not recommended",
+      "Invincible" not in after_lock, after_lock)
+
+s.exec("""
+  SavedInstances[1].encounters[12].killed = false
+  SavedInstances[1].encounterProgress = 11
+""")
+mid_run = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetMountRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("an unfinished ICC lockout still recommends Invincible",
+      "Invincible" in mid_run, mid_run)
+
+s.exec("SavedInstances = {}; CollectedMounts[185] = true; __LS:ScanMounts()")
+dungeons = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetMountRecommendations()) do
+    if r.urgency == "LOW" then table.insert(out, r.title) end
+  end
+  return table.concat(out, "\\n")
+end)()""")
+check("a collected dungeon mount stays quiet",
+      "Raven Lord" not in dungeons, dungeons)
+check("an uncollected dungeon mount is still farmable any time",
+      "Blue Proto-Drake" in dungeons, dungeons)
+
+s.exec("__LS.db.goals.REPUTATION = true")
+s.exec("__LS:ScanReputations()")
+check("reputation stays quiet until the player picks expansions or factions",
+      s.eval("#__LS:GetReputationRecommendations()") == 0)
+s.exec("__LS:SetRepExpansion('The War Within', true)")
+rep = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetReputationRecommendations()) do
+    table.insert(out, (r.section or "") .. " | " .. r.title)
+  end
+  return table.concat(out, "\\n")
+end)()""")
+check("an unfinished War Within faction is recommended once that expansion is on",
+      "Zul'jarra" in rep and "Council of Dornogal" in rep, rep)
+check("reputation cards are grouped by subcategory",
+      "Khaz Algar" in rep and "Undermine" in rep, rep)
+check("an exalted faction is not recommended",
+      "Valdrakken" not in rep, rep)
+
+s.exec("__LS:SetRepFaction(2590, false)")
+rep_off = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetReputationRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("a faction turned off in Settings is not recommended",
+      "Council of Dornogal" not in rep_off and "Zul'jarra" in rep_off, rep_off)
+
+s.exec("__LS:SetPageTab('SETTINGS', 'REPUTATION'); __LS:ShowPage('SETTINGS')")
+s.timers()
+rep_settings = s.texts()
+check("Settings Reputation lists expansions and factions from the client",
+      "The War Within" in rep_settings and "Khaz Algar" in rep_settings
+      and "Council of Dornogal" in rep_settings, rep_settings)
+check("Settings Reputation opens on the first expansion tab",
+      s.eval("__LS:PickTab(__LS:RepExpansionTabs(), __LS:PageTab('REP'))[1]")
+      == "The War Within")
+s.click("Dragonflight")
+check("the Reputation expansion tab is remembered",
+      s.eval("__LS:PageTab('REP')") == "Dragonflight")
+df_settings = s.texts()
+check("an expansion tab shows that expansion's factions, not the others",
+      "Valdrakken Accord" in df_settings and "Council of Dornogal" not in df_settings,
+      df_settings)
+s.click("The War Within")
+check("switching back shows War Within categories again",
+      "Khaz Algar" in s.texts() and "Valdrakken Accord" not in s.texts(), s.texts())
+
+s.exec("__LS.db.goals.REPUTATION = false")
+s.exec("__LS:SetPageTab('SETTINGS', 'REPUTATION'); __LS:ShowPage('SETTINGS')")
+s.timers()
+nudge = s.texts()
+check("picking a faction with the goal off suggests turning Reputation on",
+      "Reputation is not one of your goals" in nudge
+      and "Turn on the Reputation goal" in nudge, nudge)
+s.click("Turn on the Reputation goal")
+check("the suggestion turns the Reputation goal on",
+      s.eval("__LS.db.goals.REPUTATION") is True)
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("the suggestion leaves once the goal is on",
+      "Turn on the Reputation goal" not in s.texts(), s.texts())
+
+s.exec("__LS.frame:Show(); __LS.frame.scripts.OnKeyDown(__LS.frame, 'ESCAPE')")
+check("Escape closes the main window", s.eval("__LS.frame:IsShown()") is not True)
+check("the main window is registered to close on Escape",
+      s.eval("""(function()
+        for _, name in ipairs(UISpecialFrames) do
+          if name == "LodestarFrame" then return true end
+        end
+      end)()""") is True)
 
 s.exec("__LS:SetCompact(true); __LS.frame:Hide(); __LS:UpdateCompact()")
 s.timers()

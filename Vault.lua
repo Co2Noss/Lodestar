@@ -355,6 +355,26 @@ end
 
 function LS:GetVaultRecommendations()
   local out = {}
+  if self:HasUnclaimedVault() then
+    table.insert(out, {
+      id = "vault_claim_" .. self:WeeklyResetKey(),
+      title = "Claim last week's Great Vault",
+      minutes = 5,
+      score = 48,
+      why = "Tuesday reset rolled your loot. Open the vault and pick a reward from each filled slot.",
+      category = "Great Vault",
+      tags = { ENDGAME = 14 },
+      urgency = "HIGH",
+      priority = "FREE VALUE",
+      openLabel = "Open Vault",
+      open = function() LS:OpenGreatVault() end,
+      detail = {
+        current = "Unclaimed",
+        potential = "Last week's rewards",
+        matters = "The chest is already earned. Leaving it sitting does not make this week's vault better.",
+      },
+    })
+  end
   for _, key in ipairs({ "raid", "activities", "world" }) do
     local row = self.vault.rows[key]
     if row then
@@ -369,6 +389,7 @@ function LS:GetVaultRecommendations()
             why = advice.why,
             category = "Great Vault",
             tags = { ENDGAME = 12 },
+            urgency = advice.upgradable and "HIGH" or "MEDIUM",
             priority = advice.upgradable and "HIGH PRIORITY" or "FILL SLOT",
             detail = {
               current = slot.current,
@@ -382,4 +403,96 @@ function LS:GetVaultRecommendations()
     end
   end
   return out
+end
+
+local COFFER_KEY = 3028
+local COFFER_SHARDS = 3310
+local SHARDS_PER_KEY = 100
+local GILDED_STASH_WIDGET = 7591
+
+local function Currency(id)
+  local info = Safe(C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo, id)
+  if type(info) ~= "table" then return 0, 0, 0 end
+  return info.quantity or 0, info.quantityEarnedThisWeek or 0, info.maxWeeklyQuantity or 0
+end
+
+-- True while any World Vault slot is empty or still below the reward cap.
+function LS:WorldVaultNeedsDelves()
+  local row = self.vault and self.vault.rows and self.vault.rows.world
+  if not row or not row.slots or #row.slots == 0 then return true end
+  for _, slot in ipairs(row.slots) do
+    if not slot.complete then return true end
+    if slot.advice and slot.advice.upgradable then return true end
+  end
+  return false
+end
+
+-- Remaining T11 Bountiful Gilded Stashes this week, or nil when the client has not
+-- handed the widget over yet (it often only updates near the Delver's Headquarters).
+function LS:GildedStashesRemaining()
+  local widget = Safe(C_UIWidgetManager and C_UIWidgetManager.GetSpellDisplayVisualizationInfo, GILDED_STASH_WIDGET)
+  local tooltip = widget and widget.spellInfo and widget.spellInfo.tooltip
+  if type(tooltip) ~= "string" then return nil end
+  local have, need = tooltip:match("(%d+)%s*/%s*(%d+)")
+  have, need = tonumber(have), tonumber(need)
+  if not have or not need or need <= 0 then return nil end
+  return math.max(0, need - have)
+end
+
+-- A Bountiful Delve is only worth ranking while it still pays: World Vault, a key,
+-- enough shards to make a key, or a Gilded Stash still sitting this week.
+function LS:BountifulDelveWorthDoing()
+  if self:WorldVaultNeedsDelves() then return true end
+  local keys = Currency(COFFER_KEY)
+  if keys > 0 then return true end
+  local shards = Currency(COFFER_SHARDS)
+  if shards >= SHARDS_PER_KEY then return true end
+  local gilded = self:GildedStashesRemaining()
+  if gilded and gilded > 0 then return true end
+  if gilded == nil then
+    -- The stash widget often only updates near the Delver's Headquarters. Several
+    -- T11 runs already in the vault is a strong sign the weekly stashes are done.
+    local runs = self.vault and self.vault.rows and self.vault.rows.world and self.vault.rows.world.runs or {}
+    local t11, cap = 0, self.tierCaps and self.tierCaps.world or 11
+    for _, tier in ipairs(runs) do
+      if tier >= cap then t11 = t11 + 1 end
+    end
+    if t11 < 4 then return true end
+  end
+  return false
+end
+
+function LS:WeeklyResetKey()
+  local now = (GetServerTime and GetServerTime()) or (time and time()) or 0
+  local untilReset = Safe(C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset)
+  if type(untilReset) == "number" then
+    return tostring(math.floor((now + untilReset) / 604800))
+  end
+  return tostring(math.floor(now / 604800))
+end
+
+function LS:HasUnclaimedVault()
+  if Safe(C_WeeklyRewards and C_WeeklyRewards.HasAvailableRewards) then return true end
+  if Safe(C_WeeklyRewards and C_WeeklyRewards.HasGeneratedRewards) then return true end
+  if Safe(C_WeeklyRewards and C_WeeklyRewards.CanClaimRewards) then return true end
+  return false
+end
+
+function LS:OpenGreatVault()
+  if C_AddOns and C_AddOns.LoadAddOn then
+    pcall(C_AddOns.LoadAddOn, "Blizzard_WeeklyRewards")
+  elseif LoadAddOn then
+    pcall(LoadAddOn, "Blizzard_WeeklyRewards")
+  end
+  local frame = _G.WeeklyRewardsFrame
+  if frame then
+    if ShowUIPanel then
+      pcall(ShowUIPanel, frame)
+    else
+      frame:Show()
+    end
+  end
+  if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then
+    pcall(C_WeeklyRewards.OnUIInteract)
+  end
 end

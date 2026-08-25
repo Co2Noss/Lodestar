@@ -15,6 +15,7 @@ local goalList = {
   { "MOUNTS", "Mounts" },
   { "REPUTATION", "Reputation" },
   { "QUESTING", "Questing" },
+  { "GOLD", "Gold making" },
 }
 
 local function text(parent, width, size)
@@ -27,8 +28,8 @@ local function text(parent, width, size)
   return fontString
 end
 
-local function panel(parent)
-  local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+local function panel(parent, name)
+  local frame = CreateFrame("Frame", name, parent, "BackdropTemplate")
   frame:SetBackdrop({ bgFile = LS:ThemeTexture(), edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
   return frame
 end
@@ -159,7 +160,7 @@ function LS:ApplyFrameLayout()
 end
 
 function LS:CreateUI()
-  local frame = panel(UIParent)
+  local frame = panel(UIParent, "LodestarFrame")
   self.frame = frame
   frame:SetSize(960, 680)
   frame:SetPoint("CENTER")
@@ -171,6 +172,24 @@ function LS:CreateUI()
   frame:SetResizable(true)
   frame:SetClampedToScreen(true)
   frame:EnableMouse(true)
+  -- ESC closes the main window the same way it closes Blizzard's. Compact stays up.
+  if UISpecialFrames then
+    local listed = false
+    for _, name in ipairs(UISpecialFrames) do
+      if name == "LodestarFrame" then listed = true break end
+    end
+    if not listed then table.insert(UISpecialFrames, "LodestarFrame") end
+  end
+  frame:EnableKeyboard(true)
+  if frame.SetPropagateKeyboardInput then frame:SetPropagateKeyboardInput(true) end
+  frame:SetScript("OnKeyDown", function(selfFrame, key)
+    if key == "ESCAPE" then
+      if selfFrame.SetPropagateKeyboardInput then selfFrame:SetPropagateKeyboardInput(false) end
+      selfFrame:Hide()
+    elseif selfFrame.SetPropagateKeyboardInput then
+      selfFrame:SetPropagateKeyboardInput(true)
+    end
+  end)
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", function(selfFrame)
     if not InCombatLockdown() then selfFrame:StartMoving() end
@@ -289,17 +308,29 @@ function LS:PickTab(tabs, selectedID)
 end
 
 -- Full-width strip used by Today, Great Vault, Professions and Settings. One click
--- replaces scrolling through every group on the page.
-function LS:TabStrip(tabs, selectedID, onChoose)
+-- replaces scrolling through every group on the page. Long lists wrap onto another row
+-- rather than shrinking the labels to nothing.
+function LS:TabStrip(tabs, selectedID, onChoose, y, parent, width)
   local chosen = self:PickTab(tabs, selectedID)
-  if not chosen then return nil end
+  if not chosen then return nil, 0 end
+  y = y or -56
+  parent = parent or self.content
   local n = #tabs
-  local gap = 6
-  local total = self:ContentWidth()
-  local tabWidth = math.floor((total - gap * (n - 1)) / n)
+  local gap, height = 6, 30
+  local inset = (parent ~= self.content) and 8 or 0
+  local total = width or (self:ContentWidth() - inset * 2)
+  local minWidth = 92
+  local tabWidth = math.floor((total - gap * math.max(n - 1, 0)) / math.max(n, 1))
+  local perRow = n
+  if n > 1 and tabWidth < minWidth then
+    perRow = math.max(1, math.floor((total + gap) / (minWidth + gap)))
+    tabWidth = math.floor((total - gap * (perRow - 1)) / perRow)
+  end
   for i, tab in ipairs(tabs) do
-    local nav = button(self.content, tab[2], tabWidth, 30)
-    nav:SetPoint("TOPLEFT", (i - 1) * (tabWidth + gap), -56)
+    local col = (i - 1) % perRow
+    local row = math.floor((i - 1) / perRow)
+    local nav = button(parent, tab[2], tabWidth, height)
+    nav:SetPoint("TOPLEFT", inset + col * (tabWidth + gap), y - row * (height + gap))
     if tab[1] == chosen[1] then
       highlight(nav)
     else
@@ -309,7 +340,8 @@ function LS:TabStrip(tabs, selectedID, onChoose)
       onChoose(tab[1])
     end)
   end
-  return chosen
+  local rows = math.ceil(n / perRow)
+  return chosen, rows * height + (rows - 1) * gap
 end
 
 function LS:ShowPage(page)
@@ -416,18 +448,22 @@ function LS:ActivityCard(parent, activity, y, width)
     self:Colorize(label, tone), self:FormatDuration((activity.minutes or 0) * 60),
     math.floor(activity.score or 0), tracked and "  •  tracked" or ""))
 
-  local actions = {
-    { "Details", function() self:ShowDetails(activity.id) end },
-    { "Done", function() self.db.completed[activity.id] = true; self:ShowPage("TODAY") end },
-    { "Ignore", function() self.db.dismissed[activity.id] = true; self:ShowPage("TODAY") end },
-  }
+  local actions = {}
+  if activity.open then
+    table.insert(actions, { activity.openLabel or "Open", activity.open })
+  end
+  table.insert(actions, { "Details", function() self:ShowDetails(activity.id) end })
+  table.insert(actions, { "Done", function() self.db.completed[activity.id] = true; self:ShowPage("TODAY") end })
+  table.insert(actions, { "Ignore", function() self.db.dismissed[activity.id] = true; self:ShowPage("TODAY") end })
+  local height = CARD_HEIGHT + math.max(0, #actions - 3) * 30
+  card:SetSize(width, height)
   for j, action in ipairs(actions) do
     local actionButton = button(card, action[1], 74, 26)
     actionButton:SetPoint("TOPRIGHT", -10, -14 - (j - 1) * 30)
     paint(actionButton, "panel")
     actionButton:SetScript("OnMouseUp", action[2])
   end
-  return card
+  return card, height
 end
 
 -- Shown once, before anything has been recommended. Every goal starts off, so this is the
@@ -510,6 +546,29 @@ function LS:Today()
   local groups = self:GetCategories()
 
   if #groups == 0 then
+    if self:GoalsChosen() then
+      self:Heading("Your plan for today", "Nothing matches the filters you picked.")
+      local body = self:Body(76)
+      local none = text(body, body.width, 11)
+      none:SetPoint("TOPLEFT", 0, 0)
+      local pick
+      if self.db.goals.REPUTATION and self.HasRepSelection and not self:HasRepSelection() then
+        none:SetText("Reputation is on, but you have not picked any expansions, categories or factions. Lodestar stays quiet about reputations until you do.")
+        pick = button(body, "Choose reputations", 200, 30)
+        pick:SetScript("OnMouseUp", function()
+          self:SetPageTab("SETTINGS", "REPUTATION")
+          self:ShowPage("SETTINGS")
+        end)
+      else
+        none:SetText("The goals are on, but nothing is currently worth ranking. That changes as the week does.")
+        pick = button(body, "Choose my goals", 200, 30)
+        pick:SetScript("OnMouseUp", function() self:ShowPage("WELCOME") end)
+      end
+      pick:SetPoint("TOPLEFT", 0, -42)
+      highlight(pick)
+      body:finish(90)
+      return
+    end
     self:Heading("Your plan for today", "Nothing to rank until you pick a goal.")
     local body = self:Body(76)
     local none = text(body, body.width, 11)
@@ -545,9 +604,18 @@ function LS:Today()
 
   local body = self:Body(96)
   local y = 0
+  local lastSection
   for _, activity in ipairs(group.activities) do
-    self:ActivityCard(body, activity, y, body.width)
-    y = y - (CARD_HEIGHT + CARD_GAP)
+    if activity.section and activity.section ~= lastSection then
+      local heading = text(body, body.width, 12)
+      heading:SetPoint("TOPLEFT", 0, y)
+      heading:SetTextColor(unpack(self.colors.accent))
+      heading:SetText(activity.section)
+      y = y - 22
+      lastSection = activity.section
+    end
+    local _, h = self:ActivityCard(body, activity, y, body.width)
+    y = y - ((h or CARD_HEIGHT) + CARD_GAP)
   end
   body:finish(-y + 10)
 end
@@ -562,6 +630,8 @@ end
 function LS:OpenFull(page, id)
   self:ScanVault()
   if self.ScanProfessions then self:ScanProfessions() end
+  if self.ScanMounts then self:ScanMounts() end
+  if self.ScanReputations then self:ScanReputations() end
   if id then self.detailID = id end
   self.frame:Show()
   self:ShowPage(page or self.page or "TODAY")
@@ -804,8 +874,16 @@ function LS:ProfessionsPage()
 
   local subtitle
   if selected then
-    local remaining = selected.remaining and (selected.remaining .. " to finish the tree") or "tree size unknown"
-    subtitle = string.format("%d unspent  •  %s", selected.unspent or 0, remaining)
+    if selected.secondary and not selected.tracked then
+      subtitle = string.format("Skill %d / %d", selected.skill or 0, selected.maxSkill or 0)
+    else
+      local remaining = selected.remaining and (selected.remaining .. " to finish the tree") or "tree size unknown"
+      if selected.spent then
+        subtitle = string.format("%d unspent  •  %d spent  •  %s", selected.unspent or 0, selected.spent, remaining)
+      else
+        subtitle = string.format("%d unspent  •  %s", selected.unspent or 0, remaining)
+      end
+    end
   elseif #self.professions > 0 then
     subtitle = "Nothing for the current expansion. Switch the filter to see your older professions."
   else
@@ -826,6 +904,11 @@ function LS:ProfessionsPage()
 
   if chosen then
     self:TabStrip(tabs, chosen[1], function(id)
+      local prof
+      for _, entry in ipairs(self:VisibleProfessions()) do
+        if tostring(entry.skillLineID) == id then prof = entry end
+      end
+      if self.OpenProfessionWindow then self:OpenProfessionWindow(prof, false) end
       self:SetPageTab("PROFESSIONS", id)
       self:ShowPage("PROFESSIONS")
     end)
@@ -851,8 +934,20 @@ function LS:ProfessionCard(parent, prof, y, width)
   end
 
   add(string.format("Skill %d / %d", prof.skill, prof.maxSkill))
-  local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
-  add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
+  if prof.secondary and not prof.tracked then
+    add("Cooking, Fishing and Archaeology have no knowledge tree. Skill is the progress that matters.")
+    if (prof.maxSkill or 0) > 0 and (prof.skill or 0) >= prof.maxSkill then
+      add("This character is at the skill cap.")
+    end
+  else
+    local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
+    if prof.spent then
+      add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %d spent  •  %s",
+        prof.unspent or 0, prof.spent, remaining))
+    else
+      add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
+    end
+  end
 
   if prof.tracked then
     local sections = {
@@ -879,12 +974,17 @@ function LS:ProfessionCard(parent, prof, y, width)
       end
     end
     add(catchUpLine(prof.catchUp))
-  else
+  elseif not prof.secondary then
     add("Weekly quests, drops and treasures are not tracked for this expansion yet.")
     add("Lodestar will not claim they are complete without verified quest data.")
   end
 
-  local height = 32 + #lines * 17 + 8
+  local actions = { { "Open " .. (prof.baseName or prof.name), false } }
+  if not prof.secondary then
+    table.insert(actions, { "Specializations", true })
+  end
+
+  local height = 32 + #lines * 17 + 40
   local card = panel(parent)
   card:SetSize(width, height)
   card:SetPoint("TOPLEFT", 0, y)
@@ -908,6 +1008,17 @@ function LS:ProfessionCard(parent, prof, y, width)
       row:SetTextColor(0.64, 0.68, 0.74, 1)
     end
     offset = offset - 17
+  end
+
+  local btnW = math.floor((width - 24 - (#actions - 1) * 8) / #actions)
+  for i, action in ipairs(actions) do
+    local b = button(card, action[1], btnW, 26)
+    b:SetPoint("BOTTOMLEFT", 12 + (i - 1) * (btnW + 8), 8)
+    paint(b, "panel")
+    if action[2] and (prof.unspent or 0) > 0 then highlight(b) end
+    b:SetScript("OnMouseUp", function()
+      if LS.OpenProfessionWindow then LS:OpenProfessionWindow(prof, action[2]) end
+    end)
   end
 
   return y - (height + 10)
@@ -1074,6 +1185,7 @@ end
 
 local settingsTabs = {
   { "GOALS", "Goals", "Tell Lodestar what matters. The plan follows these goals." },
+  { "REPUTATION", "Reputation", "Which expansions, categories and factions to rank." },
   { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
   { "COMPACT", "Compact", "The small always-on window." },
   { "LAYOUT", "Layout", "Where the window sits, and what Lodestar has remembered." },
@@ -1094,11 +1206,31 @@ function LS:Settings()
     self:ShowPage("SETTINGS")
   end)
 
-  local body = self:Body(96)
-  local width = math.min(420, body.width)
+  local bodyOffset = 96
+  if chosen[1] == "REPUTATION" then
+    if self.ScanReputations then self:ScanReputations() end
+    local expansions = self.RepExpansionTabs and self:RepExpansionTabs() or {}
+    if #expansions > 0 then
+      local nest = panel(self.content)
+      nest:SetPoint("TOPLEFT", 0, -90)
+      nest:SetPoint("BOTTOMRIGHT", 0, 0)
+      paint(nest, "panel")
+      nest:SetBackdropBorderColor(unpack(self.colors.accent))
+      local _, stripH = self:TabStrip(expansions, self:PageTab("REP"), function(id)
+        self:SetPageTab("REP", id)
+        self:ShowPage("SETTINGS")
+      end, -8, nest)
+      bodyOffset = 106 + (stripH or 30)
+    end
+  end
+
+  local body = self:Body(bodyOffset)
+  local width = (chosen[1] == "REPUTATION") and body.width or math.min(420, body.width)
   local y = 0
   if chosen[1] == "GOALS" then
     y = self:SettingsGoals(body, width, y)
+  elseif chosen[1] == "REPUTATION" then
+    y = self:SettingsReputation(body, width, y)
   elseif chosen[1] == "APPEARANCE" then
     y = self:SettingsAppearance(body, width, y)
   elseif chosen[1] == "COMPACT" then
@@ -1130,8 +1262,135 @@ function LS:SettingsGoals(body, width, y)
 
   local goalNote = text(body, width, 10)
   goalNote:SetPoint("TOPLEFT", 0, y)
-  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty.")
-  y = y - 32
+  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty. Which reputations to rank is chosen on the Reputation tab.")
+  y = y - 36
+
+  local goldHeading = text(body, width, 13)
+  goldHeading:SetPoint("TOPLEFT", 0, y)
+  goldHeading:SetTextColor(unpack(self.colors.accent))
+  goldHeading:SetText("Gold prices")
+  y = y - 24
+
+  local source = (self.db.goldSource or "AUTO")
+  local goldLabels, goldFromLabel = {}, {}
+  for _, key in ipairs(self.goldSourceOrder or { "AUTO" }) do
+    local label = (self.goldSourceLabels and self.goldSourceLabels[key]) or key
+    table.insert(goldLabels, label)
+    goldFromLabel[label] = key
+  end
+  local drop = self:Dropdown(body, width, (self.goldSourceLabels and self.goldSourceLabels[source]) or source, goldLabels, function(choice)
+    self.db.goldSource = goldFromLabel[choice] or "AUTO"
+    self:ShowPage("SETTINGS")
+  end)
+  drop:SetPoint("TOPLEFT", 0, y)
+  y = y - 42
+
+  local goldNote = text(body, width, 10)
+  goldNote:SetPoint("TOPLEFT", 0, y)
+  local _, name, ready
+  if self.ResolveGoldSource then
+    _, name, ready = self:ResolveGoldSource()
+  end
+  if not self.db.goals.GOLD then
+    goldNote:SetText("Gold making stays off the plan until that goal is on. Prices come from TSM, Auctionator or RECrystallize.")
+  elseif ready then
+    goldNote:SetText("Prices from " .. name .. ". Auto uses the first of those addons that is loaded.")
+  elseif source ~= "AUTO" and name then
+    goldNote:SetTextColor(unpack(self.colors.warn))
+    goldNote:SetText(name .. " is not loaded. Install it, or pick Auto / another source, or Lodestar stays quiet about gold.")
+  else
+    goldNote:SetText("No price addon is loaded. Install TSM, Auctionator or RECrystallize. Lodestar does not invent an auction house.")
+  end
+  y = y - 40
+  return y
+end
+
+function LS:SettingsReputation(body, width, y)
+  if self.ScanReputations then self:ScanReputations() end
+  local intro = text(body, width, 11)
+  intro:SetPoint("TOPLEFT", 0, y)
+  intro:SetText("Nothing is assumed. Turn on an expansion, a category, or a single faction. Lodestar ranks the ones that are not finished and stays quiet about the rest.")
+  y = y - 40
+
+  if self:HasRepSelection() and not self.db.goals.REPUTATION then
+    local warn = text(body, width, 11)
+    warn:SetPoint("TOPLEFT", 0, y)
+    warn:SetTextColor(unpack(self.colors.warn))
+    warn:SetText("You have factions selected, but Reputation is not one of your goals, so none of this will appear on Today.")
+    y = y - 36
+    local enable = button(body, "Turn on the Reputation goal", math.min(280, width), 32)
+    enable:SetPoint("TOPLEFT", 0, y)
+    highlight(enable)
+    enable:SetScript("OnMouseUp", function()
+      self.db.goals.REPUTATION = true
+      self:MarkGoalsChosen()
+      self:ShowPage("SETTINGS")
+    end)
+    y = y - 44
+  end
+
+  local rows = self.profile and self.profile.repRows or {}
+  if #rows == 0 then
+    local none = text(body, width, 11)
+    none:SetPoint("TOPLEFT", 0, y)
+    none:SetText("The client has not handed Lodestar a reputation list yet. Open the Reputation pane once, then come back.")
+    none:SetTextColor(unpack(self.colors.muted))
+    return y - 28
+  end
+
+  local expansion = self:PickTab(self:RepExpansionTabs(), self:PageTab("REP"))
+  expansion = expansion and expansion[1]
+  if not expansion then
+    return y
+  end
+
+  local expansionOn = (self.db.repExpansions and self.db.repExpansions[expansion]) == true
+  local all = button(body, (expansionOn and "ON  •  Rank all of " or "OFF  •  Rank all of ") .. expansion, width, 32)
+  all:SetPoint("TOPLEFT", 0, y)
+  if expansionOn then
+    highlight(all)
+  else
+    all.text:SetTextColor(0.62, 0.65, 0.7, 1)
+  end
+  all:SetScript("OnMouseUp", function()
+    self:SetRepExpansion(expansion, not expansionOn)
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 40
+
+  for _, row in ipairs(rows) do
+    if row.kind ~= "expansion" and row.expansion == expansion then
+      local on, label, indent
+      if row.kind == "group" then
+        on = self:RepGroupOn(row.expansion, row.name)
+        label = row.name
+        indent = 0
+      else
+        on = self:CaresAboutRep(row)
+        local extra = row.isMajor and string.format("Renown %d", row.renown or 0)
+          or (_G["FACTION_STANDING_LABEL" .. tostring(row.reaction or 0)] or "")
+        label = extra ~= "" and (row.name .. "  •  " .. extra) or row.name
+        indent = row.group and 18 or 0
+      end
+      local toggle = button(body, (on and "ON  •  " or "OFF  •  ") .. label, width - indent, 28)
+      toggle:SetPoint("TOPLEFT", indent, y)
+      if on then
+        highlight(toggle)
+      else
+        toggle.text:SetTextColor(0.62, 0.65, 0.7, 1)
+      end
+      toggle:SetScript("OnMouseUp", function()
+        if row.kind == "group" then
+          self:SetRepGroup(row.expansion, row.name, not on)
+        else
+          self:SetRepFaction(row.factionID, not on)
+        end
+        self:ShowPage("SETTINGS")
+      end)
+      y = y - 32
+    end
+  end
+  y = y - 8
   return y
 end
 
@@ -1296,6 +1555,8 @@ function LS:Toggle()
   end
   self:ScanVault()
   if self.ScanProfessions then self:ScanProfessions() end
+  if self.ScanMounts then self:ScanMounts() end
+  if self.ScanReputations then self:ScanReputations() end
   self.frame:Show()
   self:ShowPage(self:LandingPage())
 end

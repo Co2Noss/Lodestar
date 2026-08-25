@@ -24,17 +24,18 @@ This is a **beta**. Features work, the UI is usable, and we want feedback. Expec
 
 ## What it does
 
-On first login Lodestar asks what you care about: Great Vault and endgame, solo content, professions, mounts, reputation, or questing. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
+On first login Lodestar asks what you care about: Great Vault and endgame, solo content, professions, mounts, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
 
 From there it builds a plan:
 
-- **Today** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered.
-- **Great Vault** — Raid, Dungeons, and World each have their own tab. Every slot shows current reward quality, whether it can still be improved, and how much work that takes. A delve slot is only called maxed when it is actually at the cap.
-- **Professions** — one tab per trained profession. Skill, unspent knowledge, weekly quests, gathering drops, treasures, and catch-up. Current-expansion only by default.
+- **Today** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered.
+- **Great Vault** — Raid, Dungeons, and World each have their own tab. Every slot shows current reward quality, whether it can still be improved, and how much work that takes. A delve slot is only called maxed when it is actually at the cap. If last week's chest is unclaimed, Today tells you to pick your loot.
+- **Professions** — one tab per trained profession, including Cooking, Fishing, and Archaeology. Click a profession to open it. Specializations is there for trees, with unspent and spent knowledge. Secondaries have no knowledge tree, so they show skill. Current-expansion only by default.
+- **Gold making** — gathering you have trained and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Goals picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status.
 - **Settings** — Goals, Appearance, Compact, and Layout on their own tabs.
 
-Each recommendation shows **urgency**, estimated time, and score. Urgency is “when does this stop being available,” not “how good is it.” Unspent knowledge is NOW (spending it is free). A one-time treasure is ANYTIME (it waits). Renown is ANYTIME (it never expires).
+Each recommendation shows **priority**, estimated time, and score. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
 
 There is no time-budget slider. Lodestar ranks everything that matches your goals instead of hiding whatever does not fit a session length.
 

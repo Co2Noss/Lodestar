@@ -1,3 +1,46 @@
+# 1.17.0
+
+- If last week's Great Vault is still sitting there after Tuesday reset, Today tells you
+  to claim it and pick your loot.
+- New Gold making goal. Gathering you have trained and a few pet farms are ranked from
+  TSM, Auctionator or RECrystallize prices. Settings → Goals picks the source; Auto uses
+  whichever of those is loaded. Nothing is ranked until a price addon is actually there.
+
+# 1.16.0
+
+- Settings → Reputation now draws a border around the expansion strip and the faction
+  list, so those read as sub-options of Reputation rather than a second row of tabs.
+- Clicking a profession opens that profession's window. Professions with a knowledge
+  tree also get a Specializations button, and the card shows how many points are
+  already spent.
+- A Bountiful Delve stays off the plan once the World Vault is finished, you have no
+  Restored Coffer Keys, you cannot make another key from shards, and this week's
+  T11 Gilded Stashes are done.
+
+# 1.15.0
+
+- Recommendations now rank as High, Medium or Low, instead of Now, Anytime and This Week.
+- Cooking, Fishing and Archaeology sit on the Professions page with the two primaries.
+  They have no knowledge tree, so the page shows skill, and Today recommends leveling them
+  until they are at the cap.
+
+# 1.14.0
+
+- Escape closes the main window. Compact mode stays up.
+- Reputation is now the player's live factions, grouped by expansion and category, not a
+  single placeholder. Settings has a Reputation tab to turn on the expansions, categories
+  or individual factions you care about, each expansion on its own tab. Finished standings stay off the plan, and nothing
+  is ranked until you pick something. If you pick factions while the Reputation goal is off,
+  Settings says so and offers to turn it on.
+
+# 1.13.0
+
+- The Mounts goal now ranks weekly raid and world-boss farms you do not already have.
+  Icecrown Citadel is the pattern: if you lack Invincible and 25 Heroic is still open this
+  week, it is on the plan; if you already own the mount, or already killed the Lich King
+  this lockout, Lodestar stays quiet. Dungeon farms with no weekly lockout still appear,
+  but as ANYTIME.
+
 # 1.12.1
 
 - The window and compact mode now sit above nameplates, so Ellesmere's personal plate

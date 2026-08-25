@@ -40,6 +40,9 @@ function methods.GetWidth(self) return self.w end
 function methods.GetHeight(self) return self.h end
 function methods.GetPoint(self) return "CENTER", nil, "CENTER", 0, 0 end
 function methods.GetFrameLevel(self) return 1 end
+function methods.GetName(self) return self.objName end
+function methods.EnableKeyboard(self, v) self.keyboard = v and true or false end
+function methods.SetPropagateKeyboardInput(self, v) self.propagateKeys = v and true or false end
 function methods.SetFrameStrata(self, strata) self.frameStrata = strata end
 function methods.GetFrameStrata(self) return self.frameStrata end
 function methods.SetToplevel(self, v) self.toplevel = v and true or false end
@@ -126,6 +129,14 @@ UIParent = new("Frame", "UIParent")
 Minimap = new("Frame", "Minimap")
 GameTooltip = new("Frame", "GameTooltip")
 SlashCmdList = {}
+UISpecialFrames = {}
+tinsert = table.insert
+
+FACTION_STANDING_LABEL4 = "Neutral"
+FACTION_STANDING_LABEL5 = "Friendly"
+FACTION_STANDING_LABEL6 = "Honored"
+FACTION_STANDING_LABEL7 = "Revered"
+FACTION_STANDING_LABEL8 = "Exalted"
 
 local timers = {}
 C_Timer = {
@@ -193,30 +204,47 @@ UnitLevel = function() return 80 end
 UnitClass = function() return "Mage", "MAGE" end
 GetSpecialization = function() return 1 end
 GetSpecializationInfo = function() return 62, "Arcane" end
-GetProfessions = function() return 1, 2 end
+GetProfessions = function() return 1, 2, 3, 4, 5 end
 GetProfessionInfo = function(index)
-  if index == 1 then return "Alchemy", nil, 100, 100, nil, nil, 171 end
-  return "Herbalism", nil, 100, 100, nil, nil, 182
+  if index == 1 then return "Alchemy", nil, 100, 100, nil, nil, 171, 0, nil, nil, "Alchemy" end
+  if index == 2 then return "Herbalism", nil, 100, 100, nil, nil, 182, 0, nil, nil, "Herbalism" end
+  if index == 3 then return "Archaeology", nil, 200, 800, nil, nil, 794, 0, nil, nil, "Archaeology" end
+  if index == 4 then return "Fishing", nil, 50, 100, nil, nil, 356, 0, nil, nil, "Fishing" end
+  if index == 5 then return "Cooking", nil, 80, 100, nil, nil, 185, 0, nil, nil, "Cooking" end
 end
 
 C_AddOns = { IsAddOnLoaded = function() return false end }
 
 C_TradeSkillUI = {
-  GetAllProfessionTradeSkillLines = function() return { 2871, 2823, 2757 } end,
+  GetAllProfessionTradeSkillLines = function() return { 2871, 2823, 2757, 185, 356, 794 } end,
   GetProfessionInfoBySkillLineID = function(id)
-    local names = { [2871] = "Alchemy", [2823] = "Herbalism", [2757] = "Alchemy" }
+    local names = {
+      [2871] = "Alchemy", [2823] = "Herbalism", [2757] = "Alchemy",
+      [185] = "Cooking", [356] = "Fishing", [794] = "Archaeology",
+    }
+    local parent = {
+      [2871] = 171, [2823] = 182, [2757] = 171,
+      [185] = 185, [356] = 356, [794] = 794,
+    }
     return {
       professionName = names[id] or "Alchemy",
-      isPrimaryProfession = true,
+      isPrimaryProfession = id ~= 185 and id ~= 356 and id ~= 794,
       skillLevel = id == 2757 and 0 or 60,
-      maxSkillLevel = 100,
-      professionID = names[id] == "Herbalism" and 182 or 171,
+      maxSkillLevel = id == 794 and 800 or 100,
+      professionID = parent[id] or 171,
+      parentProfessionID = parent[id],
+      parentProfessionName = names[id],
     }
   end,
+  OpenTradeSkill = function(id)
+    table.insert(OpenedTradeSkills, id)
+    return true
+  end,
 }
+OpenedTradeSkills = {}
 
 C_ProfSpecs = {
-  SkillLineHasSpecialization = function() return true end,
+  SkillLineHasSpecialization = function(id) return id ~= 185 and id ~= 356 and id ~= 794 end,
   GetConfigIDForSkillLine = function() return 1 end,
   GetCurrencyInfoForSkillLine = function() return { currencyID = 2033, quantity = 3 } end,
   GetSpecTabIDsForSkillLine = function() return {} end,
@@ -224,15 +252,47 @@ C_ProfSpecs = {
   GetChildrenForPath = function() return {} end,
 }
 C_Traits = { GetNodeInfo = function() return nil end }
-C_CurrencyInfo = { GetCurrencyInfo = function() return { quantity = 3, maxQuantity = 0 } end }
+Currencies = {}
+C_CurrencyInfo = {
+  GetCurrencyInfo = function(id)
+    return Currencies[id] or { quantity = 3, maxQuantity = 0 }
+  end,
+}
+GildedStashTooltip = nil
+C_UIWidgetManager = {
+  GetSpellDisplayVisualizationInfo = function(id)
+    if id == 7591 and GildedStashTooltip then
+      return { spellInfo = { tooltip = GildedStashTooltip } }
+    end
+  end,
+}
 C_QuestLog = { IsQuestFlaggedCompleted = function() return false end }
 
 C_Reputation = {
-  GetNumFactions = function() return 1 end,
-  GetFactionDataByIndex = function()
-    return { name = "Zul'jarra's Forces", factionID = 2600, currentStanding = 500,
-             currentReactionThreshold = 0, nextReactionThreshold = 2500 }
-  end,
+  ExpandAllFactionHeaders = function() end,
+  GetNumFactions = function() return #ReputationFactions end,
+  GetFactionDataByIndex = function(i) return ReputationFactions[i] end,
+  IsMajorFaction = function(id) return id == 2600 end,
+  IsFactionParagon = function() return false end,
+  GetFactionParagonInfo = function() return 0, 10000, 0, false end,
+}
+ReputationFactions = {
+  { name = "The War Within", isHeader = true, isChild = false, isCollapsed = false },
+  { name = "Khaz Algar", isHeader = true, isChild = true, isCollapsed = false },
+  { name = "Council of Dornogal", factionID = 2590, isHeader = false, isChild = true,
+    currentStanding = 8500, currentReactionThreshold = 6000, nextReactionThreshold = 12000,
+    reaction = 5 },
+  { name = "Zul'jarra's Forces", factionID = 2600, isHeader = false, isChild = true,
+    currentStanding = 500, currentReactionThreshold = 0, nextReactionThreshold = 2500,
+    reaction = 4 },
+  { name = "Undermine", isHeader = true, isChild = true, isCollapsed = false },
+  { name = "The Cartels of Undermine", factionID = 2653, isHeader = false, isChild = true,
+    currentStanding = 1500, currentReactionThreshold = 0, nextReactionThreshold = 3000,
+    reaction = 4 },
+  { name = "Dragonflight", isHeader = true, isChild = false, isCollapsed = false },
+  { name = "Valdrakken Accord", factionID = 2510, isHeader = false, isChild = true,
+    currentStanding = 42000, currentReactionThreshold = 42000, nextReactionThreshold = 42000,
+    reaction = 8, isCapped = true },
 }
 C_MajorFactions = {
   GetMajorFactionIDs = function() return { 2600 } end,
@@ -242,8 +302,56 @@ C_MajorFactions = {
   end,
   HasMaximumRenown = function() return false end,
 }
-C_MountJournal = { GetNumMounts = function() return 600, 420 end }
+C_MountJournal = {
+  GetNumMounts = function() return 600, 0 end,
+  GetMountIDs = function()
+    return { 69, 168, 183, 185, 213, 264, 304, 349, 363, 410, 411, 415, 425,
+             442, 444, 445, 473, 478, 515, 531, 533, 542, 543, 559, 613, 634, 751, 899 }
+  end,
+  GetMountInfoByID = function(id)
+    local names = {
+      [69] = "Rivendare's Deathcharger", [168] = "Fiery Warhorse", [183] = "Ashes of Al'ar",
+      [185] = "Raven Lord", [213] = "Swift White Hawkstrider", [264] = "Blue Proto-Drake",
+      [304] = "Mimiron's Head", [349] = "Onyxian Drake", [363] = "Invincible",
+      [410] = "Armored Razzashi Raptor", [411] = "Swift Zulian Panther",
+      [415] = "Pureblood Fire Hawk", [425] = "Flametalon of Alysrazor",
+      [442] = "Blazing Drake", [444] = "Life-Binder's Handmaiden", [445] = "Experiment 12-B",
+      [473] = "Heavenly Onyx Cloud Serpent", [478] = "Astral Cloud Serpent",
+      [515] = "Son of Galleon", [531] = "Spawn of Horridon", [533] = "Cobalt Primordial Direhorn",
+      [542] = "Thundering Cobalt Cloud Serpent", [543] = "Clutch of Ji-Kun",
+      [559] = "Kor'kron Juggernaut", [613] = "Ironhoof Destroyer", [634] = "Solar Spirehawk",
+      [751] = "Felsteel Annihilator", [899] = "Abyss Worm",
+    }
+    local collected = CollectedMounts[id] == true
+    return names[id] or ("Mount " .. tostring(id)), 0, 0, false, true, 1, false, false, nil, false, collected, id
+  end,
+}
+CollectedMounts = {}
 C_TransmogCollection = { GetNumTransmogSources = function() return 5000 end }
+
+SavedInstances = {}
+SavedWorldBosses = {}
+RequestRaidInfo = function() end
+GetNumSavedInstances = function() return #SavedInstances end
+GetSavedInstanceInfo = function(i)
+  local s = SavedInstances[i]
+  if not s then return end
+  return s.name, s.id or i, s.reset or 0, s.difficulty or 0, s.locked == true, false,
+    0, s.isRaid ~= false, s.maxPlayers or 25, s.difficultyName or "",
+    s.numEncounters or 0, s.encounterProgress or 0, false, s.instanceID
+end
+GetSavedInstanceEncounterInfo = function(i, j)
+  local s = SavedInstances[i]
+  local e = s and s.encounters and s.encounters[j]
+  if not e then return end
+  return e.name, nil, e.killed == true
+end
+GetNumSavedWorldBosses = function() return #SavedWorldBosses end
+GetSavedWorldBossInfo = function(i)
+  local s = SavedWorldBosses[i]
+  if not s then return end
+  return s.name, s.id or i, s.reset or 0
+end
 
 Enum = { WeeklyRewardChestThresholdType = { Raid = 1, Activities = 2, World = 3 } }
 DifficultyUtil = {
@@ -294,6 +402,9 @@ C_WeeklyRewards = {
   GetActivityEncounterInfo = function() return nil end,
   GetDifficultyIDForActivityTier = function(tier) return tier end,
   GetNextActivitiesIncrease = function() return nil end,
+  HasAvailableRewards = function() return false end,
+  HasGeneratedRewards = function() return false end,
+  CanClaimRewards = function() return false end,
   GetSortedProgressForActivity = function(kind)
     local id = type(kind) == "table" and kind.type or kind
     if id == 3 then

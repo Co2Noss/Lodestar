@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.12.1"
+LS.version = "1.17.0"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -9,7 +9,7 @@ LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
 LS.defaults = {
   -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
   -- a goal that is off silently removes recommendations the player never learns existed.
-  goals = { ENDGAME = false, SOLO = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false },
+  goals = { ENDGAME = false, SOLO = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
   dismissed = {},
   completed = {},
   tracked = {},
@@ -18,8 +18,12 @@ LS.defaults = {
   theme = "AUTO",
   colors = {},
   pageTab = { SETTINGS = "GOALS", VAULT = "raid" },
+  goldSource = "AUTO",
   currentExpansionOnly = true,
   collapsed = {},
+  repExpansions = {},
+  repGroups = {},
+  repFactions = {},
   frame = { point = "CENTER", relative = "CENTER", x = 0, y = 0, width = 960, height = 680 },
   compact = {
     enabled = false,
@@ -111,6 +115,8 @@ local function RefreshState()
   if LS.ScanPlayer then LS:ScanPlayer() end
   LS:ScanVault()
   if LS.ScanProfessions then LS:ScanProfessions() end
+  if LS.ScanMounts then LS:ScanMounts() end
+  if LS.ScanReputations then LS:ScanReputations() end
   if LS.SaveSnapshot then LS:SaveSnapshot() end
   LS:Refresh()
 end
@@ -136,6 +142,8 @@ for _, name in ipairs({
   "QUEST_TURNED_IN",
   "CURRENCY_DISPLAY_UPDATE",
   "MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
+  "NEW_MOUNT_ADDED",
+  "UPDATE_INSTANCE_INFO",
   "PLAYER_REGEN_DISABLED",
   "PLAYER_REGEN_ENABLED",
 }) do
@@ -159,6 +167,7 @@ events:SetScript("OnEvent", function(_, event, arg)
     return
   end
   if event == "PLAYER_LOGIN" then
+    if RequestRaidInfo then RequestRaidInfo() end
     RefreshState()
     if LS.db.welcomed then
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")

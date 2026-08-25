@@ -4,30 +4,17 @@ local _, LS = ...
 -- details page reads everything else.
 LS.activities = {
   {
-    id = "zuljarra",
-    title = "Build Zul'jarra's Forces Renown",
-    minutes = 30,
-    category = "Reputation",
-    -- Renown never expires, so it is never the thing you have to do tonight.
-    urgency = "ANYTIME",
-    tags = { CRAFTING = 8, MOUNTS = 6, REPUTATION = 10 },
-    why = "Current-tier renown rewards feed professions and collections.",
-    faction = "Zul'jarra's Forces",
-    detail = {
-      nextReward = "Profession recipes",
-      rewards = { recipes = 5, mounts = 2, transmog = 7 },
-      matters = "Matches your crafting and collection goals.",
-    },
-  },
-  {
     id = "delve",
     title = "Complete a Bountiful Delve",
     minutes = 25,
     category = "Solo content",
     -- Feeds the World Vault, which resets.
-    urgency = "THIS WEEK",
+    urgency = "MEDIUM",
     tags = { SOLO = 10, ENDGAME = 6 },
     why = "Compact solo run that also raises your World Vault tier.",
+    skipIf = function()
+      return LS.BountifulDelveWorthDoing and not LS:BountifulDelveWorthDoing()
+    end,
     detail = {
       nextReward = "World Vault progress",
       matters = "Cheapest way to fill or upgrade a World Vault slot.",
@@ -38,12 +25,12 @@ LS.activities = {
     title = "Clear a zone of World Quests",
     minutes = 20,
     category = "Questing",
-    urgency = "THIS WEEK",
-    tags = { QUESTING = 8, REPUTATION = 6 },
+    urgency = "MEDIUM",
+    tags = { QUESTING = 8 },
     why = "Bulk reputation and currency without a group.",
     detail = {
       nextReward = "Reputation and currency",
-      matters = "Only worth it while you still need renown.",
+      matters = "Only worth it while you still need the factions you chose.",
     },
   },
 }
@@ -52,7 +39,13 @@ function LS:FindActivity(id)
   for _, activity in ipairs(self.activities) do
     if activity.id == id then return activity end
   end
-  for _, list in ipairs({ self:GetVaultRecommendations(), self:GetProfessionRecommendations() }) do
+  for _, list in ipairs({
+    self:GetVaultRecommendations(),
+    self:GetProfessionRecommendations(),
+    self.GetMountRecommendations and self:GetMountRecommendations() or {},
+    self.GetReputationRecommendations and self:GetReputationRecommendations() or {},
+    self.GetGoldRecommendations and self:GetGoldRecommendations() or {},
+  }) do
     for _, activity in ipairs(list) do
       if activity.id == id then return activity end
     end

@@ -1,7 +1,8 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.12.1
+## Version: 1.17.0
+## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize
 ## SavedVariables: LodestarDB
 Core.lua
 PlayerData.lua
@@ -9,6 +10,9 @@ Knowledge.lua
 Professions.lua
 Vault.lua
 Catalog.lua
+Mounts.lua
+Reputation.lua
+Gold.lua
 Scoring.lua
 Warband.lua
 Themes.lua

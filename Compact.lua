@@ -18,33 +18,39 @@ function LS:CompactCount()
   return (settings and settings.single) and 1 or 3
 end
 
-local TONES = { NOW = "warn", SOON = "accent", ["THIS WEEK"] = "text", ANYTIME = "muted" }
+local TONES = { HIGH = "warn", MEDIUM = "accent", LOW = "muted" }
+local LABELS = { HIGH = "High", MEDIUM = "Medium", LOW = "Low" }
 
--- Urgency is about deadlines, not score. A treasure worth 4 knowledge is never urgent
--- because it waits forever; a weekly quest worth 1 disappears at reset. Activities can
--- state their own, since only the data knows whether something rotates.
+local LEGACY = {
+  NOW = "HIGH", SOON = "HIGH", ["THIS WEEK"] = "MEDIUM", ANYTIME = "LOW",
+  ["FREE VALUE"] = "HIGH", ["HIGH PRIORITY"] = "HIGH", WEEKLY = "HIGH",
+  ["FILL SLOT"] = "MEDIUM", ["ONE TIME"] = "LOW", OPEN = "LOW",
+}
+
+local function Rank(key)
+  return LABELS[key] or key, TONES[key]
+end
+
+-- Cards rank High / Medium / Low. Score still decides order; this is only the label.
 function LS:Urgency(activity)
-  if activity.urgency and TONES[activity.urgency] then
-    return activity.urgency, TONES[activity.urgency]
+  local stated = activity and activity.urgency
+  if stated and TONES[stated] then
+    return Rank(stated)
   end
-  local priority = activity.priority
-  if priority == "ONE TIME" then
-    return "ANYTIME", "muted"
+  if stated and LEGACY[stated] then
+    return Rank(LEGACY[stated])
   end
-  if priority == "FREE VALUE" then
-    return "NOW", "warn"
+  local tagged = activity and activity.priority
+  if tagged and TONES[tagged] then
+    return Rank(tagged)
   end
-  local score = activity.score or 0
-  if score >= 40 then
-    return "NOW", "warn"
+  if tagged and LEGACY[tagged] then
+    return Rank(LEGACY[tagged])
   end
-  if score >= 28 then
-    return "SOON", "accent"
-  end
-  if priority == "OPEN" then
-    return "ANYTIME", "muted"
-  end
-  return "THIS WEEK", "text"
+  local score = (activity and activity.score) or 0
+  if score >= 28 then return Rank("HIGH") end
+  if score >= 18 then return Rank("MEDIUM") end
+  return Rank("LOW")
 end
 
 function LS:CompactActivities()

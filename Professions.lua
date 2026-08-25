@@ -20,9 +20,11 @@ local function UnspentKnowledge(skillLineID)
   return info.numAvailable or 0, info.currencyName
 end
 
--- Walks the specialization trees and counts ranks the player has not bought yet.
-local function MissingRanks(configID, rootNodeID)
-  local queue, missing = { rootNodeID }, 0
+-- Walks the specialization trees and counts ranks still to buy, and ranks already
+-- purchased. Unlocking a node grants its first rank for free, so spent knowledge is
+-- the ranks after that.
+local function TreeProgress(configID, rootNodeID)
+  local queue, missing, spent = { rootNodeID }, 0, 0
   local guard = 0
   while #queue > 0 and guard < 4000 do
     guard = guard + 1
@@ -35,28 +37,33 @@ local function MissingRanks(configID, rootNodeID)
     end
     local info = Safe(C_Traits.GetNodeInfo, configID, nodeID)
     if type(info) == "table" and (info.maxRanks or 0) > 0 then
-      -- Unlocking a node grants its first rank for free.
-      local freeRank = (info.activeRank or 0) == 0 and 1 or 0
-      missing = missing + math.max(0, (info.maxRanks or 0) - (info.activeRank or 0) - freeRank)
+      local active = info.activeRank or 0
+      local freeRank = active == 0 and 1 or 0
+      missing = missing + math.max(0, (info.maxRanks or 0) - active - freeRank)
+      if active > 0 then
+        spent = spent + math.max(0, active - 1)
+      end
     end
   end
-  return missing
+  return missing, spent
 end
 
 local function RemainingKnowledge(skillLineID)
   local configID = Safe(C_ProfSpecs.GetConfigIDForSkillLine, skillLineID)
-  if not configID then return nil end
+  if not configID then return nil, nil end
   local tabs = Safe(C_ProfSpecs.GetSpecTabIDsForSkillLine, skillLineID)
-  if type(tabs) ~= "table" then return nil end
-  local total = 0
+  if type(tabs) ~= "table" or #tabs == 0 then return nil, nil end
+  local missing, spent = 0, 0
   for _, tabID in ipairs(tabs) do
     local tabInfo = Safe(C_ProfSpecs.GetTabInfo, tabID)
     local rootNodeID = tabInfo and tabInfo.rootNodeID
     if rootNodeID then
-      total = total + MissingRanks(configID, rootNodeID)
+      local moreMissing, moreSpent = TreeProgress(configID, rootNodeID)
+      missing = missing + moreMissing
+      spent = spent + moreSpent
     end
   end
-  return total
+  return missing, spent
 end
 
 local function CountCompleted(quests, cap)
@@ -158,21 +165,31 @@ local function CatchUpStatus(catchUp)
   return status
 end
 
--- The two primary professions this character has actually trained. Keyed by parent
--- profession ID, because GetAllProfessionTradeSkillLines returns every profession in the
--- game, not the ones you know. The name it reports is the current expansion's variant.
-local function LearnedPrimaries()
+-- The professions this character has trained: two primaries plus Cooking, Fishing and
+-- Archaeology when those slots are filled. Keyed by parent profession ID, because
+-- GetAllProfessionTradeSkillLines returns every profession in the game, not the ones you know.
+local function LearnedProfessions()
   local learned, any = {}, false
-  local prof1, prof2 = GetProfessions()
-  for _, index in ipairs({ prof1, prof2 }) do
+  local prof1, prof2, archaeology, fishing, cooking = GetProfessions()
+  local slots = {
+    { prof1, false },
+    { prof2, false },
+    { archaeology, true },
+    { fishing, true },
+    { cooking, true },
+  }
+  for _, slot in ipairs(slots) do
+    local index, secondary = slot[1], slot[2]
     if index then
-      local _, _, skillLevel, maxSkillLevel, _, _, parentID, bonus, _, _, currentName = GetProfessionInfo(index)
+      local name, _, skillLevel, maxSkillLevel, _, _, parentID, bonus, _, _, currentName = GetProfessionInfo(index)
       if parentID then
         learned[parentID] = {
-          currentName = currentName,
+          name = name,
+          currentName = currentName or name,
           skill = skillLevel or 0,
           maxSkill = maxSkillLevel or 0,
           bonus = bonus or 0,
+          secondary = secondary,
         }
         any = true
       end
@@ -189,7 +206,7 @@ function LS:ScanProfessions()
     return
   end
 
-  local learned, haveLearnedData = LearnedPrimaries()
+  local learned, haveLearnedData = LearnedProfessions()
 
   for _, skillLineID in ipairs(ids) do
     local info = Safe(C_TradeSkillUI.GetProfessionInfoBySkillLineID, skillLineID)
@@ -200,22 +217,24 @@ function LS:ScanProfessions()
       if hasSpecs == nil then
         hasSpecs = Safe(C_ProfSpecs.GetConfigIDForSkillLine, skillLineID) and true or false
       end
+      local isCurrent = known.currentName ~= nil and known.currentName == info.professionName
       if hasSpecs then
-        local isCurrent = known.currentName ~= nil and known.currentName == info.professionName
         local unspent, currencyName = UnspentKnowledge(skillLineID)
+        local remaining, spent = RemainingKnowledge(skillLineID)
         local sources = self:KnowledgeSourcesFor(skillLineID)
         local entry = {
           skillLineID = skillLineID,
           parentID = parentID,
           name = info.professionName,
           baseName = info.parentProfessionName or info.professionName,
-          -- Only the current expansion reports a live skill level before its window is opened.
           skill = isCurrent and known.skill or (info.skillLevel or 0),
           maxSkill = isCurrent and known.maxSkill or (info.maxSkillLevel or 0),
           isCurrent = isCurrent,
+          secondary = known.secondary,
           unspent = unspent,
+          spent = spent,
           currencyName = currencyName,
-          remaining = RemainingKnowledge(skillLineID),
+          remaining = remaining,
           tracked = sources ~= nil,
         }
         if sources then
@@ -228,7 +247,43 @@ function LS:ScanProfessions()
           entry.catchUp = CatchUpStatus(sources.catchUp)
         end
         table.insert(out, entry)
+        known.listed = true
+      elseif known.secondary then
+        table.insert(out, {
+          skillLineID = skillLineID,
+          parentID = parentID,
+          name = info.professionName,
+          baseName = info.parentProfessionName or known.name or info.professionName,
+          skill = isCurrent and known.skill or (info.skillLevel or 0),
+          maxSkill = isCurrent and known.maxSkill or (info.maxSkillLevel or 0),
+          isCurrent = isCurrent,
+          secondary = true,
+          unspent = 0,
+          remaining = nil,
+          tracked = false,
+        })
+        known.listed = true
       end
+    end
+  end
+
+  -- Archaeology never appears as an expansion skill line. Cooking and Fishing do, but
+  -- if the client has not sent those lines yet the trained slot still deserves a tab.
+  for parentID, known in pairs(learned) do
+    if known.secondary and not known.listed then
+      table.insert(out, {
+        skillLineID = parentID,
+        parentID = parentID,
+        name = known.currentName or known.name or "Profession",
+        baseName = known.name or known.currentName,
+        skill = known.skill,
+        maxSkill = known.maxSkill,
+        isCurrent = true,
+        secondary = true,
+        unspent = 0,
+        remaining = nil,
+        tracked = false,
+      })
     end
   end
 
@@ -252,6 +307,7 @@ function LS:ScanProfessions()
   end
 
   table.sort(out, function(a, b)
+    if a.secondary ~= b.secondary then return not a.secondary end
     if a.isCurrent ~= b.isCurrent then return a.isCurrent end
     return a.name < b.name
   end)
@@ -316,6 +372,7 @@ function LS:GetProfessionRecommendations()
           prof.unspent, prof.unspent == 1 and "point is" or "points are"),
         category = "Professions",
         tags = { CRAFTING = 12 },
+        urgency = "HIGH",
         priority = "FREE VALUE",
         detail = { source = prof.name, current = prof.unspent .. " unspent", potential = "Spent into your tree" },
       })
@@ -332,6 +389,7 @@ function LS:GetProfessionRecommendations()
           quests.points, Plural(quests.points, "point"), left == 1 and "disappears" or "disappear"),
         category = "Professions",
         tags = { CRAFTING = 10 },
+        urgency = "HIGH",
         priority = "WEEKLY",
         detail = {
           source = prof.name,
@@ -354,6 +412,7 @@ function LS:GetProfessionRecommendations()
           gathering.points, Plural(gathering.points, "point"), left, Plural(left, "drop")),
         category = "Professions",
         tags = { CRAFTING = 9 },
+        urgency = "MEDIUM",
         priority = "WEEKLY",
         detail = {
           source = prof.name,
@@ -376,6 +435,7 @@ function LS:GetProfessionRecommendations()
           treasures.points, Plural(treasures.points, "point")),
         category = "Professions",
         tags = { CRAFTING = 8 },
+        urgency = "LOW",
         priority = "ONE TIME",
         detail = {
           source = prof.name,
@@ -397,6 +457,7 @@ function LS:GetProfessionRecommendations()
         why = "This week's fixed sources are done, so catch-up knowledge can drop now.",
         category = "Professions",
         tags = { CRAFTING = 6 },
+        urgency = "LOW",
         priority = "OPEN",
         detail = {
           source = prof.name,
@@ -406,6 +467,57 @@ function LS:GetProfessionRecommendations()
         },
       })
     end
+
+    if prof.secondary and not prof.tracked
+       and (prof.maxSkill or 0) > 0 and (prof.skill or 0) < prof.maxSkill then
+      local left = prof.maxSkill - prof.skill
+      table.insert(out, {
+        id = "prof_level_" .. prof.skillLineID,
+        title = string.format("Level %s (%d / %d)", prof.baseName or prof.name, prof.skill, prof.maxSkill),
+        minutes = math.max(15, math.min(60, left)),
+        score = 20,
+        why = string.format("%s is a secondary profession. Skill is the progress that matters, and this character is not at the cap yet.",
+          prof.baseName or prof.name),
+        category = "Professions",
+        tags = { CRAFTING = 7 },
+        urgency = "MEDIUM",
+        detail = {
+          source = prof.baseName or prof.name,
+          current = string.format("%d / %d", prof.skill, prof.maxSkill),
+          potential = "Cap",
+        },
+      })
+    end
   end
   return out
+end
+
+-- Clicking a profession tab or the Open / Specializations buttons on the card. OpenTradeSkill
+-- needs a hardware event, so this only runs from OnMouseUp.
+function LS:OpenProfessionWindow(prof, spec)
+  if not prof then return end
+  if ProfessionsFrame_LoadUI then pcall(ProfessionsFrame_LoadUI) end
+  local opened
+  if C_TradeSkillUI and C_TradeSkillUI.OpenTradeSkill then
+    local ok, result = pcall(C_TradeSkillUI.OpenTradeSkill, prof.skillLineID)
+    opened = ok and result
+    if not opened and prof.parentID and prof.parentID ~= prof.skillLineID then
+      ok, result = pcall(C_TradeSkillUI.OpenTradeSkill, prof.parentID)
+      opened = ok and result
+    end
+  end
+  if spec then
+    local function goSpec()
+      local frame = _G.ProfessionsFrame
+      if frame and frame.specializationsTabID and frame.SetTab then
+        pcall(frame.SetTab, frame, frame.specializationsTabID, true)
+      end
+    end
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.2, goSpec)
+    else
+      goSpec()
+    end
+  end
+  return opened
 end
