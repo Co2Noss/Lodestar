@@ -1,18 +1,15 @@
 local _, LS = ...
 
--- Nearby rares come from HandyNotes, not a Lodestar catalog. GetNodes2 already
--- applies each plugin's show/hide (known rewards, completed quests, disabled
--- plugins), so Lodestar ranks what is on the map and stays quiet otherwise.
+-- Nearby rares come from HandyNotes notes packs, not a Lodestar catalog.
+-- HandyNotes is the map layer; plugins such as Midnight or Silvermoon supply the
+-- pins. GetNodes2 already applies each pack's show/hide (known rewards, completed
+-- quests, disabled plugins), so Lodestar ranks what is on the map and stays quiet
+-- otherwise.
 
 local MAX_WAYPOINTS = 12
 
 local function AddonLoaded(name)
   return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
-end
-
-function LS:HasHandyNotes()
-  if HandyNotes and type(HandyNotes.plugins) == "table" then return true end
-  return AddonLoaded("HandyNotes") and true or false
 end
 
 local function PluginEnabled(name)
@@ -21,6 +18,21 @@ local function PluginEnabled(name)
   local enabled = db and db.enabledPlugins
   if enabled and enabled[name] == false then return false end
   return true
+end
+
+function LS:HasHandyNotes()
+  if HandyNotes and type(HandyNotes.plugins) == "table" then return true end
+  return AddonLoaded("HandyNotes") and true or false
+end
+
+function LS:HasHandyNotesPlugins()
+  if not (HandyNotes and type(HandyNotes.plugins) == "table") then return false end
+  for name, handler in pairs(HandyNotes.plugins) do
+    if PluginEnabled(name) and handler and handler.GetNodes2 then
+      return true
+    end
+  end
+  return false
 end
 
 local function CoordToPercent(coord)

@@ -41,7 +41,7 @@ Lodestar works on its own. These addons unlock extra behaviour if they are loade
 
 - **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house.
 - **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
-- **HandyNotes** — nearby rares that HandyNotes is currently showing (known rewards stay hidden if that plugin hid them). Without it, Lodestar stays quiet about rares and does not invent spawn data.
+- **HandyNotes** plus a notes pack — nearby rares and treasures those packs are currently showing. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture and font.
 
 ## First login
@@ -231,8 +231,9 @@ Treasure recommendations that have a known location get a **Waypoint** button. W
 pickup and points the arrow at the closest. Without TomTom, Lodestar uses the client's one
 map pin and super-tracks it.
 
-HandyNotes rares get the same button: Lodestar pins what HandyNotes is currently showing
-in your zone, not a separate spawn list.
+HandyNotes rares get the same button: Lodestar pins what a HandyNotes notes pack is
+currently showing in your zone, not a separate spawn list. HandyNotes by itself has no
+coordinates; Midnight, Silvermoon, and other packs supply the pins.
 
 Midnight gathering farms get a **Map** button that opens the zone circuit (Eversong Woods →
 Zul'Aman → Harandar → Voidstorm). Node-by-node herb/ore routes are not invented; those pins

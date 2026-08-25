@@ -1331,13 +1331,15 @@ function LS:SettingsGoals(body, width, y)
   local hnNote = text(body, width, 10)
   hnNote:SetPoint("TOPLEFT", 0, y)
   if not self.db.goals.SOLO then
-    hnNote:SetText("Solo content stays off the plan until that goal is on. HandyNotes rares follow once it is.")
+    hnNote:SetText("Solo content stays off the plan until that goal is on. HandyNotes notes packs follow once it is.")
+  elseif self.HasHandyNotesPlugins and self:HasHandyNotesPlugins() then
+    hnNote:SetText("HandyNotes is loaded with notes packs. Today will rank pins those packs are currently showing in your zone. Known rewards stay hidden because the pack already hid them.")
   elseif self.HasHandyNotes and self:HasHandyNotes() then
-    hnNote:SetText("HandyNotes is loaded. Today will rank rares it is currently showing in your zone. Known rewards stay hidden because HandyNotes already hid them.")
+    hnNote:SetText("HandyNotes is loaded, but it has no notes packs. Install one such as HandyNotes: Midnight or HandyNotes: Silvermoon. HandyNotes by itself has no pins, and Lodestar does not invent spawn data.")
   else
-    hnNote:SetText("Install HandyNotes and a rares plugin to rank nearby rares. Lodestar does not invent spawn data.")
+    hnNote:SetText("Install HandyNotes and a notes pack (Midnight, Silvermoon, and others) to rank nearby rares. HandyNotes by itself has no coordinates. Lodestar does not invent spawn data.")
   end
-  y = y - 48
+  y = y - 56
   return y
 end
 

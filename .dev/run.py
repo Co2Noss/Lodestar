@@ -730,8 +730,13 @@ check("HandyNotes waypoints cap at the closest 12",
       capped.startswith("12|Hunt 15 rares"), capped)
 s.exec("__LS:SetPageTab('SETTINGS', 'GOALS'); __LS:ShowPage('SETTINGS')")
 s.timers()
-check("Settings notes that HandyNotes is loaded",
-      "HandyNotes is loaded" in s.texts(), s.texts())
+check("Settings notes that HandyNotes is loaded with notes packs",
+      "HandyNotes is loaded with notes packs" in s.texts(), s.texts())
+s.exec("HandyNotes.plugins = {}")
+s.exec("__LS:SetPageTab('SETTINGS', 'GOALS'); __LS:ShowPage('SETTINGS')")
+s.timers()
+check("Settings says HandyNotes needs a notes pack",
+      "no notes packs" in s.texts(), s.texts())
 s.exec("HandyNotes = nil")
 
 check("cards rank as High, Medium or Low",

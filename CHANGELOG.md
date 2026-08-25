@@ -1,3 +1,9 @@
+# 1.1.2
+
+- HandyNotes by itself has no coordinates. Solo content ranks pins from a notes pack
+  such as Midnight or Silvermoon (and many others). Settings says so if HandyNotes is
+  loaded without a pack.
+
 # 1.1.1
 
 - Treasure cards with a known location get a **Waypoint** button. TomTom pins every

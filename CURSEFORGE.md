@@ -17,7 +17,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.1.1](https://github.com/Co2Noss/Lodestar/releases/tag/v1.1.1)
+**Latest release:** [v1.1.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.1.2)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -31,7 +31,7 @@ Lodestar works on its own. Optional addons unlock extra behaviour if they are lo
 
 - **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet.
 - **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
-- **HandyNotes** — nearby rares that HandyNotes is currently showing. Known rewards stay hidden if that plugin hid them. Without it, Lodestar stays quiet about rares.
+- **HandyNotes** plus a notes pack — nearby rares and treasures those packs are currently showing. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture, and font.
 
 From there it builds a plan:
@@ -83,7 +83,7 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |
 
-Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes rares get the same button for pins it is currently showing. Midnight gathering farms have a **Map** button for the zone circuit.
+Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes notes packs (Midnight, Silvermoon, and others) get the same button for pins they are currently showing. Midnight gathering farms have a **Map** button for the zone circuit.
 
 Left-click the minimap button for the full window. Right-click for compact mode.
 
