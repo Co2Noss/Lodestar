@@ -140,15 +140,15 @@ position are saved.
 
 ## Releases
 
-CurseForge sets the file type from the tag name. The tags are just the channel, not the
-addon version:
+CurseForge packages from git tags and sets the file type from the tag name:
 
-- `alpha` — alpha
-- `beta` — beta
-- `v1.12.1` — release (any tag that does not contain `alpha` or `beta`)
+- `v1.13.0-alpha` — alpha (`alpha` anywhere in the tag)
+- `v1.12.1-beta` — beta (`beta` anywhere in the tag)
+- `v1.13.0` — release (no `alpha` or `beta` in the tag)
 
-Move `alpha` or `beta` onto the commit you want packaged. Untagged commits are only packaged
-if the webhook is set to package every commit, and those files are always marked alpha.
+The word `alpha` or `beta` in the tag is what CurseForge looks for. A tag with neither is a
+release. Untagged commits are only packaged if the webhook is set to package every commit,
+and those files are always marked alpha.
 
 ## Development
 

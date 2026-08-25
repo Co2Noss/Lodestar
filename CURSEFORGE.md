@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 This is a **beta**. Features work, the UI is usable, and we want feedback. Expect rough edges, and please report them.
 
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest beta:** [beta](https://github.com/Co2Noss/Lodestar/releases/tag/beta)
+**Latest beta:** [v1.12.1-beta](https://github.com/Co2Noss/Lodestar/releases/tag/v1.12.1-beta)
 
 ---
 
