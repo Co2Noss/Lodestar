@@ -15,10 +15,8 @@ A decision engine for World of Warcraft. Blizzard shows you everything you can d
 
 Lodestar is a decision engine for World of Warcraft. It looks at your Great Vault, professions, reputations, and the goals you actually care about, then ranks what is worth doing next. It is not a checklist of five hundred world quests.
 
-This is a **beta**. Features work, the UI is usable, and we want feedback. Expect rough edges, and please report them.
-
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest beta:** [v1.12.1-beta](https://github.com/Co2Noss/Lodestar/releases/tag/v1.12.1-beta)
+**Latest release:** [v1.17.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.17.2)
 
 ---
 
@@ -31,7 +29,7 @@ From there it builds a plan:
 - **Today** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered.
 - **Great Vault** — Raid, Dungeons, and World each have their own tab. Every slot shows current reward quality, whether it can still be improved, and how much work that takes. A delve slot is only called maxed when it is actually at the cap. If last week's chest is unclaimed, Today tells you to pick your loot.
 - **Professions** — one tab per trained profession, including Cooking, Fishing, and Archaeology. Click a profession to open it. Specializations is there for trees, with unspent and spent knowledge. Secondaries have no knowledge tree, so they show skill. Current-expansion only by default.
-- **Gold making** — gathering you have trained and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Goals picks the source.
+- **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Goals picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status.
 - **Settings** — Goals, Appearance, Compact, and Layout on their own tabs.
 
@@ -81,7 +79,7 @@ Left-click the minimap button for the full window. Right-click for compact mode.
 
 - Not a replacement for your quest tracker.
 - Not a list of everything available in the game.
-- Not finished. Profession catch-up from Patron Orders cannot be counted from the client, so Lodestar describes it instead of inventing a number.
+- Profession catch-up from Patron Orders cannot be counted from the client, so Lodestar describes it instead of inventing a number.
 
 ---
 

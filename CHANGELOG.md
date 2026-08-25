@@ -1,5 +1,7 @@
 # 1.17.2
 
+First official (non-beta) GitHub and CurseForge release.
+
 - Compact mode shows one row when a single goal is on and two when more are. Height
   follows that, so the window contracts and expands instead of always listing three.
 - A Great Vault row only recommends the next slot that still needs work. Later empty
