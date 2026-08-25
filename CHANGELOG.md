@@ -1,4 +1,4 @@
-# 1.17.2
+# 1.0.0
 
 First official (non-beta) GitHub and CurseForge release.
 

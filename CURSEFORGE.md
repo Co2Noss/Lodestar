@@ -16,7 +16,7 @@ A decision engine for World of Warcraft. Blizzard shows you everything you can d
 Lodestar is a decision engine for World of Warcraft. It looks at your Great Vault, professions, reputations, and the goals you actually care about, then ranks what is worth doing next. It is not a checklist of five hundred world quests.
 
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.17.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.17.2)
+**Latest release:** [v1.0.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.0.0)
 
 ---
 

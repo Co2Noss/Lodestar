@@ -1,4 +1,4 @@
-# Lodestar 1.17.2
+# Lodestar 1.0.0
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
