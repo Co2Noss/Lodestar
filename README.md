@@ -41,7 +41,7 @@ Lodestar works on its own. These addons unlock extra behaviour if they are loade
 
 - **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house.
 - **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
-- **HandyNotes** plus a notes pack — nearby rares and treasures those packs are currently showing. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
+- **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks (trainers, vendors, chests). Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture and font.
 
 ## First login
@@ -60,7 +60,7 @@ page never interrupts an upgrade.
 
 - **Today** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered. Mount farms sit on their own tab when that goal is on.
 - **Great Vault** — Raid, Dungeons and World each have their own tab, with every slot, its current reward quality, and what would improve it. If last week's chest is still sitting there, Today tells you to claim it.
-- **Professions** — one tab per trained profession, including Cooking, Fishing and Archaeology: skill, unspent knowledge, points already spent, weekly quests, drops, treasures and catch-up. Click a profession to open it. Specializations is there for trees. Secondaries have no knowledge tree, so they show skill.
+- **Professions** — one tab per trained profession, including Cooking, Fishing and Archaeology: skill, unspent knowledge, points already spent, weekly quests, drops, treasures and catch-up. The Open button, or a click on the page below the tabs, opens that profession. Specializations is there for trees. Secondaries have no knowledge tree, so they show skill.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status.
 - **Settings** — split into Goals, Reputation, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
 
@@ -73,7 +73,7 @@ the same tab strip, so moving between groups is a click rather than a scroll. Ta
 Today is stable; the work inside a tab is still ranked best first. The last tab on each
 page is remembered.
 
-Every card shows its priority, estimated time and score. Priority is High, Medium or Low.
+Every card shows its priority and score. Priority is High, Medium or Low.
 Unspent knowledge, weekly lockouts and an unclaimed Great Vault are High, because missing
 them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
 HandyNotes rares, catch-up, dungeon mount farms, unfinished reputations and gold farms are Low, because they
@@ -104,7 +104,7 @@ are done.
 Only professions this character has trained are listed, filtered to the current expansion by
 default: the two primaries, plus Cooking, Fishing and Archaeology when those slots are filled.
 Skill level, unspent knowledge, points already spent and remaining tree cost come from live
-APIs and are always accurate. Click a profession to open its window; professions with a
+APIs and are always accurate. The Open button opens the profession window; professions with a
 knowledge tree also have a Specializations button. Cooking, Fishing and Archaeology have no
 knowledge tree, so the page shows skill, and Today recommends leveling them until they are
 at the cap. Recipe lists and specialization builds stay in the profession window; Lodestar
@@ -175,7 +175,7 @@ The farm list lives in `Gold.lua`. It is the collector circuit, not every node i
 ## Compact mode
 
 A small window that sits on your screen with the next thing to do, or two when more than
-one goal is on. Each row shows its priority, estimated time and score. Turn it on in
+one goal is on. Each row shows its priority and score. Turn it on in
 Settings, with `/ls compact`, or by right-clicking the minimap button.
 
 - Click an entry to open its details page. Double click anywhere to open the full window.
@@ -231,9 +231,8 @@ Treasure recommendations that have a known location get a **Waypoint** button. W
 pickup and points the arrow at the closest. Without TomTom, Lodestar uses the client's one
 map pin and super-tracks it.
 
-HandyNotes rares get the same button: Lodestar pins what a HandyNotes notes pack is
-currently showing in your zone, not a separate spawn list. HandyNotes by itself has no
-coordinates; Midnight, Silvermoon, and other packs supply the pins.
+HandyNotes rares get the same button: Lodestar pins rares a notes pack is currently
+showing in your zone, not treasures or other map marks, and not a separate spawn list.
 
 Midnight gathering farms get a **Map** button that opens the zone circuit (Eversong Woods →
 Zul'Aman → Harandar → Voidstorm). Node-by-node herb/ore routes are not invented; those pins

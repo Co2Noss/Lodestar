@@ -1,3 +1,12 @@
+# 1.2.0
+
+- Profession tabs only switch the card. The trade-skill window opens from the Open
+  button, Specializations, or a click on the page below the tabs.
+- Cards no longer estimate how long something will take. The Today subtitle no longer
+  says "Best is High" or "Best is Medium".
+- HandyNotes ranks rares only. Treasures and other map marks (trainers, vendors, chests)
+  stay off that card, so a capital-city pack is not counted as a rare hunt.
+
 # 1.1.2
 
 - HandyNotes by itself has no coordinates. Solo content ranks pins from a notes pack

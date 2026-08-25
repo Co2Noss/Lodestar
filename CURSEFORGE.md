@@ -17,7 +17,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.1.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.1.2)
+**Latest release:** [v1.2.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.2.0)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -31,19 +31,19 @@ Lodestar works on its own. Optional addons unlock extra behaviour if they are lo
 
 - **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet.
 - **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
-- **HandyNotes** plus a notes pack — nearby rares and treasures those packs are currently showing. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
+- **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture, and font.
 
 From there it builds a plan:
 
 - **Today** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered.
 - **Great Vault** — Raid, Dungeons, and World each have their own tab. Every slot shows current reward quality, whether it can still be improved, and how much work that takes. A delve slot is only called maxed when it is actually at the cap. If last week's chest is unclaimed, Today tells you to pick your loot.
-- **Professions** — one tab per trained profession, including Cooking, Fishing, and Archaeology. Click a profession to open it. Specializations is there for trees, with unspent and spent knowledge. Secondaries have no knowledge tree, so they show skill. Current-expansion only by default.
+- **Professions** — one tab per trained profession, including Cooking, Fishing, and Archaeology. The Open button (or a click on the page below the tabs) opens that profession. Specializations is there for trees, with unspent and spent knowledge. Secondaries have no knowledge tree, so they show skill. Current-expansion only by default.
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Goals picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status.
 - **Settings** — Goals, Appearance, Compact, and Layout on their own tabs.
 
-Each recommendation shows **priority**, estimated time, and score. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
+Each recommendation shows **priority** and **score**. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
 
 There is no time-budget slider. Lodestar ranks everything that matches your goals instead of hiding whatever does not fit a session length.
 
@@ -83,7 +83,7 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |
 
-Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes notes packs (Midnight, Silvermoon, and others) get the same button for pins they are currently showing. Midnight gathering farms have a **Map** button for the zone circuit.
+Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes rares get the same button; treasures and other map marks stay off that card. Midnight gathering farms have a **Map** button for the zone circuit.
 
 Left-click the minimap button for the full window. Right-click for compact mode.
 

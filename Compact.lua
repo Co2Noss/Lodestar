@@ -300,8 +300,7 @@ function LS:UpdateCompact()
 
       row.meta:SetWidth(width - 100)
       row.meta:SetTextColor(unpack(palette.muted or palette.text))
-      row.meta:SetText(string.format("%s  •  score %d",
-        self:FormatDuration((activity.minutes or 0) * 60), math.floor(activity.score or 0)))
+      row.meta:SetText(string.format("score %d", math.floor(activity.score or 0)))
       row:Show()
     end
   end

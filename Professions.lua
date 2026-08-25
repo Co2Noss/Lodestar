@@ -509,8 +509,9 @@ function LS:GetProfessionRecommendations()
   return out
 end
 
--- Clicking a profession tab or the Open / Specializations buttons on the card. OpenTradeSkill
--- needs a hardware event, so this only runs from OnMouseUp.
+-- Open / Specializations on the profession card, or a click on the page body.
+-- Tabs only switch the card. OpenTradeSkill needs a hardware event, so this
+-- only runs from OnMouseUp.
 function LS:OpenProfessionWindow(prof, spec)
   if not prof then return end
   if ProfessionsFrame_LoadUI then pcall(ProfessionsFrame_LoadUI) end

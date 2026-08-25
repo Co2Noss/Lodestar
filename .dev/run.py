@@ -556,7 +556,10 @@ s.exec("OpenedTradeSkills = {}")
 s.click("Herbalism")
 check("the selected profession tab is remembered",
       s.eval("__LS:PageTab('PROFESSIONS')") is not None)
-check("clicking a profession tab opens that profession",
+check("clicking a profession tab does not open the profession window",
+      s.eval("#OpenedTradeSkills") == 0, s.eval("table.concat(OpenedTradeSkills, ',')"))
+s.click("Open Herbalism")
+check("the Open button opens that profession",
       s.eval("OpenedTradeSkills[#OpenedTradeSkills]") == 2823,
       s.eval("table.concat(OpenedTradeSkills, ',')"))
 s.click("Fishing")
@@ -646,7 +649,10 @@ check("without HandyNotes rares stay off the plan",
       s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
 s.exec("""
   local A, B = 49117584, 47755167
-  local visible = { [A] = true, [B] = true }
+  local visible = {
+    [A] = { npc = 1, quest = 11, loot = { 1 } },
+    [B] = { npc = 2, quest = 12, loot = { 2 } },
+  }
   HandyNotes = {
     plugins = {
       Rares = {
@@ -704,17 +710,36 @@ s.exec("HandyNotes.db.profile.enabledPlugins.Rares = false")
 check("a disabled HandyNotes plugin is skipped",
       s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
 s.exec("HandyNotes.db.profile.enabledPlugins.Rares = true")
+s.exec("""
+  local mixed = {
+    [49117584] = { npc = 1, quest = 11, loot = { 1 } },
+    [47755167] = { npc = 2, quest = 12, loot = { 2 } },
+    [40004000] = { loot = { 99 } },
+    [30003000] = { npc = 50 },
+  }
+  HandyNotes.plugins.Rares.GetNodes2 = function(_, mapID)
+    if mapID ~= 2393 then return function() end end
+    return pairs(mixed)
+  end
+""")
+mixed = s.eval("""(function()
+  local r = __LS:GetHandyNotesRecommendations()[1]
+  if not r then return "none" end
+  return r.title .. "|" .. tostring(#r.waypoints)
+end)()""")
+check("HandyNotes counts rares, not treasures or city marks",
+      mixed.startswith("Hunt 2 rares") and mixed.endswith("|2"), mixed)
 s.exec("HandyNotes.plugins.Rares.GetNodes2 = function() return function() end end")
 check("known-hidden HandyNotes pins stay off the plan",
       s.eval("#__LS:GetHandyNotesRecommendations()") == 0)
 s.exec("""
   local many = {}
   for i = 1, 12 do
-    many[(4800 + i) * 10000 + 5000] = true
+    many[(4800 + i) * 10000 + 5000] = { npc = i, quest = i, loot = { i } }
   end
-  many[500 * 10000 + 500] = true
-  many[600 * 10000 + 500] = true
-  many[700 * 10000 + 500] = true
+  many[500 * 10000 + 500] = { npc = 100, quest = 100, loot = { 100 } }
+  many[600 * 10000 + 500] = { npc = 101, quest = 101, loot = { 101 } }
+  many[700 * 10000 + 500] = { npc = 102, quest = 102, loot = { 102 } }
   HandyNotes.plugins.Rares.GetNodes2 = function(_, mapID)
     if mapID ~= 2393 then return function() end end
     return pairs(many)

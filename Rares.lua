@@ -2,9 +2,9 @@ local _, LS = ...
 
 -- Nearby rares come from HandyNotes notes packs, not a Lodestar catalog.
 -- HandyNotes is the map layer; plugins such as Midnight or Silvermoon supply the
--- pins. GetNodes2 already applies each pack's show/hide (known rewards, completed
--- quests, disabled plugins), so Lodestar ranks what is on the map and stays quiet
--- otherwise.
+-- pins. GetNodes2 already applies each pack's show/hide. Pins are classified as
+-- rares, treasures, or other map marks so a capital-city pack is not counted as
+-- a rare hunt.
 
 local MAX_WAYPOINTS = 12
 
@@ -98,6 +98,52 @@ local function MapName(mapID)
   return "this zone"
 end
 
+local function Haystack(...)
+  local parts = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    if type(v) == "string" then
+      table.insert(parts, v:lower())
+    elseif type(v) == "table" then
+      for k, val in pairs(v) do
+        if type(k) == "string" then table.insert(parts, k:lower()) end
+        if type(val) == "string" then table.insert(parts, val:lower()) end
+      end
+    end
+  end
+  return table.concat(parts, " ")
+end
+
+local function HasToken(hay, tokens)
+  for _, tok in ipairs(tokens) do
+    if hay:find(tok, 1, true) then return true end
+  end
+end
+
+local RARE_ICONS = { "vignettekill", "dungeonskull", "nagaevent", "rareelite", "inv_misc_head_dragon" }
+local TREASURE_ICONS = { "vignetteloot", "treasure", "chest", "garr_treasure" }
+local MARK_ICONS = { "auctioneer", "mailbox", "innkeeper", "flightmaster", "vendor", "portal", "banker", "trainer" }
+
+-- kemayo rares are npc+quest/loot with a skull icon. City packs use npc for vendors.
+local function Classify(point, icon)
+  local hay = Haystack(icon)
+  if HasToken(hay, MARK_ICONS) then return "mark" end
+  if HasToken(hay, RARE_ICONS) then return "rare" end
+  if HasToken(hay, TREASURE_ICONS) then return "treasure" end
+  if type(point) == "table" then
+    local kind = point.type or point.kind or point.category
+    if type(kind) == "string" then
+      local s = kind:lower()
+      if s:find("rare", 1, true) then return "rare" end
+      if s:find("treasure", 1, true) or s:find("chest", 1, true) then return "treasure" end
+    end
+    if point.npc and (point.loot or point.quest) then return "rare" end
+    if point.npc then return "mark" end
+    if point.loot or point.junk then return "treasure" end
+  end
+  return "mark"
+end
+
 local function CollectVisible(mapID)
   local nodes, seen = {}, {}
   for pluginName, handler in pairs(HandyNotes.plugins) do
@@ -105,7 +151,7 @@ local function CollectVisible(mapID)
       local ok, iter, state, var = pcall(handler.GetNodes2, handler, mapID, false)
       if ok and type(iter) == "function" then
         while true do
-          local stepOk, coord, nodeMap = pcall(iter, state, var)
+          local stepOk, coord, nodeMap, icon = pcall(iter, state, var)
           if not stepOk or coord == nil then break end
           var = coord
           local uiMap = type(nodeMap) == "number" and nodeMap or mapID
@@ -114,6 +160,8 @@ local function CollectVisible(mapID)
             seen[key] = true
             local x, y = CoordToPercent(coord)
             if x and y then
+              local point = type(state) == "table" and state[coord]
+              if type(point) ~= "table" then point = nil end
               table.insert(nodes, {
                 map = uiMap,
                 x = x,
@@ -121,6 +169,7 @@ local function CollectVisible(mapID)
                 coord = coord,
                 plugin = pluginName,
                 handler = handler,
+                kind = Classify(point, icon),
               })
             end
           end
@@ -141,23 +190,26 @@ function LS:GetHandyNotesRecommendations()
   local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
   if not mapID then return out end
 
-  local nodes = CollectVisible(mapID)
-  local total = #nodes
+  local rares = {}
+  for _, node in ipairs(CollectVisible(mapID)) do
+    if node.kind == "rare" then table.insert(rares, node) end
+  end
+  local total = #rares
   if total == 0 then return out end
 
   local px, py = PlayerXY(mapID)
   if px and py then
-    for _, node in ipairs(nodes) do
+    for _, node in ipairs(rares) do
       local dx, dy = node.x - px, node.y - py
       node.dist = dx * dx + dy * dy
     end
-    table.sort(nodes, function(a, b) return (a.dist or 0) < (b.dist or 0) end)
+    table.sort(rares, function(a, b) return (a.dist or 0) < (b.dist or 0) end)
   end
 
   local take = math.min(MAX_WAYPOINTS, total)
   local points = {}
   for i = 1, take do
-    local node = nodes[i]
+    local node = rares[i]
     table.insert(points, {
       map = node.map,
       x = node.x,
@@ -177,11 +229,11 @@ function LS:GetHandyNotesRecommendations()
   local why
   if total > take then
     why = string.format(
-      "HandyNotes is showing %d rares here. Known rewards stay hidden because HandyNotes already hid them. Waypoints are the closest %d.",
+      "A HandyNotes pack is showing %d rares here. Treasures and other map marks stay off this card. Waypoints are the closest %d.",
       total, take)
   else
     why = string.format(
-      "HandyNotes is showing %d rare%s here. Known rewards stay hidden because HandyNotes already hid them.",
+      "A HandyNotes pack is showing %d rare%s here. Treasures and other map marks stay off this card.",
       total, total == 1 and "" or "s")
   end
 
