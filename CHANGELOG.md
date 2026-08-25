@@ -1,3 +1,37 @@
+# 1.12.0
+
+- Today, Great Vault and Professions now use the same tab strip as Settings, so moving
+  between groups is a click rather than a scroll.
+- Today tabs are the plan's categories (Great Vault, Professions, Reputation, Solo content,
+  Questing). Only categories with work appear, their order stays put as scores change, and
+  the collapse control is gone because the strip replaced it.
+- Great Vault is Raid, Dungeons and World. Professions is one tab per trained profession.
+  The last tab on each page is remembered.
+
+# 1.11.0
+
+- Settings is now tabbed. Goals, Appearance, Compact and Layout each have their own pane, so
+  finding the next setting is a click rather than a scroll. The tab you were last on is saved.
+- The color labelled Window is now Background, so it is not confused with the Layout tab.
+
+# 1.10.0
+
+- The Blizzard theme now uses the client's own frame art, the modern panel style Dragonflight
+  introduced, instead of a hand-drawn blue-grey approximation. The window's flat backdrop and
+  one pixel border step aside for it, the title bar stops drawing its own fill the way
+  Blizzard's windows do, and the content moves inward to sit inside the thicker border.
+- Its colours now come from the client itself: the gold of `NORMAL_FONT_COLOR`, white body
+  text, and Blizzard's own red and grey for warnings and muted text.
+- If a client offers no panel art, the theme falls back to a flat frame in the same colours
+  rather than rendering borderless, and Settings says which of the two you are looking at.
+- Every colour the interface uses can now be changed. Settings lists accent, text, window,
+  panels, cards, borders, warnings and muted text, and clicking one opens Blizzard's colour
+  picker with opacity.
+- Chosen colours override the theme, including ElvUI's live media, and survive switching
+  themes. Changed rows are marked, and one button resets them all.
+- Removed the theme debug output: changing a theme no longer prints to chat, and the sidebar
+  no longer carries a "Theme: X" readout. `/ls theme` still lists the options.
+
 # 1.9.0
 
 - Lodestar now asks what you care about at your first login instead of guessing. The window

@@ -1,10 +1,25 @@
 local _, LS = ...
 
+-- Order matters for the settings swatches, and doubles as the list of keys a player may
+-- override.
+LS.colorOrder = {
+  { "accent", "Accent" },
+  { "text", "Text" },
+  { "bg", "Background" },
+  { "panel", "Panels" },
+  { "card", "Cards" },
+  { "border", "Borders" },
+  { "warn", "Warnings" },
+  { "muted", "Muted text" },
+}
+
 LS.palettes = {
+  -- Matches the modern frame art Dragonflight introduced: a warm neutral dark panel with
+  -- gold trim, rather than the blue-grey this used to invent.
   BLIZZARD = {
-    bg = { .035, .045, .06, .98 }, panel = { .055, .07, .09, .98 }, card = { .07, .085, .105, .98 },
-    border = { .22, .28, .34, 1 }, accent = { .95, .72, .22, 1 }, text = { .92, .94, .96, 1 },
-    warn = { .93, .38, .36, 1 }, muted = { .58, .62, .68, 1 },
+    bg = { .09, .08, .07, .95 }, panel = { .13, .12, .10, .95 }, card = { .17, .155, .13, .95 },
+    border = { .45, .36, .22, 1 }, accent = { 1, .82, 0, 1 }, text = { 1, 1, 1, 1 },
+    warn = { 1, .125, .125, 1 }, muted = { .5, .5, .5, 1 },
   },
   ELVUI = {
     bg = { .025, .025, .025, .98 }, panel = { .045, .045, .045, .98 }, card = { .065, .065, .065, .98 },
@@ -94,16 +109,122 @@ function LS:BuildElvUIPalette()
   }
 end
 
-function LS:ResolvePalette()
-  local name = self:CurrentTheme()
-  if name == "ELVUI" then
-    local palette = self:BuildElvUIPalette()
-    if palette then
-      return palette, name, true
+-- The client's own font colours, so text reads exactly as it does in Blizzard's frames
+-- instead of approximating gold and grey by hand.
+local function clientColor(name, fallback)
+  local value = _G[name]
+  if type(value) == "table" and value.GetRGB then
+    local ok, r, g, b = pcall(value.GetRGB, value)
+    if ok and r then return { r, g, b, 1 } end
+  end
+  return fallback
+end
+
+function LS:BuildBlizzardPalette()
+  local base = self.palettes.BLIZZARD
+  return {
+    bg = base.bg, panel = base.panel, card = base.card, border = base.border,
+    accent = clientColor("NORMAL_FONT_COLOR", base.accent),
+    text = clientColor("WHITE_FONT_COLOR", base.text),
+    warn = clientColor("RED_FONT_COLOR", base.warn),
+    muted = clientColor("GRAY_FONT_COLOR", base.muted),
+  }
+end
+
+-- A player's chosen colours win over whatever the theme resolved to, including ElvUI's
+-- live media, so switching themes never silently discards them.
+function LS:ApplyColorOverrides(palette)
+  local custom = self.db and self.db.colors
+  local out = {}
+  for key, value in pairs(palette) do out[key] = value end
+  if type(custom) ~= "table" then return out, false end
+  local touched = false
+  for _, entry in ipairs(self.colorOrder) do
+    local key = entry[1]
+    local chosen = custom[key]
+    if out[key] and type(chosen) == "table" and chosen.r then
+      out[key] = { chosen.r, chosen.g, chosen.b, chosen.a or out[key][4] or 1 }
+      touched = true
     end
   end
-  self.skin = nil
-  return self.palettes[name], name, false
+  return out, touched
+end
+
+function LS:HasCustomColors()
+  local custom = self.db and self.db.colors
+  if type(custom) ~= "table" then return false end
+  for _, entry in ipairs(self.colorOrder) do
+    if type(custom[entry[1]]) == "table" then return true end
+  end
+  return false
+end
+
+function LS:SetColor(key, r, g, b, a)
+  self.db.colors = self.db.colors or {}
+  self.db.colors[key] = { r = r, g = g, b = b, a = a or 1 }
+  self:ApplyTheme()
+  self:Refresh()
+end
+
+-- Blizzard's colour picker. Its calling convention changed in 10.2.5, so the modern entry
+-- point is preferred and the old one is only a safety net.
+function LS:PickColor(key)
+  if not ColorPickerFrame then return false end
+  local current = (self.colors and self.colors[key]) or { 1, 1, 1, 1 }
+  local before = { current[1], current[2], current[3], current[4] or 1 }
+
+  local function chosen()
+    local r, g, b = ColorPickerFrame:GetColorRGB()
+    local alpha = 1
+    if ColorPickerFrame.GetColorAlpha then
+      alpha = ColorPickerFrame:GetColorAlpha() or 1
+    end
+    return r, g, b, alpha
+  end
+
+  local function keep() self:SetColor(key, chosen()) end
+
+  if ColorPickerFrame.SetupColorPickerAndShow then
+    ColorPickerFrame:SetupColorPickerAndShow({
+      r = before[1], g = before[2], b = before[3],
+      hasOpacity = true, opacity = before[4],
+      swatchFunc = keep,
+      opacityFunc = keep,
+      cancelFunc = function() self:SetColor(key, before[1], before[2], before[3], before[4]) end,
+    })
+    return true
+  end
+
+  -- The old picker inverted its opacity value, so this path leaves alpha alone entirely.
+  ColorPickerFrame.hasOpacity = false
+  ColorPickerFrame.func = function() self:SetColor(key, ColorPickerFrame:GetColorRGB()) end
+  ColorPickerFrame.cancelFunc = function()
+    self:SetColor(key, before[1], before[2], before[3], before[4])
+  end
+  ColorPickerFrame:SetColorRGB(before[1], before[2], before[3])
+  ColorPickerFrame:Hide()
+  ColorPickerFrame:Show()
+  return true
+end
+
+function LS:ResetColors()
+  self.db.colors = {}
+  self:ApplyTheme()
+  self:Refresh()
+end
+
+function LS:ResolvePalette()
+  local name = self:CurrentTheme()
+  local palette, native = nil, false
+  if name == "ELVUI" then
+    palette = self:BuildElvUIPalette()
+    native = palette ~= nil
+  elseif name == "BLIZZARD" then
+    palette = self:BuildBlizzardPalette()
+  end
+  if not native then self.skin = nil end
+  palette = palette or self.palettes[name]
+  return (self:ApplyColorOverrides(palette)), name, native
 end
 
 -- Inline colour for text that mixes tones in one font string, so urgency stays readable
@@ -134,12 +255,13 @@ function LS:SetTheme(name)
   self.db.theme = name
   self:ApplyTheme()
   self:Refresh()
-  print("|cff59d8c9Lodestar|r theme: " .. self:CurrentTheme() .. (self.skin and " (ElvUI media)" or ""))
 end
 
 function LS:PrintThemes()
   print("Lodestar themes: auto, blizzard, elvui, ellesmere, minimal")
 end
+
+local TRANSPARENT = { 0, 0, 0, 0 }
 
 function LS:ApplyTheme()
   if not self.frame then return end
@@ -148,6 +270,10 @@ function LS:ApplyTheme()
   self.themeName = name
   self.themeNative = native
 
+  -- Blizzard's own panel art carries the window's background and border, so Lodestar's
+  -- flat backdrop gets out of its way rather than drawing a second frame inside it.
+  local chrome = self:UpdateChrome(name == "BLIZZARD")
+
   local texture = self:ThemeTexture()
   for _, frame in ipairs({ self.frame, self.header, self.sidebar }) do
     if frame and frame.SetBackdrop then
@@ -155,17 +281,16 @@ function LS:ApplyTheme()
     end
   end
 
-  self.frame:SetBackdropColor(unpack(palette.bg))
-  self.frame:SetBackdropBorderColor(unpack(palette.border))
+  self.frame:SetBackdropColor(unpack(chrome and TRANSPARENT or palette.bg))
+  self.frame:SetBackdropBorderColor(unpack(chrome and TRANSPARENT or palette.border))
   self.sidebar:SetBackdropColor(unpack(palette.panel))
   self.sidebar:SetBackdropBorderColor(unpack(palette.border))
-  self.header:SetBackdropColor(unpack(palette.panel))
-  self.header:SetBackdropBorderColor(unpack(palette.border))
+  -- With Blizzard chrome the title sits directly on the frame, the way its own windows do.
+  self.header:SetBackdropColor(unpack(chrome and TRANSPARENT or palette.panel))
+  self.header:SetBackdropBorderColor(unpack(chrome and TRANSPARENT or palette.border))
   self.title:SetTextColor(unpack(palette.accent))
+  if self.subtitle then self.subtitle:SetTextColor(unpack(palette.muted)) end
 
-  if self.themeText then
-    self.themeText:SetText("Theme: " .. name .. (native and " (native)" or ""))
-  end
   if self.closeButton then
     self.closeButton:SetBackdropColor(unpack(palette.card))
     self.closeButton:SetBackdropBorderColor(unpack(palette.border))

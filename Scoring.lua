@@ -44,8 +44,16 @@ function LS:GetRecommendations()
   return out
 end
 
--- Recommendations grouped into the categories the Today page can collapse. Categories are
--- ordered by the best thing inside them, so the most valuable one is always on top.
+-- Recommendations grouped for the Today tabs. Tab order is stable so the strip does not
+-- jump around as scores change; the work inside each tab is still ranked best first.
+local CATEGORY_ORDER = {
+  ["Great Vault"] = 1,
+  ["Professions"] = 2,
+  ["Reputation"] = 3,
+  ["Solo content"] = 4,
+  ["Questing"] = 5,
+}
+
 function LS:GetCategories()
   local list = self:GetRecommendations()
   local groups, index = {}, {}
@@ -64,7 +72,9 @@ function LS:GetCategories()
   end
 
   table.sort(groups, function(a, b)
-    if a.best ~= b.best then return a.best > b.best end
+    local ia = CATEGORY_ORDER[a.name] or 50
+    local ib = CATEGORY_ORDER[b.name] or 50
+    if ia ~= ib then return ia < ib end
     return a.name < b.name
   end)
   return groups, #list

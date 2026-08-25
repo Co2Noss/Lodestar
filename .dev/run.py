@@ -66,10 +66,12 @@ def check(label, ok, extra=""):
 class Session:
     """One simulated client, from file load through login."""
 
-    def __init__(self, saved=None):
+    def __init__(self, saved=None, deny_templates=()):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         stub = os.path.join(HERE, "wowstub.lua").replace("\\", "/")
         self.lua.execute(f'dofile("{stub}")')
+        for template in deny_templates:
+            self.lua.execute(f'DeniedTemplates["{template}"] = true')
         self.lua.execute("__LS = {}")
         for name in FILES:
             path = os.path.join(ADDON, name).replace("\\", "/")
@@ -159,6 +161,9 @@ check("continuing lands on Today", s.eval("__LS.page") == "TODAY")
 page = s.texts()
 check("Today shows the plan rather than an empty state",
       "Complete a Bountiful Delve" in page and "Every goal is off" not in page, page)
+check("Today filters with tabs instead of collapsing",
+      "Solo content" in page and "Collapse all" not in page and "Expand all" not in page,
+      page)
 check("the welcome page is not shown again",
       s.eval("__LS:LandingPage()") == "TODAY")
 
@@ -202,6 +207,139 @@ check("an upgrade gets the normal login line",
 check("an upgrade does not have its window forced open",
       old.eval("__LS.frame:IsShown()") is not True)
 
+# --- the Blizzard theme -------------------------------------------------
+print()
+print("-- Blizzard theme --")
+s.exec("__LS:SetTheme('BLIZZARD')")
+s.timers()
+check("the Blizzard theme uses Blizzard's own panel art",
+      s.eval("__LS.chrome ~= nil") is True)
+check("it uses the template Dragonflight introduced",
+      s.eval("__LS.chrome and __LS.chrome.template") == "DefaultPanelTemplate",
+      s.eval("__LS.chrome and __LS.chrome.template"))
+check("the flat backdrop steps aside for it",
+      s.eval("__LS.frame.bgColor and __LS.frame.bgColor[4]") == 0,
+      s.eval("__LS.frame.bgColor and __LS.frame.bgColor[4]"))
+check("the title bar stops drawing its own fill",
+      s.eval("__LS.header.bgColor and __LS.header.bgColor[4]") == 0)
+check("content moves inside the thicker border",
+      s.eval("__LS.layoutPad") == 9, s.eval("__LS.layoutPad"))
+check("the accent is the client's gold",
+      abs(s.eval("__LS.colors.accent[2]") - 0.82) < 1e-6,
+      s.eval("__LS.colors.accent[2]"))
+check("warnings use the client's red",
+      abs(s.eval("__LS.colors.warn[2]") - 0.125) < 1e-6)
+
+s.exec("__LS:SetTheme('MINIMAL')")
+s.timers()
+check("another theme hides the Blizzard art",
+      s.eval("__LS.chrome:IsShown()") is False)
+check("and gets its flat backdrop back",
+      s.eval("__LS.frame.bgColor[4]") > 0)
+check("and drops the border padding", s.eval("__LS.layoutPad") == 0)
+
+denied = Session(deny_templates=("DefaultPanelTemplate", "DialogBorderTemplate"))
+denied.fire("ADDON_LOADED", "Lodestar")
+denied.exec("__LS.db.welcomed = true; __LS:SetTheme('BLIZZARD')")
+denied.timers()
+check("a client without the panel art falls back instead of breaking",
+      denied.eval("__LS.chrome") is None and denied.eval("__LS.chromeMissing") is True)
+check("the fallback still paints a visible window",
+      denied.eval("__LS.frame.bgColor[4]") > 0)
+check("the fallback keeps its border", denied.eval("__LS.frame.borderColor[4]") > 0)
+
+# --- player-chosen colours ----------------------------------------------
+print()
+print("-- custom colors --")
+s.exec("__LS:SetTheme('BLIZZARD')")
+s.timers()
+check("no colors are customised to begin with", s.eval("__LS:HasCustomColors()") is False)
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+settings = s.texts()
+check("Settings opens on Goals", s.eval("__LS:SettingsTab()[1]") == "GOALS")
+check("the four settings tabs are on the strip",
+      all(name in settings for name in ["Goals", "Appearance", "Compact", "Layout"]),
+      settings)
+check("Goals does not bury colors underneath it",
+      "Click a color to change it" not in settings and "Accent" not in settings, settings)
+
+s.click("Appearance")
+check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
+settings = s.texts()
+check("Appearance offers a color for every palette key",
+      all(label in settings for label in
+          ["Accent", "Text", "Background", "Panels", "Cards", "Borders", "Warnings", "Muted text"]),
+      settings)
+check("Appearance explains what editing a color does",
+      "Click a color to change it" in settings, settings)
+check("no reset button appears before anything is customised",
+      "Reset colors to the theme" not in settings)
+
+s.click("Accent")
+check("clicking a color opens the picker", s.eval("ColorPickerFrame.pending ~= nil") is True)
+s.lua.eval("ChooseColor")(0.2, 0.6, 0.9, 1.0)
+s.timers()
+check("the chosen color is applied",
+      abs(s.eval("__LS.colors.accent[3]") - 0.9) < 1e-6, s.eval("__LS.colors.accent[3]"))
+check("the choice is saved", s.eval("__LS.db.colors.accent.b") == 0.9)
+check("the addon knows a color is customised", s.eval("__LS:HasCustomColors()") is True)
+check("picking a color leaves you on Appearance",
+      s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
+
+s.exec("__LS:SetTheme('ELVUI')")
+s.timers()
+check("a chosen color survives switching themes",
+      abs(s.eval("__LS.colors.accent[3]") - 0.9) < 1e-6, s.eval("__LS.colors.accent[3]"))
+check("unchosen colors still follow the theme",
+      s.eval("__LS.colors.bg[1]") == s.eval("__LS.palettes.ELVUI.bg[1]"))
+check("changing theme does not bounce you off Appearance",
+      s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
+
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("the customised row is marked as yours", "Accent  (yours)" in s.texts(), s.texts())
+s.click("Reset colors to the theme")
+check("resetting clears the override", s.eval("__LS:HasCustomColors()") is False)
+check("resetting restores the theme accent",
+      s.eval("__LS.colors.accent[1]") == s.eval("__LS.palettes.ELVUI.accent[1]"))
+
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+s.click("Accent")
+s.lua.eval("CancelColor")()
+s.timers()
+check("cancelling the picker leaves the theme colour alone",
+      s.eval("__LS.colors.accent[1]") == s.eval("__LS.palettes.ELVUI.accent[1]"))
+
+s.click("Compact")
+check("Compact shows the compact toggles and not the color picker",
+      "Compact window" in s.texts() and "Accent" not in s.texts(), s.texts())
+s.click("Layout")
+check("Layout shows window controls and not goals",
+      "Reset size and position" in s.texts() and "Great Vault & endgame" not in s.texts(),
+      s.texts())
+s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('SETTINGS')")
+s.timers()
+check("leaving Settings and coming back restores the last tab",
+      s.eval("__LS:SettingsTab()[1]") == "LAYOUT")
+
+# --- no debug output ----------------------------------------------------
+print()
+print("-- quiet theme changes --")
+quiet = Session(saved="{ goals = { ENDGAME = true } }")
+quiet.fire("ADDON_LOADED", "Lodestar")
+quiet.fire("PLAYER_LOGIN")
+before = quiet.printed()
+quiet.exec("__LS:SetTheme('BLIZZARD'); __LS:SetTheme('ELVUI'); __LS:SetTheme('AUTO')")
+quiet.timers()
+check("changing themes prints nothing", quiet.printed() == before, quiet.printed())
+check("the sidebar no longer carries a theme readout",
+      quiet.eval("__LS.themeText") is None)
+quiet.exec("__LS:PrintThemes()")
+check("asking for the theme list still answers",
+      "Lodestar themes" in quiet.printed())
+
 # --- regression ----------------------------------------------------------
 print()
 print("-- regression --")
@@ -224,6 +362,34 @@ for name in ["TODAY", "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "WELCOME", 
     s.exec(f"__LS:ShowPage('{name}')")
     s.timers()
     check(f"the {name} page renders", len(s.texts()) > 0)
+
+s.exec("__LS:ShowPage('VAULT')")
+s.timers()
+vault = s.texts()
+check("Great Vault opens on Raid", s.eval("__LS:PageTab('VAULT')") == "raid")
+check("Great Vault shows Raid, Dungeons and World tabs",
+      all(name in vault for name in ["Raid", "Dungeons", "World"]), vault)
+check("the Raid tab does not list World run tiers", "best 11" not in vault, vault)
+s.click("World")
+check("the World tab is remembered", s.eval("__LS:PageTab('VAULT')") == "world")
+check("the World tab shows this week's delve tiers", "best 11" in s.texts(), s.texts())
+
+s.exec("__LS:ShowPage('PROFESSIONS')")
+s.timers()
+prof = s.texts()
+check("Professions tabs include each trained profession",
+      "Alchemy" in prof and "Herbalism" in prof, prof)
+s.click("Herbalism")
+check("the selected profession tab is remembered",
+      s.eval("__LS:PageTab('PROFESSIONS')") is not None)
+
+s.exec("__LS:ShowPage('TODAY')")
+s.timers()
+today = s.texts()
+check("Today with several goals shows a tab per category",
+      "Great Vault" in today and "Solo content" in today, today)
+check("Today no longer has Collapse all", "Collapse all" not in today)
+
 s.exec("__LS:SetCompact(true); __LS.frame:Hide(); __LS:UpdateCompact()")
 s.timers()
 check("compact mode still has rows", s.eval("#__LS:CompactActivities()") > 0)

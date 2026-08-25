@@ -1,7 +1,7 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.9.0
+## Version: 1.12.0
 ## SavedVariables: LodestarDB
 Core.lua
 PlayerData.lua

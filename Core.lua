@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.9.0"
+LS.version = "1.12.0"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -16,6 +16,8 @@ LS.defaults = {
   characters = {},
   knowledge = {},
   theme = "AUTO",
+  colors = {},
+  pageTab = { SETTINGS = "GOALS", VAULT = "raid" },
   currentExpansionOnly = true,
   collapsed = {},
   frame = { point = "CENTER", relative = "CENTER", x = 0, y = 0, width = 960, height = 680 },
@@ -58,6 +60,15 @@ function LS:MarkGoalsChosen()
   end
 end
 
+function LS:PageTab(page)
+  return self.db and self.db.pageTab and self.db.pageTab[page]
+end
+
+function LS:SetPageTab(page, id)
+  self.db.pageTab = self.db.pageTab or {}
+  self.db.pageTab[page] = id
+end
+
 local function migrate(db)
   db.allowResize = nil
   -- Anyone who already has goals chose them before the welcome page existed, so it should
@@ -70,6 +81,12 @@ local function migrate(db)
   db.timeBudget = nil
   db.timeBudgetSeconds = nil
   db.migratedBudget = nil
+  db.pageTab = db.pageTab or {}
+  if db.settingsTab then
+    db.pageTab.SETTINGS = db.settingsTab
+    db.settingsTab = nil
+  end
+  if db.pageTab.SETTINGS == "WINDOW" then db.pageTab.SETTINGS = "LAYOUT" end
 end
 
 function LS:FormatDuration(seconds)

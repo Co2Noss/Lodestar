@@ -45,6 +45,16 @@ function methods.GetChildren(self) return unpack(self.children) end
 function methods.GetRegions(self) return unpack(self.regions) end
 function methods.RegisterEvent(self, e) self.events[e] = true end
 
+-- Recorded so tests can assert what a theme actually painted.
+function methods.SetBackdrop(self, backdrop) self.backdrop = backdrop end
+function methods.SetBackdropColor(self, ...) self.bgColor = { ... } end
+function methods.SetBackdropBorderColor(self, ...) self.borderColor = { ... } end
+function methods.SetPoint(self, ...)
+  self.points = self.points or {}
+  table.insert(self.points, { ... })
+end
+function methods.ClearAllPoints(self) self.points = {} end
+
 -- Clear() detaches page content by reparenting to nil, so the stub has to honour that or
 -- stale widgets stay reachable and assertions read text from pages that are gone.
 function methods.SetParent(self, parent)
@@ -82,9 +92,16 @@ end
 function methods.GetNormalTexture(self) return methods.GetThumbTexture(self) end
 
 AllFrames = {}
+-- Lets a test pretend the client has no such XML template, the way an older or future
+-- client would.
+DeniedTemplates = {}
 
 function CreateFrame(kind, name, parent, template)
+  if template and DeniedTemplates[template] then
+    error("unknown template " .. template, 2)
+  end
   local f = new(kind, name, parent)
+  f.template = template
   if parent and type(parent) == "table" and parent.children then
     table.insert(parent.children, f)
   end
@@ -127,6 +144,45 @@ function FireTimers()
 end
 
 function ReloadUI() end
+
+STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+
+local function fontColor(r, g, b)
+  local c = { r = r, g = g, b = b }
+  function c.GetRGB(s) return s.r, s.g, s.b end
+  return c
+end
+NORMAL_FONT_COLOR = fontColor(1, 0.82, 0)
+HIGHLIGHT_FONT_COLOR = fontColor(1, 1, 1)
+WHITE_FONT_COLOR = fontColor(1, 1, 1)
+RED_FONT_COLOR = fontColor(1, 0.125, 0.125)
+GRAY_FONT_COLOR = fontColor(0.5, 0.5, 0.5)
+
+ColorPickerFrame = new("Frame", "ColorPickerFrame")
+function ColorPickerFrame.SetupColorPickerAndShow(self, info)
+  self.pending = info
+  self.picked = { info.r, info.g, info.b, info.opacity or 1 }
+end
+function ColorPickerFrame.GetColorRGB(self)
+  return self.picked[1], self.picked[2], self.picked[3]
+end
+function ColorPickerFrame.GetColorAlpha(self)
+  return self.picked[4] or 1
+end
+
+-- Test helpers: act as the player would inside the open picker.
+function ChooseColor(r, g, b, a)
+  local info = ColorPickerFrame.pending
+  if not info then error("no colour picker is open") end
+  ColorPickerFrame.picked = { r, g, b, a or 1 }
+  info.swatchFunc()
+end
+
+function CancelColor()
+  local info = ColorPickerFrame.pending
+  if not info then error("no colour picker is open") end
+  info.cancelFunc()
+end
 
 UnitName = function() return "Testchar" end
 GetRealmName = function() return "Testrealm" end
@@ -213,8 +269,8 @@ C_MythicPlus = {
 -- Mirrors the reported live state: raid slot at Raid Finder, dungeons partly done,
 -- world tiers of 11, 11 and 7 where 11 is the cap.
 C_WeeklyRewards = {
-  GetActivities = function()
-    return {
+  GetActivities = function(kind)
+    local all = {
       { type = 1, index = 1, level = 17, threshold = 2, progress = 4, id = 1 },
       { type = 1, index = 2, level = 0, threshold = 4, progress = 4, id = 2 },
       { type = 1, index = 3, level = 0, threshold = 6, progress = 4, id = 3 },
@@ -225,12 +281,19 @@ C_WeeklyRewards = {
       { type = 3, index = 2, level = 11, threshold = 4, progress = 8, id = 8 },
       { type = 3, index = 3, level = 7, threshold = 8, progress = 8, id = 9 },
     }
+    if not kind then return all end
+    local out = {}
+    for _, activity in ipairs(all) do
+      if activity.type == kind then table.insert(out, activity) end
+    end
+    return out
   end,
   GetActivityEncounterInfo = function() return nil end,
   GetDifficultyIDForActivityTier = function(tier) return tier end,
   GetNextActivitiesIncrease = function() return nil end,
-  GetSortedProgressForActivity = function(activity)
-    if activity.type == 3 then
+  GetSortedProgressForActivity = function(kind)
+    local id = type(kind) == "table" and kind.type or kind
+    if id == 3 then
       return {
         { difficulty = 11, numPoints = 1 }, { difficulty = 11, numPoints = 1 },
         { difficulty = 8, numPoints = 1 }, { difficulty = 8, numPoints = 1 },

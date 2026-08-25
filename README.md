@@ -1,4 +1,4 @@
-# Lodestar 1.9.0
+# Lodestar 1.12.0
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
@@ -16,23 +16,22 @@ page never interrupts an upgrade.
 
 ## Pages
 
-- **Today** — every recommendation that matches your goals, ranked best first and grouped into categories you can collapse.
-- **Great Vault** — every slot, its current reward quality, what would improve it, and how much work that takes.
-- **Professions** — skill, unspent knowledge, knowledge still needed to finish your trees, and every weekly quest, world drop and treasure still worth knowledge.
+- **Today** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
+- **Great Vault** — Raid, Dungeons and World each have their own tab, with every slot, its current reward quality, and what would improve it.
+- **Professions** — one tab per trained profession: skill, unspent knowledge, weekly quests, drops, treasures and catch-up.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status.
-- **Settings** — goals, compact mode, theme, and window controls.
+- **Settings** — split into Goals, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
+
+## Ranking and categories
 
 ## Ranking and categories
 
 Recommendations are scored against the goals you chose on first login, which Settings can
-change at any time, then grouped by where
-the work happens: Great Vault, Professions, Reputation, Solo content, Questing. Categories are
-ordered by the best thing inside them, so the most valuable one is always on top.
-
-Click a category header to collapse it, which is how you filter out what you do not care
-about right now. Collapsed categories still show their count, total time and the urgency of
-the best thing inside, so collapsing never hides the fact that there is work in there. The
-state is saved per category.
+change at any time, then grouped by where the work happens: Great Vault, Professions,
+Reputation, Solo content, Questing. Today, Great Vault, Professions and Settings each use
+the same tab strip, so moving between groups is a click rather than a scroll. Tab order on
+Today is stable; the work inside a tab is still ranked best first. The last tab on each
+page is remembered.
 
 Every card shows its urgency, estimated time and score. Urgency answers "when does this stop
 being available" rather than "how good is it": a one-time treasure reads ANYTIME no matter how
@@ -109,8 +108,24 @@ Unspent knowledge reads NOW, because spending it is free.
 
 ## Themes
 
-With ElvUI loaded, Lodestar reads ElvUI's own backdrop colour, border colour, status bar
-texture and font. Other options are standalone palettes.
+The Blizzard theme uses the client's own frame art, the modern panel style Dragonflight
+introduced, along with Blizzard's real font colours rather than approximations of them. If a
+client ever stops offering that art, the theme falls back to a flat frame in the same colours
+instead of rendering without a border.
+
+With ElvUI loaded, the ElvUI theme reads ElvUI's own backdrop colour, border colour, status
+bar texture and font. Ellesmere and Minimal are standalone palettes.
+
+## Colors
+
+Settings → Appearance lists every colour the interface uses — accent, text, background,
+panels, cards, borders, warnings and muted text — and clicking one opens Blizzard's colour
+picker.
+
+Your choices override whatever the theme resolved to, including ElvUI's live media, and
+survive switching themes, so a theme change never silently discards them. Rows you have
+changed are marked, and "Reset colors to the theme" drops all of them at once. Colours you
+have not touched keep following the active theme.
 
 ## Window
 

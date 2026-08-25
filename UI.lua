@@ -67,6 +67,60 @@ end
 -- Shared so other files build widgets that pick up the active theme automatically.
 LS.widgets = { text = text, panel = panel, paint = paint, button = button, highlight = highlight }
 
+-- Blizzard's modern panel art, the frame style Dragonflight introduced. The templates are
+-- tried in order and the whole thing degrades to the flat backdrop if the client has none,
+-- so an art change in a future patch cannot leave the window borderless.
+local CHROME_TEMPLATES = { "DefaultPanelTemplate", "DialogBorderTemplate" }
+local CHROME_PAD = 9
+
+function LS:UpdateChrome(wanted)
+  if wanted and not self.chrome and not self.chromeMissing then
+    for _, template in ipairs(CHROME_TEMPLATES) do
+      local ok, frame = pcall(CreateFrame, "Frame", nil, self.frame, template)
+      if ok and frame then
+        frame:SetAllPoints(self.frame)
+        frame:SetFrameLevel(self.frame:GetFrameLevel())
+        -- Decoration only. Anything that took clicks here would stop the window dragging.
+        frame:EnableMouse(false)
+        if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(false) end
+        frame.template = template
+        self.chrome = frame
+        break
+      end
+    end
+    self.chromeMissing = self.chrome == nil
+  end
+
+  local active = (wanted and self.chrome ~= nil) or false
+  if self.chrome then self.chrome:SetShown(active) end
+  self:LayoutFrame(active and CHROME_PAD or 0)
+  return active
+end
+
+-- Blizzard's border art is far thicker than a one pixel edge, so the content moves inward
+-- to sit inside it rather than under it.
+function LS:LayoutFrame(pad)
+  if self.layoutPad == pad then return end
+  self.layoutPad = pad
+
+  self.header:ClearAllPoints()
+  self.header:SetPoint("TOPLEFT", 1 + pad, -(1 + pad))
+  self.header:SetPoint("TOPRIGHT", -(1 + pad), -(1 + pad))
+
+  self.sidebar:ClearAllPoints()
+  self.sidebar:SetPoint("TOPLEFT", 12 + pad, -(68 + pad))
+  self.sidebar:SetPoint("BOTTOMLEFT", 12 + pad, 14 + pad)
+
+  self.content:ClearAllPoints()
+  self.content:SetPoint("TOPLEFT", 195 + pad, -(76 + pad))
+  self.content:SetPoint("BOTTOMRIGHT", -(30 + pad), 22 + pad)
+
+  if self.resizeGrip then
+    self.resizeGrip:ClearAllPoints()
+    self.resizeGrip:SetPoint("BOTTOMRIGHT", -(3 + pad), 3 + pad)
+  end
+end
+
 function LS:ContentWidth()
   return math.max(420, (self.content and self.content:GetWidth() or 700) - 4)
 end
@@ -187,10 +241,6 @@ function LS:CreateUI()
     self.nav[data[1]] = nav
   end
 
-  self.themeText = text(self.sidebar, 140, 10)
-  self.themeText:SetPoint("BOTTOM", 0, 14)
-  self.themeText:SetJustifyH("CENTER")
-
   local grip = CreateFrame("Button", nil, frame)
   grip:SetSize(18, 18)
   grip:SetPoint("BOTTOMRIGHT", -3, 3)
@@ -224,6 +274,38 @@ function LS:Heading(title, subtitle)
   local line = text(self.content, width, 11)
   line:SetPoint("TOPLEFT", 0, -32)
   line:SetText(subtitle or "")
+end
+
+function LS:PickTab(tabs, selectedID)
+  if not tabs or #tabs == 0 then return nil end
+  for _, tab in ipairs(tabs) do
+    if tab[1] == selectedID then return tab end
+  end
+  return tabs[1]
+end
+
+-- Full-width strip used by Today, Great Vault, Professions and Settings. One click
+-- replaces scrolling through every group on the page.
+function LS:TabStrip(tabs, selectedID, onChoose)
+  local chosen = self:PickTab(tabs, selectedID)
+  if not chosen then return nil end
+  local n = #tabs
+  local gap = 6
+  local total = self:ContentWidth()
+  local tabWidth = math.floor((total - gap * (n - 1)) / n)
+  for i, tab in ipairs(tabs) do
+    local nav = button(self.content, tab[2], tabWidth, 30)
+    nav:SetPoint("TOPLEFT", (i - 1) * (tabWidth + gap), -56)
+    if tab[1] == chosen[1] then
+      highlight(nav)
+    else
+      nav.text:SetTextColor(unpack(self.colors.muted))
+    end
+    nav:SetScript("OnMouseUp", function()
+      onChoose(tab[1])
+    end)
+  end
+  return chosen
 end
 
 function LS:ShowPage(page)
@@ -301,8 +383,6 @@ end
 
 local CARD_HEIGHT = 104
 local CARD_GAP = 10
-local CATEGORY_HEIGHT = 34
-local CATEGORY_GAP = 8
 
 function LS:ActivityCard(parent, activity, y, width)
   local card = panel(parent)
@@ -344,44 +424,6 @@ function LS:ActivityCard(parent, activity, y, width)
     actionButton:SetScript("OnMouseUp", action[2])
   end
   return card
-end
-
-function LS:CategoryCollapsed(name)
-  return self.db.collapsed and self.db.collapsed[name] or false
-end
-
-function LS:SetCategoryCollapsed(name, collapsed)
-  self.db.collapsed = self.db.collapsed or {}
-  self.db.collapsed[name] = collapsed or nil
-end
-
--- Clickable category header. Collapsed categories still report what is inside, so
--- hiding a category never hides the fact that it has work in it.
-function LS:CategoryHeader(parent, group, y, width)
-  local collapsed = self:CategoryCollapsed(group.name)
-  local header = button(parent, "", width, CATEGORY_HEIGHT)
-  header:SetPoint("TOPLEFT", 0, y)
-  paint(header, "panel")
-  header.text:Hide()
-
-  local title = text(header, width - 200, 12)
-  title:SetPoint("LEFT", 12, 0)
-  title:SetTextColor(unpack(self.colors.accent))
-  title:SetText(string.format("%s  %s", collapsed and "+" or "–", group.name))
-
-  local best = group.activities[1]
-  local label, tone = self:Urgency(best)
-  local summary = text(header, 190, 10)
-  summary:SetPoint("RIGHT", -12, 0)
-  summary:SetJustifyH("RIGHT")
-  summary:SetText(string.format("%d  •  %s  •  %s",
-    #group.activities, self:FormatDuration(group.minutes * 60), self:Colorize(label, tone)))
-
-  header:SetScript("OnMouseUp", function()
-    self:SetCategoryCollapsed(group.name, not collapsed)
-    self:ShowPage("TODAY")
-  end)
-  return header
 end
 
 -- Shown once, before anything has been recommended. Every goal starts off, so this is the
@@ -461,33 +503,11 @@ function LS:WelcomePage()
 end
 
 function LS:Today()
-  local filled, total, upgradable = self:VaultSummary()
-  local groups, count = self:GetCategories()
-  self:Heading("Your plan for today",
-    string.format("Vault %d/%d filled, %d upgradable. %d %s across %d %s, best first.",
-      filled, total, upgradable, count, count == 1 and "recommendation" or "recommendations",
-      #groups, #groups == 1 and "category" or "categories"))
-
-  local width = self:ContentWidth()
-  if #groups > 0 then
-    local anyOpen = false
-    for _, group in ipairs(groups) do
-      if not self:CategoryCollapsed(group.name) then anyOpen = true end
-    end
-    local toggle = button(self.content, anyOpen and "Collapse all" or "Expand all", 130, 28)
-    toggle:SetPoint("TOPLEFT", 0, -56)
-    toggle:SetScript("OnMouseUp", function()
-      for _, group in ipairs(groups) do
-        self:SetCategoryCollapsed(group.name, anyOpen)
-      end
-      self:ShowPage("TODAY")
-    end)
-  end
-
-  local body = self:Body(96)
-  local y = 0
+  local groups = self:GetCategories()
 
   if #groups == 0 then
+    self:Heading("Your plan for today", "Nothing to rank until you pick a goal.")
+    local body = self:Body(76)
     local none = text(body, body.width, 11)
     none:SetPoint("TOPLEFT", 0, 0)
     none:SetText("Every goal is off, so Lodestar has nothing to weigh against. Pick what you care about and the plan fills in.")
@@ -499,18 +519,32 @@ function LS:Today()
     return
   end
 
+  local tabs = {}
   for _, group in ipairs(groups) do
-    self:CategoryHeader(body, group, y, body.width)
-    y = y - (CATEGORY_HEIGHT + CATEGORY_GAP)
-    if not self:CategoryCollapsed(group.name) then
-      for _, activity in ipairs(group.activities) do
-        self:ActivityCard(body, activity, y, body.width)
-        y = y - (CARD_HEIGHT + CARD_GAP)
-      end
-    end
-    y = y - 6
+    table.insert(tabs, { group.name, group.name })
+  end
+  local chosen = self:PickTab(tabs, self:PageTab("TODAY"))
+  local group = groups[1]
+  for _, entry in ipairs(groups) do
+    if entry.name == chosen[1] then group = entry end
   end
 
+  local label = self:Urgency(group.activities[1])
+  self:Heading("Your plan for today",
+    string.format("%d %s, about %s. Best is %s.",
+      #group.activities, #group.activities == 1 and "recommendation" or "recommendations",
+      self:FormatDuration(group.minutes * 60), label))
+  self:TabStrip(tabs, chosen[1], function(id)
+    self:SetPageTab("TODAY", id)
+    self:ShowPage("TODAY")
+  end)
+
+  local body = self:Body(96)
+  local y = 0
+  for _, activity in ipairs(group.activities) do
+    self:ActivityCard(body, activity, y, body.width)
+    y = y - (CARD_HEIGHT + CARD_GAP)
+  end
   body:finish(-y + 10)
 end
 
@@ -620,71 +654,95 @@ function LS:DetailsPage()
 end
 
 function LS:VaultPage()
-  local filled, total, upgradable = self:VaultSummary()
-  self:Heading("Great Vault",
-    string.format("%d of %d slots filled. %d can still be improved this week.", filled, total, upgradable))
-  local body = self:Body(70)
-  local width = body.width
-  local y = 0
-
+  local tabs = {}
   for _, key in ipairs({ "raid", "activities", "world" }) do
     local row = self.vault.rows[key]
     if row then
-      local heading = text(body, width, 13)
-      heading:SetPoint("TOPLEFT", 0, y)
-      heading:SetTextColor(unpack(self.colors.accent))
-      local runNote = ""
-      if key ~= "raid" and row.runs and #row.runs > 0 then
-        runNote = string.format("   (%d runs this week, best %d)", #row.runs, row.runs[1])
-      end
-      heading:SetText(row.label .. runNote)
-      y = y - 22
-
-      if #row.slots == 0 then
-        local empty = text(body, width, 11)
-        empty:SetPoint("TOPLEFT", 12, y)
-        empty:SetText("No data from the client yet.")
-        y = y - 26
-      end
-
-      for _, slot in ipairs(row.slots) do
-        local cardHeight = slot.topRuns and 92 or 74
-        local card = panel(body)
-        card:SetSize(width, cardHeight)
-        card:SetPoint("TOPLEFT", 0, y)
-        paint(card)
-        if slot.advice and slot.advice.upgradable then
-          card:SetBackdropBorderColor(unpack(self.colors.accent))
-        end
-
-        local mark = slot.complete and "|cff62d26fFilled|r" or "|cffffb84dEmpty|r"
-        local title = text(card, width - 24, 12)
-        title:SetPoint("TOPLEFT", 12, -8)
-        title:SetTextColor(unpack(self.colors.accent))
-        title:SetText(string.format("Slot %d  •  %s  •  %d/%d", slot.index, mark, slot.progress, slot.threshold))
-
-        local state = text(card, width - 24, 11)
-        state:SetPoint("TOPLEFT", 12, -28)
-        state:SetText(string.format("Current: %s     Potential: %s", slot.current or "—", slot.potential or "—"))
-
-        local offset = -46
-        if slot.topRuns then
-          local top = text(card, width - 24, 10)
-          top:SetPoint("TOPLEFT", 12, offset)
-          top:SetText(string.format("Top %d runs: %s", slot.threshold, slot.topRuns))
-          offset = offset - 17
-        end
-
-        local recommended = text(card, width - 24, 11)
-        recommended:SetPoint("TOPLEFT", 12, offset)
-        recommended:SetText("Recommended: " .. (slot.recommended or slot.description or ""))
-        y = y - (cardHeight + 8)
-      end
-      y = y - 14
+      table.insert(tabs, { key, row.label })
     end
   end
 
+  local chosen = self:PickTab(tabs, self:PageTab("VAULT"))
+  local row = chosen and self.vault.rows[chosen[1]]
+  local filled, total, upgradable = 0, 0, 0
+  if row then
+    for _, slot in ipairs(row.slots) do
+      total = total + 1
+      if slot.complete then filled = filled + 1 end
+      if slot.advice and slot.advice.upgradable then upgradable = upgradable + 1 end
+    end
+  end
+
+  local subtitle = string.format("%d of %d slots filled. %d can still be improved this week.",
+    filled, total, upgradable)
+  if row and row.runs and #row.runs > 0 then
+    subtitle = subtitle .. string.format("  %d runs this week, best %d.", #row.runs, row.runs[1])
+  end
+  self:Heading("Great Vault", subtitle)
+  if chosen then
+    self:TabStrip(tabs, chosen[1], function(id)
+      self:SetPageTab("VAULT", id)
+      self:ShowPage("VAULT")
+    end)
+  end
+
+  local body = self:Body(chosen and 96 or 70)
+  local width = body.width
+  local y = 0
+
+  if not row then
+    local empty = text(body, width, 11)
+    empty:SetPoint("TOPLEFT", 0, 0)
+    empty:SetText("No data from the client yet.")
+    body:finish(40)
+    return
+  end
+
+  if #row.slots == 0 then
+    local empty = text(body, width, 11)
+    empty:SetPoint("TOPLEFT", 0, 0)
+    empty:SetText("No data from the client yet.")
+    y = y - 26
+  end
+
+  for _, slot in ipairs(row.slots) do
+    y = self:VaultSlotCard(body, slot, y, width)
+  end
   body:finish(-y + 10)
+end
+
+function LS:VaultSlotCard(parent, slot, y, width)
+  local cardHeight = slot.topRuns and 92 or 74
+  local card = panel(parent)
+  card:SetSize(width, cardHeight)
+  card:SetPoint("TOPLEFT", 0, y)
+  paint(card)
+  if slot.advice and slot.advice.upgradable then
+    card:SetBackdropBorderColor(unpack(self.colors.accent))
+  end
+
+  local mark = slot.complete and "|cff62d26fFilled|r" or "|cffffb84dEmpty|r"
+  local title = text(card, width - 24, 12)
+  title:SetPoint("TOPLEFT", 12, -8)
+  title:SetTextColor(unpack(self.colors.accent))
+  title:SetText(string.format("Slot %d  •  %s  •  %d/%d", slot.index, mark, slot.progress, slot.threshold))
+
+  local state = text(card, width - 24, 11)
+  state:SetPoint("TOPLEFT", 12, -28)
+  state:SetText(string.format("Current: %s     Potential: %s", slot.current or "—", slot.potential or "—"))
+
+  local offset = -46
+  if slot.topRuns then
+    local top = text(card, width - 24, 10)
+    top:SetPoint("TOPLEFT", 12, offset)
+    top:SetText(string.format("Top %d runs: %s", slot.threshold, slot.topRuns))
+    offset = offset - 17
+  end
+
+  local recommended = text(card, width - 24, 11)
+  recommended:SetPoint("TOPLEFT", 12, offset)
+  recommended:SetText("Recommended: " .. (slot.recommended or slot.description or ""))
+  return y - (cardHeight + 8)
 end
 
 -- One progress line per knowledge source, or a single green line once it is finished.
@@ -715,125 +773,140 @@ local function catchUpLine(catchUp)
 end
 
 function LS:ProfessionsPage()
-  local unspent, weeklyLeft, treasureLeft, catchUpReady, weeklyPoints = self:ProfessionSummary()
-  local subtitle
-  if weeklyLeft > 0 then
-    subtitle = string.format("%d unspent knowledge. %d weekly %s left worth %d knowledge, and %d %s still uncollected.",
-      unspent, weeklyLeft, weeklyLeft == 1 and "source" or "sources", weeklyPoints,
-      treasureLeft, treasureLeft == 1 and "treasure" or "treasures")
-  else
-    subtitle = string.format("%d unspent knowledge. Every weekly source is done, and %d %s still uncollected.",
-      unspent, treasureLeft, treasureLeft == 1 and "treasure" or "treasures")
-  end
-  if catchUpReady > 0 then
-    subtitle = subtitle .. string.format(" Catch-up knowledge is open on %d.", catchUpReady)
-  end
-  self:Heading("Professions", subtitle)
-
   local visible = self:VisibleProfessions()
   local hidden = #self.professions - #visible
   local filterOn = self.db.currentExpansionOnly
-  local filter = button(self.content, filterOn and "Current expansion only" or "All expansions", 200, 28)
-  filter:SetPoint("TOPLEFT", 0, -52)
+
+  local tabs = {}
+  local names = {}
+  for _, prof in ipairs(visible) do
+    names[prof.name] = (names[prof.name] or 0) + 1
+  end
+  for _, prof in ipairs(visible) do
+    local label = prof.name
+    if names[prof.name] > 1 then
+      label = string.format("%s  %s", prof.name, prof.expansion or prof.skillLineID)
+    end
+    table.insert(tabs, { tostring(prof.skillLineID), label })
+  end
+
+  local chosen = self:PickTab(tabs, self:PageTab("PROFESSIONS"))
+  local selected = visible[1]
+  if chosen then
+    for _, prof in ipairs(visible) do
+      if tostring(prof.skillLineID) == chosen[1] then selected = prof end
+    end
+  end
+
+  local subtitle
+  if selected then
+    local remaining = selected.remaining and (selected.remaining .. " to finish the tree") or "tree size unknown"
+    subtitle = string.format("%d unspent  •  %s", selected.unspent or 0, remaining)
+  elseif #self.professions > 0 then
+    subtitle = "Nothing for the current expansion. Switch the filter to see your older professions."
+  else
+    subtitle = "Open a profession window once so the client sends its data."
+  end
+  self:Heading("Professions", subtitle)
+
+  local filter = button(self.content, filterOn and "Current expansion only" or "All expansions", 190, 26)
+  filter:SetPoint("TOPRIGHT", 0, -4)
   if filterOn then highlight(filter) end
   filter:SetScript("OnMouseUp", function()
     self.db.currentExpansionOnly = not filterOn
     self:ShowPage("PROFESSIONS")
   end)
-
   if hidden > 0 then
-    local note = text(self.content, 260, 10)
-    note:SetPoint("TOPLEFT", 210, -58)
-    note:SetText(string.format("%d older profession%s hidden", hidden, hidden == 1 and "" or "s"))
+    filter.text:SetText(string.format("Current expansion only  •  %d hidden", hidden))
   end
 
-  local body = self:Body(92)
-  local width = body.width
-  local y = 0
+  if chosen then
+    self:TabStrip(tabs, chosen[1], function(id)
+      self:SetPageTab("PROFESSIONS", id)
+      self:ShowPage("PROFESSIONS")
+    end)
+  end
 
-  if #visible == 0 then
-    local none = text(body, width, 11)
-    none:SetPoint("TOPLEFT", 0, y)
-    if #self.professions > 0 then
-      none:SetText("Nothing for the current expansion. Switch the filter to see your older professions.")
-    else
-      none:SetText("No trained professions with a specialization tree found. Open a profession window once so the client sends its data.")
-    end
-    body:finish(60)
+  local body = self:Body(chosen and 96 or 70)
+  if not selected then
+    local none = text(body, body.width, 11)
+    none:SetPoint("TOPLEFT", 0, 0)
+    none:SetText(subtitle)
+    body:finish(40)
     return
   end
 
-  for _, prof in ipairs(visible) do
-    local lines = {}
-    local function add(line, indent)
-      if line then table.insert(lines, { line, indent or 0 }) end
-    end
+  local y = self:ProfessionCard(body, selected, 0, body.width)
+  body:finish(-y + 10)
+end
 
-    add(string.format("Skill %d / %d", prof.skill, prof.maxSkill))
-    local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
-    add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
-
-    if prof.tracked then
-      local sections = {
-        { "Weekly quests", prof.quests, "turned in" },
-        { "Weekly drops", prof.gathering, "found" },
-        { "Treasures", prof.treasures, "collected" },
-      }
-      for _, section in ipairs(sections) do
-        local line = bucketLine(section[1], section[2], section[3])
-        if line then
-          add(line)
-          local pending = section[2].pending
-          for index, item in ipairs(pending) do
-            -- Keep the card readable; the details page carries the full list.
-            if index > 3 then
-              add(string.format("and %d more", #pending - 3), 1)
-              break
-            end
-            local label = item.label
-            if item.count > 1 then
-              label = string.format("%s (%d left)", label, item.count)
-            end
-            add(string.format("%s  •  +%d", label, item.points), 1)
-          end
-        end
-      end
-      add(catchUpLine(prof.catchUp))
-    else
-      add("Weekly quests, drops and treasures are not tracked for this expansion yet.")
-      add("Lodestar will not claim they are complete without verified quest data.")
-    end
-
-    local height = 32 + #lines * 17 + 8
-    local card = panel(body)
-    card:SetSize(width, height)
-    card:SetPoint("TOPLEFT", 0, y)
-    paint(card)
-    if (prof.unspent or 0) > 0 then
-      card:SetBackdropBorderColor(unpack(self.colors.accent))
-    end
-
-    local title = text(card, width - 24, 13)
-    title:SetPoint("TOPLEFT", 12, -10)
-    title:SetTextColor(unpack(self.colors.accent))
-    title:SetText(prof.name)
-
-    local offset = -32
-    for _, line in ipairs(lines) do
-      local indent = line[2] * 14
-      local row = text(card, width - 24 - indent, 11)
-      row:SetPoint("TOPLEFT", 12 + indent, offset)
-      row:SetText(line[1])
-      if line[2] > 0 then
-        row:SetTextColor(0.64, 0.68, 0.74, 1)
-      end
-      offset = offset - 17
-    end
-
-    y = y - (height + 10)
+function LS:ProfessionCard(parent, prof, y, width)
+  local lines = {}
+  local function add(line, indent)
+    if line then table.insert(lines, { line, indent or 0 }) end
   end
 
-  body:finish(-y + 10)
+  add(string.format("Skill %d / %d", prof.skill, prof.maxSkill))
+  local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
+  add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
+
+  if prof.tracked then
+    local sections = {
+      { "Weekly quests", prof.quests, "turned in" },
+      { "Weekly drops", prof.gathering, "found" },
+      { "Treasures", prof.treasures, "collected" },
+    }
+    for _, section in ipairs(sections) do
+      local line = bucketLine(section[1], section[2], section[3])
+      if line then
+        add(line)
+        local pending = section[2].pending
+        for index, item in ipairs(pending) do
+          if index > 8 then
+            add(string.format("and %d more", #pending - 8), 1)
+            break
+          end
+          local label = item.label
+          if item.count > 1 then
+            label = string.format("%s (%d left)", label, item.count)
+          end
+          add(string.format("%s  •  +%d", label, item.points), 1)
+        end
+      end
+    end
+    add(catchUpLine(prof.catchUp))
+  else
+    add("Weekly quests, drops and treasures are not tracked for this expansion yet.")
+    add("Lodestar will not claim they are complete without verified quest data.")
+  end
+
+  local height = 32 + #lines * 17 + 8
+  local card = panel(parent)
+  card:SetSize(width, height)
+  card:SetPoint("TOPLEFT", 0, y)
+  paint(card)
+  if (prof.unspent or 0) > 0 then
+    card:SetBackdropBorderColor(unpack(self.colors.accent))
+  end
+
+  local title = text(card, width - 24, 13)
+  title:SetPoint("TOPLEFT", 12, -10)
+  title:SetTextColor(unpack(self.colors.accent))
+  title:SetText(prof.name)
+
+  local offset = -32
+  for _, line in ipairs(lines) do
+    local indent = line[2] * 14
+    local row = text(card, width - 24 - indent, 11)
+    row:SetPoint("TOPLEFT", 12 + indent, offset)
+    row:SetText(line[1])
+    if line[2] > 0 then
+      row:SetTextColor(0.64, 0.68, 0.74, 1)
+    end
+    offset = offset - 17
+  end
+
+  return y - (height + 10)
 end
 
 function LS:WarbandPage()
@@ -968,18 +1041,71 @@ function LS:Dropdown(parent, width, value, options, onChoose)
   return drop
 end
 
+-- A labelled row with a live sample of the colour it edits, so the list reads as the
+-- palette rather than as a list of words.
+function LS:ColorSwatch(parent, key, label, width)
+  local row = button(parent, label, width, 30)
+  row.text:SetWidth(width - 44)
+  row.text:ClearAllPoints()
+  row.text:SetPoint("LEFT", 10, 0)
+  row.text:SetJustifyH("LEFT")
+
+  local chip = panel(row)
+  chip:SetSize(22, 18)
+  chip:SetPoint("RIGHT", -8, 0)
+  chip:SetBackdropColor(unpack(self.colors[key] or { 1, 1, 1, 1 }))
+  chip:SetBackdropBorderColor(unpack(self.colors.border))
+  row.chip = chip
+  row.colorKey = key
+
+  if self.db.colors and self.db.colors[key] then
+    row.text:SetText(label .. "  (yours)")
+  end
+
+  -- Picking a colour repaints through ApplyTheme, so the page does not rebuild itself out
+  -- from under the open picker.
+  row:SetScript("OnMouseUp", function() self:PickColor(key) end)
+  return row
+end
+
+local settingsTabs = {
+  { "GOALS", "Goals", "Tell Lodestar what matters. The plan follows these goals." },
+  { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
+  { "COMPACT", "Compact", "The small always-on window." },
+  { "LAYOUT", "Layout", "Where the window sits, and what Lodestar has remembered." },
+}
+
+function LS:SettingsTab()
+  return self:PickTab(settingsTabs, self:PageTab("SETTINGS"))
+end
+
+-- Settings outgrew a single scrolling column, so each group is its own tab. The strip
+-- fills the content width so the next setting is a click, not a scroll, and the tab you
+-- were last on is remembered.
 function LS:Settings()
-  self:Heading("Settings", "Tell Lodestar what matters. The plan follows these goals.")
-  local body = self:Body(70)
-  local width = math.min(380, body.width)
+  local chosen = self:SettingsTab()
+  self:Heading("Settings", chosen[3])
+  self:TabStrip(settingsTabs, chosen[1], function(id)
+    self:SetPageTab("SETTINGS", id)
+    self:ShowPage("SETTINGS")
+  end)
+
+  local body = self:Body(96)
+  local width = math.min(420, body.width)
   local y = 0
+  if chosen[1] == "GOALS" then
+    y = self:SettingsGoals(body, width, y)
+  elseif chosen[1] == "APPEARANCE" then
+    y = self:SettingsAppearance(body, width, y)
+  elseif chosen[1] == "COMPACT" then
+    y = self:SettingsCompact(body, width, y)
+  else
+    y = self:SettingsWindow(body, width, y)
+  end
+  body:finish(-y + 10)
+end
 
-  local goalsHeading = text(body, width, 13)
-  goalsHeading:SetPoint("TOPLEFT", 0, y)
-  goalsHeading:SetTextColor(unpack(self.colors.accent))
-  goalsHeading:SetText("What you care about")
-  y = y - 26
-
+function LS:SettingsGoals(body, width, y)
   for _, goal in ipairs(goalList) do
     local key, label = goal[1], goal[2]
     local on = self.db.goals[key]
@@ -998,7 +1124,14 @@ function LS:Settings()
     y = y - 38
   end
 
-  y = y - 14
+  local goalNote = text(body, width, 10)
+  goalNote:SetPoint("TOPLEFT", 0, y)
+  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty.")
+  y = y - 32
+  return y
+end
+
+function LS:SettingsAppearance(body, width, y)
   local themeHeading = text(body, width, 13)
   themeHeading:SetPoint("TOPLEFT", 0, y)
   themeHeading:SetTextColor(unpack(self.colors.accent))
@@ -1013,21 +1146,63 @@ function LS:Settings()
 
   local note = text(body, width, 10)
   note:SetPoint("TOPLEFT", 0, y)
+  local active = self:CurrentTheme()
   if self.themeNative then
     note:SetText("Using ElvUI's own backdrop, border, texture and font.")
-  elseif self:CurrentTheme() == "ELVUI" then
+  elseif active == "ELVUI" then
     note:SetText("ElvUI is not loaded, so this is the standalone ElvUI-style palette.")
+  elseif active == "BLIZZARD" and self.chrome then
+    note:SetText("Blizzard's own panel art and font colours, the frame style Dragonflight introduced.")
+  elseif active == "BLIZZARD" then
+    note:SetText("This client offered no panel art, so Blizzard's colours are drawn on a flat frame.")
   else
     note:SetText("Auto follows ElvUI or EllesmereUI when either is loaded.")
   end
   y = y - 34
 
-  local compactHeading = text(body, width, 13)
-  compactHeading:SetPoint("TOPLEFT", 0, y)
-  compactHeading:SetTextColor(unpack(self.colors.accent))
-  compactHeading:SetText("Compact mode")
+  local colorHeading = text(body, width, 13)
+  colorHeading:SetPoint("TOPLEFT", 0, y)
+  colorHeading:SetTextColor(unpack(self.colors.accent))
+  colorHeading:SetText("Colors")
   y = y - 26
 
+  -- Two columns, so the whole palette is visible at once instead of being a scroll.
+  local columns = 2
+  local columnGap = 12
+  local swatchWidth = math.min(230,
+    math.floor((math.max(width, body.width) - columnGap) / columns))
+  for i, entry in ipairs(self.colorOrder) do
+    local column = (i - 1) % columns
+    local row = math.floor((i - 1) / columns)
+    local swatch = self:ColorSwatch(body, entry[1], entry[2], swatchWidth)
+    swatch:SetPoint("TOPLEFT", column * (swatchWidth + columnGap), y - row * 34)
+  end
+  y = y - math.ceil(#self.colorOrder / columns) * 34
+
+  local colorNote = text(body, width, 10)
+  colorNote:SetPoint("TOPLEFT", 0, y)
+  if self:HasCustomColors() then
+    colorNote:SetText("Your colors override the theme, including ElvUI's, and survive switching themes.")
+  else
+    colorNote:SetText("Click a color to change it. Your choice overrides the theme until you reset it.")
+  end
+  y = y - 32
+
+  if self:HasCustomColors() then
+    local resetColors = button(body, "Reset colors to the theme", width, 32)
+    resetColors:SetPoint("TOPLEFT", 0, y)
+    resetColors:SetScript("OnMouseUp", function()
+      self:ResetColors()
+      self:ShowPage("SETTINGS")
+    end)
+    y = y - 44
+  else
+    y = y - 10
+  end
+  return y
+end
+
+function LS:SettingsCompact(body, width, y)
   local compact = self.db.compact
   local compactToggles = {
     {
@@ -1069,13 +1244,10 @@ function LS:Settings()
     self:ShowPage("SETTINGS")
   end)
   y = y - 44
+  return y
+end
 
-  local windowHeading = text(body, width, 13)
-  windowHeading:SetPoint("TOPLEFT", 0, y)
-  windowHeading:SetTextColor(unpack(self.colors.accent))
-  windowHeading:SetText("Window")
-  y = y - 26
-
+function LS:SettingsWindow(body, width, y)
   local windowNote = text(body, width, 10)
   windowNote:SetPoint("TOPLEFT", 0, y)
   windowNote:SetText("Drag the frame to move it, or the grip in the bottom-right corner to resize. Both are saved.")
@@ -1098,8 +1270,7 @@ function LS:Settings()
     self:ShowPage("SETTINGS")
   end)
   y = y - 44
-
-  body:finish(-y + 10)
+  return y
 end
 
 function LS:Refresh()
