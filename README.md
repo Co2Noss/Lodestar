@@ -1,4 +1,37 @@
-# Lodestar 1.0.0
+<p align="center">
+  <img src="docs/logo.png" alt="Lodestar" width="220">
+</p>
+
+<h1 align="center">Lodestar</h1>
+
+<p align="center"><strong>Find what matters. Ignore the rest.</strong></p>
+
+<p align="center">
+  A decision engine for World of Warcraft. Blizzard shows you everything you can do.<br>
+  Lodestar tells you what is worth doing next.
+</p>
+
+<p align="center">
+  <a href="https://discord.gg/a7hrHavcwq"><img src="https://img.shields.io/discord/1541817004531646555?color=7289DA&label=DISCORD&logo=discord&style=for-the-badge" alt="Discord"></a>
+  <a href="https://github.com/Co2Noss/Lodestar"><img src="https://img.shields.io/github/stars/Co2Noss/Lodestar?style=for-the-badge&label=GitHub%20Stars%20%E2%AD%90&logo=github&color=yellow" alt="GitHub Stars"></a>
+  <a href="https://www.curseforge.com/wow/addons/lodestar-guide"><img src="https://cf.way2muchnoise.eu/full_1667135_Downloads.svg?badge_style=for_the_badge" alt="CurseForge Downloads"></a>
+  <a href="https://github.com/Co2Noss/Lodestar/releases"><img src="https://img.shields.io/github/v/release/Co2Noss/Lodestar?style=for-the-badge&logo=github" alt="GitHub Release"></a>
+</p>
+
+## Download
+
+[![CurseForge](https://img.shields.io/badge/CurseForge-FF784D?style=for-the-badge&logo=curseforge&logoColor=white)](https://www.curseforge.com/wow/addons/lodestar-guide)
+[![GitHub](https://img.shields.io/badge/GitHub-121013?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Co2Noss/Lodestar)
+[![GitHub Release](https://img.shields.io/badge/GitHub%20Release-121013?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Co2Noss/Lodestar/releases)
+
+## Community
+
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/a7hrHavcwq)
+[![Issues](https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Co2Noss/Lodestar/issues)
+
+## Donate
+
+[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](http://paypal.me/Co2Noss)
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 
@@ -174,11 +207,22 @@ position are saved. Escape closes the main window; compact mode stays up.
 
 ## Commands
 
-- `/ls`
+- `/ls` — open or close the window
 - `/ls theme auto` (also blizzard, elvui, ellesmere, minimal)
 - `/ls compact`
 - `/ls compact single`
+- `/ls debug` — disable every other addon and reload, so you can tell if an error is Lodestar
+- `/ls debug off` — turn those addons back on (this character only)
 - `/ls reset`
+
+## Debug isolation
+
+If something errors and you are not sure which addon did it, `/ls debug` turns off every
+non-Blizzard addon except Lodestar, then reloads. Reproduce the problem. If it still happens,
+it is Lodestar (or the client). If it does not, another addon was involved.
+
+`/ls debug` again, or `/ls debug off`, restores the addons that were on. The restore list
+survives `/ls reset`. Isolation is per character, and it will not run in combat.
 
 ## Releases
 
@@ -196,3 +240,7 @@ and those files are always marked alpha.
 
 `.dev/run.py` loads every file into a stubbed client, fires the real login events and clicks
 through the UI to check behaviour without launching the game. It needs `lupa`.
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).

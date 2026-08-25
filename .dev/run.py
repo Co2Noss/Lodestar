@@ -340,6 +340,78 @@ quiet.exec("__LS:PrintThemes()")
 check("asking for the theme list still answers",
       "Lodestar themes" in quiet.printed())
 
+# --- debug isolation ----------------------------------------------------
+print()
+print("-- debug isolation --")
+iso = Session(saved="{ goals = { ENDGAME = true } }")
+iso.fire("ADDON_LOADED", "Lodestar")
+iso.exec('ReloadedUI = false')
+shown = iso.eval("__LS.frame:IsShown()")
+iso.exec('SlashCmdList.LODESTAR("debug")')
+check("debug disables other user addons",
+      iso.eval('C_AddOns.GetAddOnEnableState("ElvUI")') == 0
+      and iso.eval('C_AddOns.GetAddOnEnableState("Details")') == 0)
+check("debug keeps Lodestar enabled",
+      iso.eval('C_AddOns.GetAddOnEnableState("Lodestar")') > 0)
+check("debug leaves Blizzard addons alone",
+      iso.eval('C_AddOns.GetAddOnEnableState("Blizzard_WeeklyRewards")') > 0)
+check("debug does not enable addons that were already off",
+      iso.eval('C_AddOns.GetAddOnEnableState("SomeDisabled")') == 0)
+check("debug remembers which addons to restore",
+      iso.eval('LodestarDebugDB.active') is True
+      and iso.eval('LodestarDebugDB.addons[1]') == "ElvUI"
+      and iso.eval('LodestarDebugDB.addons[2]') == "Details")
+check("debug reloads the UI", iso.eval("ReloadedUI") is True)
+check("debug does not toggle the window",
+      iso.eval("__LS.frame:IsShown()") == shown)
+
+iso.exec('ReloadedUI = false')
+iso.exec('SlashCmdList.LODESTAR("debug on")')
+check("debug on while already isolated does not reload again",
+      iso.eval("ReloadedUI") is not True, iso.printed())
+
+iso.exec('ReloadedUI = false')
+iso.exec('SlashCmdList.LODESTAR("debug")')
+check("a second /ls debug restores the other addons",
+      iso.eval('C_AddOns.GetAddOnEnableState("ElvUI")') > 0
+      and iso.eval('C_AddOns.GetAddOnEnableState("Details")') > 0)
+check("restore still leaves previously disabled addons off",
+      iso.eval('C_AddOns.GetAddOnEnableState("SomeDisabled")') == 0)
+check("restore clears the isolation flag",
+      iso.eval("LodestarDebugDB.active") is not True)
+check("restore reloads the UI", iso.eval("ReloadedUI") is True)
+
+iso.exec('ReloadedUI = false')
+iso.exec('SlashCmdList.LODESTAR("debug off")')
+check("debug off while not isolated does not reload",
+      iso.eval("ReloadedUI") is not True)
+
+combat = Session(saved="{ goals = { ENDGAME = true } }")
+combat.fire("ADDON_LOADED", "Lodestar")
+combat.exec("InCombatLockdown = function() return true end")
+combat.exec("ReloadedUI = false")
+combat.exec('SlashCmdList.LODESTAR("debug")')
+check("debug refuses to isolate in combat",
+      combat.eval("ReloadedUI") is not True
+      and combat.eval('C_AddOns.GetAddOnEnableState("ElvUI")') > 0)
+check("combat isolation explains itself",
+      "leave combat" in combat.printed(), combat.printed())
+
+login = Session(saved="{ goals = { ENDGAME = true } }")
+login.exec('LodestarDebugDB = { active = true, addons = { "ElvUI", "Details" } }')
+login.fire("ADDON_LOADED", "Lodestar")
+login.fire("PLAYER_LOGIN")
+check("login warns when isolation is still on",
+      "debug isolation is on" in login.printed(), login.printed())
+
+reset = Session(saved="{ goals = { ENDGAME = true } }")
+reset.fire("ADDON_LOADED", "Lodestar")
+reset.exec('LodestarDebugDB = { active = true, addons = { "ElvUI" } }')
+reset.exec('SlashCmdList.LODESTAR("reset")')
+check("reset does not forget which addons to restore",
+      reset.eval("LodestarDebugDB.active") is True
+      and reset.eval('LodestarDebugDB.addons[1]') == "ElvUI")
+
 # --- regression ----------------------------------------------------------
 print()
 print("-- regression --")

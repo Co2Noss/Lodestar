@@ -1,3 +1,10 @@
+# 1.0.1
+
+- `/ls debug` turns off every other addon and reloads, so you can tell if an error is
+  Lodestar. `/ls debug` again restores them. Isolation is per character, skipped in combat,
+  and the restore list survives `/ls reset`.
+- README now carries the logo plus CurseForge, GitHub, Discord and PayPal links.
+
 # 1.0.0
 
 First official (non-beta) GitHub and CurseForge release.

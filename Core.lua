@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.0.0"
+LS.version = "1.0.1"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -110,6 +110,132 @@ function LS:FormatDuration(seconds)
   return hours .. "h " .. rest .. "m"
 end
 
+-- Isolation state is a separate saved variable so /ls reset cannot throw away the
+-- list of addons that need turning back on after a debugging session.
+function LS:DebugIsolated()
+  return LodestarDebugDB and LodestarDebugDB.active and true or false
+end
+
+local function debugChat(msg)
+  print("|cff59d8c9Lodestar|r " .. msg)
+end
+
+local function debugUsage()
+  debugChat("|cffffcc00/ls debug|r disables every other addon and reloads, so you can tell if an error is ours.")
+  debugChat("|cffffcc00/ls debug off|r turns those addons back on. This character only.")
+end
+
+local function playerName()
+  return UnitName and UnitName("player") or nil
+end
+
+local function addonEnableState(name)
+  local fn = C_AddOns and C_AddOns.GetAddOnEnableState
+  if not fn then return 0 end
+  local character = playerName()
+  local ok, state = pcall(fn, name, character)
+  if ok and type(state) == "number" then return state end
+  ok, state = pcall(fn, name)
+  if ok and type(state) == "number" then return state end
+  return 0
+end
+
+local function setAddonEnabled(name, on)
+  local fn = on and (C_AddOns and C_AddOns.EnableAddOn) or (C_AddOns and C_AddOns.DisableAddOn)
+  if not fn then return false end
+  local character = playerName()
+  if pcall(fn, name, character) then return true end
+  return pcall(fn, name) and true or false
+end
+
+local function keepAddon(name, security)
+  if name == addonName then return true end
+  if security == "SECURE" then return true end
+  if type(name) == "string" and name:sub(1, 9) == "Blizzard_" then return true end
+  return false
+end
+
+local function eachAddon(fn)
+  local getNum = C_AddOns and C_AddOns.GetNumAddOns
+  local getInfo = C_AddOns and C_AddOns.GetAddOnInfo
+  if not getNum or not getInfo then return 0 end
+  local n = getNum() or 0
+  for i = 1, n do
+    local name, _, _, _, _, security = getInfo(i)
+    if name then fn(name, security or "") end
+  end
+  return n
+end
+
+function LS:DebugAnnounce()
+  if not self:DebugIsolated() then return end
+  local n = LodestarDebugDB.addons and #LodestarDebugDB.addons or 0
+  debugChat("|cffffcc00debug isolation is on.|r " .. n .. " other addon" .. (n == 1 and "" or "s") .. " disabled. If the error is gone, it was not Lodestar. |cff59d8c9/ls debug|r restores them.")
+end
+
+function LS:DebugIsolate()
+  if InCombatLockdown and InCombatLockdown() then
+    debugChat("leave combat before isolating addons.")
+    return
+  end
+  if self:DebugIsolated() then
+    debugChat("debug isolation is already on. |cff59d8c9/ls debug off|r restores the other addons.")
+    return
+  end
+  local saved = {}
+  local seen = eachAddon(function(name, security)
+    if keepAddon(name, security) then return end
+    if addonEnableState(name) > 0 then
+      table.insert(saved, name)
+      setAddonEnabled(name, false)
+    end
+  end)
+  if seen == 0 then
+    debugChat("cannot read the addon list on this client.")
+    return
+  end
+  setAddonEnabled(addonName, true)
+  LodestarDebugDB = { active = true, addons = saved }
+  debugChat("disabled " .. #saved .. " addon" .. (#saved == 1 and "" or "s") .. ". Reloading with only Lodestar enabled.")
+  ReloadUI()
+end
+
+function LS:DebugRestore()
+  if InCombatLockdown and InCombatLockdown() then
+    debugChat("leave combat before restoring addons.")
+    return
+  end
+  if not self:DebugIsolated() then
+    debugChat("debug isolation is not on.")
+    return
+  end
+  local saved = LodestarDebugDB.addons or {}
+  for _, name in ipairs(saved) do
+    setAddonEnabled(name, true)
+  end
+  setAddonEnabled(addonName, true)
+  LodestarDebugDB = { active = false, addons = {} }
+  debugChat("restored " .. #saved .. " addon" .. (#saved == 1 and "" or "s") .. ". Reloading.")
+  ReloadUI()
+end
+
+function LS:DebugCommand(arg)
+  arg = (arg or ""):lower():match("^%s*(.-)%s*$")
+  if arg == "off" or arg == "restore" then
+    self:DebugRestore()
+  elseif arg == "on" or arg == "isolate" then
+    self:DebugIsolate()
+  elseif arg == "" then
+    if self:DebugIsolated() then
+      self:DebugRestore()
+    else
+      self:DebugIsolate()
+    end
+  else
+    debugUsage()
+  end
+end
+
 local function RefreshState()
   if not LS.db then return end
   if LS.ScanPlayer then LS:ScanPlayer() end
@@ -175,6 +301,7 @@ events:SetScript("OnEvent", function(_, event, arg)
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. Pick what you care about to get started.")
       LS:OpenFull("WELCOME")
     end
+    LS:DebugAnnounce()
   else
     RefreshSoon()
   end
@@ -195,6 +322,8 @@ SlashCmdList.LODESTAR = function(msg)
   elseif msg == "compact single" then
     LS:SetCompactSingle(not LS.db.compact.single)
     print("|cff59d8c9Lodestar|r compact single recommendation: " .. (LS.db.compact.single and "on" or "off"))
+  elseif msg == "debug" or msg:match("^debug%s") then
+    LS:DebugCommand(msg:match("^debug%s*(.*)$"))
   elseif msg == "reset" then
     LodestarDB = nil
     ReloadUI()

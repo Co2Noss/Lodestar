@@ -157,7 +157,9 @@ function FireTimers()
   end
 end
 
-function ReloadUI() end
+ReloadedUI = false
+function ReloadUI() ReloadedUI = true end
+function InCombatLockdown() return false end
 
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 
@@ -213,7 +215,44 @@ GetProfessionInfo = function(index)
   if index == 5 then return "Cooking", nil, 80, 100, nil, nil, 185, 0, nil, nil, "Cooking" end
 end
 
-C_AddOns = { IsAddOnLoaded = function() return false end }
+local addonList = {
+  { name = "Lodestar", security = "INSECURE", enabled = 2 },
+  { name = "ElvUI", security = "INSECURE", enabled = 2 },
+  { name = "Details", security = "INSECURE", enabled = 2 },
+  { name = "Blizzard_WeeklyRewards", security = "SECURE", enabled = 2 },
+  { name = "SomeDisabled", security = "INSECURE", enabled = 0 },
+}
+
+local function findAddon(id)
+  if type(id) == "number" then return addonList[id] end
+  if type(id) == "string" then
+    for _, row in ipairs(addonList) do
+      if row.name == id then return row end
+    end
+  end
+end
+
+C_AddOns = {
+  IsAddOnLoaded = function() return false end,
+  GetNumAddOns = function() return #addonList end,
+  GetAddOnInfo = function(id)
+    local a = findAddon(id)
+    if not a then return nil end
+    return a.name, a.name, "", true, nil, a.security, false
+  end,
+  GetAddOnEnableState = function(name)
+    local a = findAddon(name)
+    return a and a.enabled or 0
+  end,
+  DisableAddOn = function(name)
+    local a = findAddon(name)
+    if a then a.enabled = 0 end
+  end,
+  EnableAddOn = function(name)
+    local a = findAddon(name)
+    if a then a.enabled = 2 end
+  end,
+}
 
 C_TradeSkillUI = {
   GetAllProfessionTradeSkillLines = function() return { 2871, 2823, 2757, 185, 356, 794 } end,

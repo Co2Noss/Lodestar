@@ -1,9 +1,9 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.0.0
+## Version: 1.0.1
 ## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize
-## SavedVariables: LodestarDB
+## SavedVariables: LodestarDB, LodestarDebugDB
 Core.lua
 PlayerData.lua
 Knowledge.lua

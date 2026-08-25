@@ -15,8 +15,11 @@ A decision engine for World of Warcraft. Blizzard shows you everything you can d
 
 Lodestar is a decision engine for World of Warcraft. It looks at your Great Vault, professions, reputations, and the goals you actually care about, then ranks what is worth doing next. It is not a checklist of five hundred world quests.
 
+**CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.0.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.0.0)
+**Latest release:** [v1.0.1](https://github.com/Co2Noss/Lodestar/releases/tag/v1.0.1)
+**Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
+**PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
 ---
 
@@ -69,6 +72,8 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls compact` | Toggle compact mode |
 | `/ls compact single` | Toggle single-recommendation compact mode |
 | `/ls theme auto` | Follow ElvUI / Ellesmere when loaded (`blizzard`, `elvui`, `ellesmere`, `minimal` also work) |
+| `/ls debug` | Disable every other addon and reload, to see if an error is Lodestar |
+| `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |
 
 Left-click the minimap button for the full window. Right-click for compact mode.
@@ -85,5 +90,5 @@ Left-click the minimap button for the full window. Right-click for compact mode.
 
 ## Feedback
 
-File issues on [GitHub](https://github.com/Co2Noss/Lodestar/issues). Include your class/spec, the theme you use (Blizzard, ElvUI, or other), and what you expected versus what happened.
+File issues on [GitHub](https://github.com/Co2Noss/Lodestar/issues) or talk to us on [Discord](https://discord.gg/a7hrHavcwq). Include your class/spec, the theme you use (Blizzard, ElvUI, or other), and what you expected versus what happened. If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it.
 ```
