@@ -1,0 +1,4 @@
+# The client reads these files as-is, so commit them byte for byte and let no end-of-line
+# conversion touch them. Knowledge.lua and Professions.lua carry CRLF from generation.
+* -text
+*.tga binary
