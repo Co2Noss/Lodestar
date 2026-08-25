@@ -24,8 +24,6 @@ page never interrupts an upgrade.
 
 ## Ranking and categories
 
-## Ranking and categories
-
 Recommendations are scored against the goals you chose on first login, which Settings can
 change at any time, then grouped by where the work happens: Great Vault, Professions,
 Reputation, Solo content, Questing. Today, Great Vault, Professions and Settings each use
