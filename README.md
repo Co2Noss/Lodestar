@@ -28,6 +28,9 @@
 
 [![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/a7hrHavcwq)
 [![Issues](https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Co2Noss/Lodestar/issues)
+[![Wiki](https://img.shields.io/badge/GitHub%20Wiki-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Co2Noss/Lodestar/wiki)
+
+The [wiki](https://github.com/Co2Noss/Lodestar/wiki) covers install, the dashboard canvas, ranking, and how other addons register tiles.
 
 ## Donate
 

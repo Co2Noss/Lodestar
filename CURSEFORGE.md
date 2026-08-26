@@ -17,6 +17,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
+**Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
 **Latest release:** [v1.4.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.4.0)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
