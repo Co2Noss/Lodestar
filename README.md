@@ -40,9 +40,10 @@ Lodestar answers one question: what is the best use of your next hour in World o
 Lodestar works on its own. These addons unlock extra behaviour if they are loaded:
 
 - **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house.
-- **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
+- **TomTom** — multiple waypoints and a closest-arrow. Settings can force TomTom, the client's map pin, or Auto (TomTom when loaded).
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks (trainers, vendors, chests). Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture and font.
+- **Great Vault Key Info** — Champion/Hero ranks on slots in the client's Great Vault window. Lodestar does not copy those season tables; Dashboard hover uses named keys and reward item levels the client already has.
 
 ## First login
 
@@ -58,17 +59,50 @@ page never interrupts an upgrade.
 
 ## Pages
 
-The left menu is workspaces, not content categories. Great Vault and Professions still
-exist as Progress and as tabs on Today's Plan; they are not a second top-level menu.
+The left menu is workspaces, not content categories. Collapse it to icons; hover
+an icon for the name. Professions live on Dashboard. Great Vault opens from
+Dashboard; Progress is the tracked list.
 
-- **Dashboard** — a snapshot of the plan, vault slots, unspent knowledge, and the next card.
+- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, gold, or HandyNotes rares, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
 - **Today's Plan** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
 - **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge.
 - **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up. Which of those to rank is still chosen in Settings.
-- **Progress** — this character's Great Vault (Raid, Dungeons, World) and professions.
+- **Progress** — activities you tracked, in score order. Compact mode shows the same list. Track or Untrack from Details.
 - **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status.
 - **Settings** — split into Goals, Reputation, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
+
+## Dashboard widgets
+
+Edit dashboard to add, remove, or drag tiles on a **12 × 18** canvas that exists
+only on that tab. Drag a tile to move it; drag the right edge, bottom edge, or
+corner to resize it horizontally or vertically. Tiles cannot overlap; Compact up
+packs them to the top. Dragging lifts the tile, leaves a ghost in its old cell, and
+marks empty rooms with a bordered plus so you can see where it can land.
+The default layout is Overview, Jump, Professions, and Next, each starting at half
+width — the same size as WoW Token and the other addable tiles. Tiles that need another
+addon stay out of the add list until that addon is loaded: gold needs TSM, Auctionator
+or RECrystallize (and the Gold goal), rares need HandyNotes plus a notes pack.
+
+WoW Token uses `C_WowTokenPublic` — the price the client published, not an invented AH.
+A trend line only appears after Lodestar has seen more than one live price. Edit dashboard
+to change how the tile looks: **Coin icons** uses the client's gold coin, **Letters** uses
+g/s/c, **Color** tints letter amounts gold, **Separators** inserts thousands commas, and
+**Bars** / **Line** switches the trend from a bar chart to a line.
+
+Other addons can pin a tile after Lodestar loads:
+
+```lua
+Lodestar:RegisterWidget({
+  id = "myaddon_foo",
+  title = "Foo",
+  defaultSize = "half", -- or defaultW / defaultH in canvas cells
+  render = function(self, parent, width)
+    -- parent is a frame; return the height you used
+    return 40
+  end,
+})
+```
 
 ## Ranking and categories
 
@@ -80,8 +114,9 @@ scroll. Tab order is stable; the work inside a tab is still ranked best first. T
 on each page is remembered.
 
 Every card shows its priority and score. Priority is High, Medium or Low.
-Unspent knowledge, weekly lockouts, an unclaimed Great Vault and a stalled campaign are High,
-because missing them costs something this week. Gathering and unfinished secondaries are Medium. Treasures,
+Unspent knowledge, weekly lockouts, an unclaimed Great Vault, a stalled campaign and an
+active Prey hunt are High, because missing them costs something this week. Important quests
+in the log (including Prey and Voidcore unlocks) rank with the campaign. Gathering and unfinished secondaries are Medium. Treasures,
 HandyNotes rares, catch-up, dungeon mount farms, unfinished reputations, gold farms and an empty quest
 log asking you to check the map are Low, because they wait. Score still decides the order.
 
@@ -97,6 +132,11 @@ Tier 8 or higher" reflects what is left rather than a guess.
 A slot is only called maxed when it reaches the tier cap in `LS.tierCaps` or the highest
 tier you have personally cleared. Edit that table when a patch changes the cap.
 
+Dashboard hover lists this week's named keys from the run history the client already has,
+and a reward item level when the vault example item is loaded. It does not keep a season
+Champion/Hero table. [Great Vault Key Info](https://www.curseforge.com/wow/addons/great-vault-key-info)
+still does that in the client's vault window (the Vault button).
+
 If last week's Great Vault is still unclaimed after Tuesday reset, Today ranks that first:
 open the vault and pick a reward from each filled slot. Filling this week's chest is a
 separate job.
@@ -104,18 +144,28 @@ separate job.
 A Bountiful Delve stays off Today once the World Vault is finished, you have no Restored
 Coffer Keys, you cannot make another key from shards, and this week's T11 Gilded Stashes
 are done. While it is worth doing, Lodestar names today's bountiful delves from the map
-POIs rather than a stored list. If the client has not named them yet, the card still
-asks you to run one and to check the map.
+POIs rather than a stored list. Portal continents such as Harandar and Voidstorm are
+included even when you are in Quel'Thalas. If the client has not named them yet, the card
+still asks you to run one and to check the map.
 
-Questing ranks the current campaign (including catch-up when a chapter is stalled) and a
-few quests already in the log. World quests stay off that card. If the log is empty and
-no campaign work is waiting, Lodestar asks you to check the map and pick up quests
-instead of inventing a circuit.
+Questing ranks the current campaign (including catch-up when a chapter is stalled), quests
+the client marks **important**, and a few other quests already in the log. Important quests
+are campaign-priority: Prey unlocks and Voidcore / Voidforge unlocks use that flag, so
+Lodestar does not keep a list of those quest IDs. World quests stay off that card. If the
+log is empty and no campaign or important work is waiting, Lodestar asks you to check the
+map and pick up quests instead of inventing a circuit.
+
+**Prey hunts** are a goal. They are world activities: they fill the World Vault and drop
+gear. While a hunt is active the client names it. While the Prey goal is on and the World
+Vault still needs work, Lodestar also ranks starting a hunt. Hunt locations stay on the
+client's hunt table.
 
 ## Professions and knowledge
 
 Only professions this character has trained are listed, filtered to the current expansion by
 default: the two primaries, plus Cooking, Fishing and Archaeology when those slots are filled.
+Dashboard and Warband unspent-knowledge totals use that same filter, so leftover points from
+older expansions do not look like work still to do this season.
 Skill level, unspent knowledge, points already spent and remaining tree cost come from live
 APIs and are always accurate. The Open button opens the profession window; professions with a
 knowledge tree also have a Specializations button. Cooking, Fishing and Archaeology have no
@@ -187,14 +237,12 @@ The farm list lives in `Gold.lua`. It is the collector circuit, not every node i
 
 ## Compact mode
 
-A small window that sits on your screen with the next thing to do, or two when more than
-one goal is on. Each row shows its priority and score. Turn it on in
-Settings, with `/ls compact`, or by right-clicking the minimap button.
+A small window of the activities you tracked, ranked by score. Progress shows the same
+list. Turn it on in Settings, with `/ls compact`, or by right-clicking the minimap button.
 
-- Click an entry to open its details page. Double click anywhere to open the full window.
-- Single recommendation mode keeps it to one row even when several goals are on.
-- Height follows the number of rows: one goal contracts it, a second goal expands it, and
-  collapsing in combat leaves just the title bar.
+- Click an entry to open its details page. Double click anywhere to open Progress.
+- Single recommendation mode keeps it to one row even when several items are tracked.
+- Height follows the number of rows, up to eight. Collapsing in combat leaves just the title bar.
 - It hides while the full window is open and comes back when you close it.
 - Drag to move, drag the right edge to set the width. Both are saved.
 
@@ -239,10 +287,11 @@ position are saved. Escape closes the main window; compact mode stays up.
 
 ## Waypoints
 
-Treasure recommendations that have a known location get a **Waypoint** button. With
-[TomTom](https://www.curseforge.com/wow/addons/tomtom) loaded, that pins every remaining
-pickup and points the arrow at the closest. Without TomTom, Lodestar uses the client's one
-map pin and super-tracks it.
+Treasure recommendations that have a known location get a **Waypoint** button. Settings →
+Goals chooses Auto (default), TomTom, or the client's map pin. Auto pins every remaining
+pickup in [TomTom](https://www.curseforge.com/wow/addons/tomtom) when it is loaded and
+points the arrow at the closest. The client's pin is a single super-tracked waypoint; choosing
+it ignores TomTom even if that addon is installed.
 
 HandyNotes rares get the same button: Lodestar pins rares a notes pack is currently
 showing in your zone, not treasures or other map marks, and not a separate spawn list.

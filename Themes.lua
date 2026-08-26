@@ -300,6 +300,11 @@ function LS:ApplyTheme()
     self.closeButton.text:SetTextColor(unpack(palette.text))
   end
   if self.UpdateCompact then self:UpdateCompact() end
+  if self.sidebarToggle then
+    self.sidebarToggle:SetBackdropColor(unpack(palette.card))
+    self.sidebarToggle:SetBackdropBorderColor(unpack(palette.border))
+    self.sidebarToggle.text:SetTextColor(unpack(palette.text))
+  end
   for key, nav in pairs(self.nav or {}) do
     local active = self.NavActive and self:NavActive(key) or key == self.page
     nav:SetBackdropColor(unpack(palette.card))
@@ -308,5 +313,8 @@ function LS:ApplyTheme()
   end
   for _, header in ipairs(self.navHeaders or {}) do
     header:SetTextColor(unpack(palette.muted))
+  end
+  if self.sidebarVersion then
+    self.sidebarVersion:SetTextColor(unpack(palette.muted))
   end
 end

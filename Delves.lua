@@ -4,7 +4,7 @@ local _, LS = ...
 -- or coordinates. GetDelvesForMap can be restricted; pcall and stay generic if
 -- the client will not name them.
 
-local MAX_WAYPOINTS = 6
+local MAX_WAYPOINTS = 12
 
 local function Safe(fn, ...)
   if type(fn) ~= "function" then return end
@@ -35,45 +35,97 @@ local function ZoneType()
   return Enum and Enum.UIMapType and Enum.UIMapType.Zone
 end
 
--- Walk from the player map up to the continent, then take that continent's zones.
--- Continent IDs are not hardcoded; whatever the client parents this map to is used.
+local function AddChildren(out, seen, parent, mapType, allDescendants)
+  if not parent or not (C_Map and C_Map.GetMapChildrenInfo) then return end
+  local kids = Safe(C_Map.GetMapChildrenInfo, parent, mapType, allDescendants)
+  if type(kids) ~= "table" then return end
+  for _, child in ipairs(kids) do
+    if type(child) == "table" then
+      AddMap(out, seen, child.mapID)
+    elseif type(child) == "number" then
+      AddMap(out, seen, child)
+    end
+  end
+end
+
+-- Zones, nested continents (portal maps sometimes sit at this type), and whatever
+-- the client returns if it will not filter by type.
+local function AddDescendants(out, seen, parent)
+  AddMap(out, seen, parent)
+  AddChildren(out, seen, parent, ZoneType(), true)
+  AddChildren(out, seen, parent, ContinentType(), true)
+  if C_Map and C_Map.GetMapChildrenInfo then
+    local kids = Safe(C_Map.GetMapChildrenInfo, parent, nil, true)
+    if type(kids) == "table" then
+      for _, child in ipairs(kids) do
+        local id = type(child) == "table" and child.mapID or child
+        AddMap(out, seen, id)
+      end
+    end
+  end
+end
+
+local function WorldType()
+  return Enum and Enum.UIMapType and Enum.UIMapType.World
+end
+
+local function AddSiblingExpansions(out, seen, hub)
+  if not hub then return end
+  local list, already = {}, {}
+  local function take(mapType)
+    local kids = Safe(C_Map and C_Map.GetMapChildrenInfo, hub, mapType, false)
+    if type(kids) ~= "table" then return end
+    for _, child in ipairs(kids) do
+      local id = type(child) == "table" and child.mapID or child
+      if type(id) == "number" and not already[id] then
+        already[id] = true
+        table.insert(list, id)
+      end
+    end
+  end
+  take(ContinentType())
+  take(ZoneType())
+  for _, mapID in ipairs(list) do
+    AddDescendants(out, seen, mapID)
+  end
+end
+
+-- Walk from the player map up to the continent, then that continent's maps.
+-- Harandar and Voidstorm (and Undermine before them) are portal continents: they
+-- are siblings under the world map, not children of the expansion continent, so
+-- a walk that only asks Midnight for zones never sees them.
 local function MapsToScan()
   local maps, seen = {}, {}
   local here = Safe(C_Map and C_Map.GetBestMapForUnit, "player")
   AddMap(maps, seen, here)
 
-  local id, continent = here, here
+  local id, continent, world = here, nil, nil
   for _ = 1, 8 do
     local info = id and MapInfo(id)
     if not info then break end
     if ContinentType() and info.mapType == ContinentType() then
       continent = id
+    end
+    if WorldType() and info.mapType == WorldType() then
+      world = id
       break
     end
     local parent = info.parentMapID
     if not parent or parent == 0 then
-      continent = id
+      continent = continent or id
       break
     end
     AddMap(maps, seen, parent)
-    id, continent = parent, parent
+    id = parent
   end
 
-  if C_Map and C_Map.GetMapChildrenInfo and continent then
-    local kids = Safe(C_Map.GetMapChildrenInfo, continent, ZoneType(), true)
-    if type(kids) ~= "table" then
-      kids = Safe(C_Map.GetMapChildrenInfo, continent, nil, true)
-    end
-    if type(kids) == "table" then
-      for _, child in ipairs(kids) do
-        if type(child) == "table" then
-          AddMap(maps, seen, child.mapID)
-        elseif type(child) == "number" then
-          AddMap(maps, seen, child)
-        end
-      end
-    end
+  AddDescendants(maps, seen, continent or here)
+  local hub = world
+  if not hub and continent then
+    local info = MapInfo(continent)
+    hub = info and info.parentMapID
   end
+  AddSiblingExpansions(maps, seen, hub)
   return maps
 end
 
@@ -106,28 +158,58 @@ local function PoiXY(poi)
   return x, y
 end
 
+local function LooksLikeDelve(poi)
+  local atlas = poi and poi.atlasName
+  return type(atlas) == "string" and atlas:lower():find("delve", 1, true)
+end
+
+local function TakePoi(found, seen, mapID, poi, requirePrimary)
+  if type(poi) ~= "table" or type(poi.name) ~= "string" or poi.name == "" then return end
+  if seen[poi.name] or not IsBountiful(poi) then return end
+  if requirePrimary and poi.isPrimaryMapForPOI == false then return end
+  seen[poi.name] = true
+  local x, y = PoiXY(poi)
+  table.insert(found, {
+    name = poi.name,
+    map = mapID,
+    x = x,
+    y = y,
+    zone = MapName(mapID),
+  })
+end
+
+local function PoiIDs(mapID)
+  local ids, have = {}, {}
+  local function add(list)
+    if type(list) ~= "table" then return end
+    for _, id in ipairs(list) do
+      if type(id) == "number" and not have[id] then
+        have[id] = true
+        table.insert(ids, id)
+      end
+    end
+  end
+  add(Safe(C_AreaPoiInfo.GetDelvesForMap, mapID))
+  return ids, have
+end
+
 local function CollectBountiful(requirePrimary)
   local found, seen = {}, {}
-  if not (C_AreaPoiInfo and C_AreaPoiInfo.GetDelvesForMap and C_AreaPoiInfo.GetAreaPOIInfo) then
+  if not (C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIInfo) then
     return found
   end
   for _, mapID in ipairs(MapsToScan()) do
-    local pois = Safe(C_AreaPoiInfo.GetDelvesForMap, mapID)
-    if type(pois) == "table" then
-      for _, poiID in ipairs(pois) do
-        local poi = Safe(C_AreaPoiInfo.GetAreaPOIInfo, mapID, poiID)
-        if type(poi) == "table" and type(poi.name) == "string" and poi.name ~= ""
-            and not seen[poi.name] and IsBountiful(poi) then
-          if not requirePrimary or poi.isPrimaryMapForPOI ~= false then
-            seen[poi.name] = true
-            local x, y = PoiXY(poi)
-            table.insert(found, {
-              name = poi.name,
-              map = mapID,
-              x = x,
-              y = y,
-              zone = MapName(mapID),
-            })
+    local delveIDs, isDelve = PoiIDs(mapID)
+    for _, poiID in ipairs(delveIDs) do
+      TakePoi(found, seen, mapID, Safe(C_AreaPoiInfo.GetAreaPOIInfo, mapID, poiID), requirePrimary)
+    end
+    local areaIDs = Safe(C_AreaPoiInfo.GetAreaPOIForMap, mapID)
+    if type(areaIDs) == "table" then
+      for _, poiID in ipairs(areaIDs) do
+        if not (isDelve and isDelve[poiID]) then
+          local poi = Safe(C_AreaPoiInfo.GetAreaPOIInfo, mapID, poiID)
+          if LooksLikeDelve(poi) then
+            TakePoi(found, seen, mapID, poi, requirePrimary)
           end
         end
       end

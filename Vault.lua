@@ -341,7 +341,7 @@ end
 function LS:VaultSummary()
   local filled, total, upgradable = 0, 0, 0
   for _, key in ipairs({ "raid", "activities", "world" }) do
-    local row = self.vault.rows[key]
+    local row = self.vault and self.vault.rows and self.vault.rows[key]
     if row then
       for _, slot in ipairs(row.slots) do
         total = total + 1
@@ -351,6 +351,121 @@ function LS:VaultSummary()
     end
   end
   return filled, total, upgradable
+end
+
+-- Reward item levels come from the client's example hyperlink, not a season table.
+-- Great Vault Key Info keeps Champion/Hero ranks in the Blizzard vault window; it
+-- has no API, and copying its patch tables would go stale and invent iLvls.
+local function RewardItemLevels(activityID)
+  if not activityID then return end
+  local link, upgradeLink = Safe(C_WeeklyRewards and C_WeeklyRewards.GetExampleRewardItemHyperlinks, activityID)
+  local function levelFrom(itemLink)
+    if type(itemLink) ~= "string" or itemLink == "" then return end
+    local level = Safe(C_Item and C_Item.GetDetailedItemLevelInfo, itemLink)
+    if type(level) == "number" and level > 0 then return level end
+  end
+  return levelFrom(link), levelFrom(upgradeLink)
+end
+
+local function DungeonMapName(mapID)
+  if not mapID then return end
+  local name = Safe(C_ChallengeMode and C_ChallengeMode.GetMapUIInfo, mapID)
+  if type(name) == "string" and name ~= "" then return name end
+end
+
+local function AppendRewardLines(lines, slot, indent)
+  local current, upgrade = RewardItemLevels(slot and slot.id)
+  if not current then return end
+  indent = indent or ""
+  if upgrade and upgrade ~= current then
+    table.insert(lines, indent .. string.format("Reward item level %d  (upgrade %d)", current, upgrade))
+  else
+    table.insert(lines, indent .. string.format("Reward item level %d", current))
+  end
+end
+
+local function AppendNamedKeyLines(lines, limit, indent)
+  local history = Safe(C_MythicPlus and C_MythicPlus.GetRunHistory, false, true)
+  if type(history) ~= "table" then return end
+  local runs = {}
+  for _, run in ipairs(history) do
+    table.insert(runs, run)
+  end
+  table.sort(runs, function(a, b)
+    local la, lb = a.level or 0, b.level or 0
+    if la == lb then return (a.mapChallengeModeID or 0) < (b.mapChallengeModeID or 0) end
+    return la > lb
+  end)
+  indent = indent or "  "
+  local added = 0
+  for _, run in ipairs(runs) do
+    if limit and added >= limit then break end
+    local name = DungeonMapName(run.mapChallengeModeID)
+    if name then
+      table.insert(lines, indent .. string.format("+%d  %s", run.level or 0, name))
+      added = added + 1
+    end
+  end
+end
+
+function LS:VaultSlotTooltipLines(slot)
+  local lines = {}
+  if not slot then return lines end
+  local mark = slot.complete and "Filled" or "Empty"
+  table.insert(lines, string.format("%s slot %d  •  %s  •  %d/%d",
+    slot.label or "Vault", slot.index or 0, mark, slot.progress or 0, slot.threshold or 0))
+  if slot.current then
+    table.insert(lines, "Current: " .. slot.current)
+  end
+  if slot.potential then
+    table.insert(lines, "Potential: " .. slot.potential)
+  end
+  AppendRewardLines(lines, slot)
+  if slot.topRuns then
+    table.insert(lines, string.format("Top %d runs: %s", slot.threshold, slot.topRuns))
+  end
+  if slot.kind == "activities" then
+    AppendNamedKeyLines(lines, slot.threshold or 8)
+  end
+  local rec = slot.recommended or slot.description
+  if rec and rec ~= "" then
+    table.insert(lines, rec)
+  end
+  return lines
+end
+
+function LS:VaultTooltipLines()
+  local lines = {}
+  local filled, total, upgradable = self:VaultSummary()
+  table.insert(lines, string.format("%d of %d slots filled. %d can still be improved.",
+    filled, total, upgradable))
+  for _, key in ipairs({ "raid", "activities", "world" }) do
+    local row = self.vault and self.vault.rows and self.vault.rows[key]
+    if row then
+      local rowFilled, rowTotal = 0, 0
+      for _, slot in ipairs(row.slots or {}) do
+        rowTotal = rowTotal + 1
+        if slot.complete then rowFilled = rowFilled + 1 end
+      end
+      table.insert(lines, string.format("%s  %d/%d", row.label, rowFilled, rowTotal))
+      for _, slot in ipairs(row.slots or {}) do
+        local mark = slot.complete and "Filled" or "Empty"
+        local rec = slot.recommended or slot.description or ""
+        if rec ~= "" then
+          table.insert(lines, string.format("  Slot %d  %s  %d/%d  %s",
+            slot.index, mark, slot.progress or 0, slot.threshold or 0, rec))
+        else
+          table.insert(lines, string.format("  Slot %d  %s  %d/%d",
+            slot.index, mark, slot.progress or 0, slot.threshold or 0))
+        end
+        AppendRewardLines(lines, slot, "    ")
+      end
+      if key == "activities" then
+        AppendNamedKeyLines(lines, 8, "  ")
+      end
+    end
+  end
+  return lines
 end
 
 function LS:GetVaultRecommendations()

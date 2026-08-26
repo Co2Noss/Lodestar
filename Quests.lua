@@ -68,6 +68,16 @@ local function IsWorldQuest(info)
   return false
 end
 
+-- Important quests (Prey unlocks, Voidcores, and anything else the client stars)
+-- rank with campaign work. The flag comes from the client, not a Lodestar list.
+local function IsImportant(info)
+  if info.isImportant then return true end
+  if C_QuestLog and C_QuestLog.IsImportantQuest then
+    return Safe(C_QuestLog.IsImportantQuest, info.questID) and true or false
+  end
+  return false
+end
+
 local function IsTurnIn(info)
   if info.readyForTurnIn then return true end
   if C_QuestLog and C_QuestLog.IsComplete then
@@ -228,11 +238,20 @@ end
 
 local function LogRec(info, superTracked)
   local ready = IsTurnIn(info)
+  local important = IsImportant(info)
   local title = info.title or ("Quest " .. tostring(info.questID))
-  if ready then title = "Turn in: " .. title end
-  local why
   if ready then
+    title = "Turn in: " .. title
+  elseif important then
+    title = "Continue: " .. title
+  end
+  local why
+  if ready and important then
+    why = "This important quest is ready to turn in."
+  elseif ready then
     why = "This quest is ready to turn in."
+  elseif important then
+    why = "The client marked this quest as important."
   elseif info.questID == superTracked then
     why = "This is the quest you are super-tracking."
   elseif info.isOnMap or info.hasLocalPOI then
@@ -240,16 +259,26 @@ local function LogRec(info, superTracked)
   else
     why = "In your quest log."
   end
+  local urgency = "LOW"
+  if ready then
+    urgency = "HIGH"
+  elseif important then
+    urgency = "MEDIUM"
+  elseif info.questID == superTracked then
+    urgency = "MEDIUM"
+  end
+  local tags = { QUESTING = important and 14 or (ready and 12 or 8) }
+  if important then tags.ENDGAME = 8 end
   local rec = {
     id = "quest_" .. tostring(info.questID),
     title = title,
     category = "Questing",
-    urgency = ready and "HIGH" or (info.questID == superTracked and "MEDIUM" or "LOW"),
-    tags = { QUESTING = ready and 12 or 8 },
+    urgency = urgency,
+    tags = tags,
     why = why,
     detail = {
-      nextReward = ready and "Turn-in" or "Quest progress",
-      source = "Quest log",
+      nextReward = ready and "Turn-in" or (important and "Important quest" or "Quest progress"),
+      source = important and "Important quest" or "Quest log",
       matters = why,
     },
   }
@@ -277,16 +306,19 @@ function LS:GetQuestRecommendations()
   local out = {}
   local log = QuestLogEntries()
   local picked = PickCampaign(CollectCampaignIDs(log), log)
-  local usedQuest
+  local used = {}
   if picked then
     table.insert(out, CampaignRec(picked))
-    usedQuest = picked.quest and picked.quest.questID
+    if picked.quest then used[picked.quest.questID] = true end
   end
+  -- An active Prey hunt is its own card. Do not also list it as a log quest.
+  local prey = self.ActivePreyQuest and self:ActivePreyQuest()
+  if prey then used[prey] = true end
 
   local superTracked = Safe(C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID)
   local extras = {}
   for _, info in ipairs(log) do
-    if info.questID ~= usedQuest then
+    if not used[info.questID] then
       table.insert(extras, info)
     end
   end
@@ -294,6 +326,7 @@ function LS:GetQuestRecommendations()
     local function rank(info)
       local r = 0
       if IsTurnIn(info) then r = r + 100 end
+      if IsImportant(info) then r = r + 80 end
       if info.questID == superTracked then r = r + 50 end
       if info.isOnMap or info.hasLocalPOI then r = r + 10 end
       return r

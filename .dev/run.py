@@ -15,8 +15,8 @@ ADDON = os.path.dirname(HERE)
 # Load order must match the .toc.
 FILES = [
     "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
-    "Vault.lua", "Delves.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
-    "UI.lua", "Compact.lua", "Minimap.lua",
+    "Vault.lua", "Delves.lua", "Prey.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
+    "UI.lua", "Dashboard.lua", "Compact.lua", "Minimap.lua",
 ]
 
 WALK_TEXTS = """
@@ -119,7 +119,7 @@ class Session:
         self.timers()
 
 
-GOALS = ["Great Vault & endgame", "Solo content", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
+GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
 
 # --- a fresh install ------------------------------------------------------
 print("-- fresh install --")
@@ -174,6 +174,23 @@ check("the sidebar is workspaces rather than content categories",
 check("sidebar sections are higher-level workspaces",
       "PLANNING" in page and "TRACKING" in page and "ACCOUNT" in page
       and "Today's Plan" in page and "Dashboard" in page, page)
+check("the sidebar shows the current version below Settings",
+      ("v" + s.eval("__LS.version")) in page, page)
+s.exec("__LS:SetSidebarCollapsed(true)")
+s.timers()
+check("collapsing the sidebar shrinks it to icons",
+      s.eval("__LS.sidebar:GetWidth()") == 52)
+check("collapsed nav shows an icon instead of the full name",
+      s.eval("__LS.nav.TODAY.text:GetText()") == "To"
+      and s.eval("__LS.nav.DASHBOARD.text:GetText()") == "Da")
+s.exec("__LS.nav.TODAY.scripts.OnEnter(__LS.nav.TODAY)")
+check("hovering a collapsed nav icon names the workspace",
+      s.eval("GameTooltip._tip") == "Today's Plan")
+s.exec("__LS:SetSidebarCollapsed(false)")
+s.timers()
+check("expanding the sidebar restores labels",
+      s.eval("__LS.nav.TODAY.text:GetText()") == "Today's Plan"
+      and s.eval("__LS.sidebar:GetWidth()") == 180)
 check("the welcome page is not shown again",
       s.eval("__LS:LandingPage()") == "TODAY")
 
@@ -188,7 +205,7 @@ check("select all turns on every goal",
         local n = 0
         for _, on in pairs(__LS.db.goals) do if on then n = n + 1 end end
         return n
-      end)()""") == 7)
+      end)()""") == 8)
 check("the same button becomes clear all", "Clear all" in s.texts())
 s.click("Clear all")
 check("clear all turns every goal off", not s.eval("__LS:GoalsChosen()"))
@@ -232,6 +249,13 @@ check("the flat backdrop steps aside for it",
       s.eval("__LS.frame.bgColor and __LS.frame.bgColor[4]"))
 check("the title bar stops drawing its own fill",
       s.eval("__LS.header.bgColor and __LS.header.bgColor[4]") == 0)
+check("the Blizzard panel art stays behind the logo and title",
+      s.eval("__LS.header:GetFrameLevel() > __LS.chrome:GetFrameLevel()") is True)
+check("the title sits below the Blizzard title-bar lip",
+      s.eval("""(function()
+        local pt = __LS.header.points and __LS.header.points[1]
+        return pt and pt[1] == "TOPLEFT" and pt[3] or 0
+      end)()""") == -26)
 check("content moves inside the thicker border",
       s.eval("__LS.layoutPad") == 9, s.eval("__LS.layoutPad"))
 check("the accent is the client's gold",
@@ -247,6 +271,11 @@ check("another theme hides the Blizzard art",
 check("and gets its flat backdrop back",
       s.eval("__LS.frame.bgColor[4]") > 0)
 check("and drops the border padding", s.eval("__LS.layoutPad") == 0)
+check("and puts the title back at the top of the frame",
+      s.eval("""(function()
+        local pt = __LS.header.points and __LS.header.points[1]
+        return pt and pt[3] or 0
+      end)()""") == -1)
 
 denied = Session(deny_templates=("DefaultPanelTemplate", "DialogBorderTemplate"))
 denied.fire("ADDON_LOADED", "Lodestar")
@@ -273,6 +302,8 @@ check("the five settings tabs are on the strip",
       settings)
 check("Goals does not bury colors underneath it",
       "Click a color to change it" not in settings and "Accent" not in settings, settings)
+check("Goals has a waypoint source next to gold prices",
+      "Waypoints" in settings and "Gold prices" in settings, settings)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -554,16 +585,262 @@ s.click("World")
 check("the World tab is remembered", s.eval("__LS:PageTab('VAULT')") == "world")
 check("the World tab shows this week's delve tiers", "best 11" in s.texts(), s.texts())
 
+check("the Great Vault page highlights the Dashboard workspace",
+      s.eval('__LS:NavActive("DASHBOARD")') is True
+      and s.eval('__LS:NavActive("PROGRESS")') is False)
+
 s.exec("__LS:ShowPage('PROGRESS')")
 s.timers()
 progress = s.texts()
-check("Progress is a hub for Great Vault and Professions",
-      "Great Vault" in progress and "Professions" in progress
-      and "this character" in progress, progress)
+check("Progress is the tracked list, not the Great Vault",
+      "Nothing tracked yet" in progress and "Great Vault" not in progress
+      and "Professions" not in progress, progress)
+s.exec("""
+  local recs = __LS:GetRecommendations()
+  __LS.db.tracked[recs[1].id] = true
+  __LS._trackedTitle = recs[1].title
+""")
+s.exec("__LS:ShowPage('PROGRESS')")
+s.timers()
+progress = s.texts()
+check("Progress lists a tracked activity",
+      s.eval("__LS._trackedTitle") in progress and "Untrack" in progress, progress)
+s.click("Untrack")
+check("Untrack removes the activity from Progress",
+      s.eval("""(function()
+        for _, on in pairs(__LS.db.tracked) do if on then return true end end
+        return false
+      end)()""") is False)
+s.exec("__LS:ShowPage('PROGRESS')")
+s.timers()
+check("Progress is empty again after Untrack", "Nothing tracked yet" in s.texts(), s.texts())
+s.exec("""
+  GameTooltip._lines = {}
+  __LS:ShowVaultTooltip()
+""")
+tip = s.eval("table.concat(GameTooltip._lines or {}, '\\n')")
+check("the vault tooltip lists Raid, Dungeons and World",
+      "Great Vault" in tip and "Raid" in tip and "Dungeons" in tip and "World" in tip
+      and "slots filled" in tip, tip)
+check("the vault tooltip names this week's keys from the client",
+      "+7  The Rookery" in tip and "Temple of the Jade Serpent" in tip, tip)
+check("the vault tooltip uses the client's reward item level",
+      "Reward item level 305" in tip, tip)
+s.exec("""
+  GameTooltip._lines = {}
+  local slot = __LS.vault.rows.activities.slots[1]
+  __LS:ShowVaultTooltip(nil, slot)
+""")
+slot_tip = s.eval("table.concat(GameTooltip._lines or {}, '\\n')")
+check("a Great Vault slot tooltip is scoped to that slot",
+      "Dungeons slot" in slot_tip and "Current:" in slot_tip
+      and "Raid  " not in slot_tip, slot_tip)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+s.exec("OpenedGreatVault = false; WeeklyRewardsFrame.shown = false")
+s.click("Great Vault")
+check("Dashboard opens the client's Great Vault",
+      s.eval("OpenedGreatVault") is True)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+dash = s.texts()
+check("Dashboard hosts Professions",
+      "Professions" in dash and "unspent knowledge this expansion" in dash, dash)
 s.click("Open")
-check("Progress opens the Great Vault page", s.eval("__LS.page") == "VAULT")
-check("the Great Vault page still highlights the Progress workspace",
-      s.eval('__LS:NavActive("PROGRESS")') is True)
+check("Dashboard opens the Professions page", s.eval("__LS.page") == "PROFESSIONS")
+check("the Professions page highlights the Dashboard workspace",
+      s.eval('__LS:NavActive("DASHBOARD")') is True
+      and s.eval('__LS:NavActive("PROGRESS")') is False)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+check("Dashboard starts with Edit dashboard", "Edit dashboard" in s.texts(), s.texts())
+s.click("Edit dashboard")
+edit = s.texts()
+check("the dashboard canvas is a 12 by 18 grid",
+      s.eval("__LS.DASHBOARD_COLS") == 12
+      and s.eval("__LS.DASHBOARD_ROWS") == 18)
+check("default dashboard tiles start at half size",
+      s.eval("""(function()
+        local layout = __LS:DashboardLayout()
+        if #layout ~= 4 then return false end
+        for _, e in ipairs(layout) do
+          if (e.w or 0) > 6 or (e.h or 0) > 4 then return false end
+        end
+        return layout[1].id == "stats" and layout[1].w == 6 and layout[2].x == 6
+      end)()""") is True)
+check("edit mode names the maximum canvas",
+      "Maximum canvas: 12 × 18" in edit, edit)
+check("edit mode can pack widgets up",
+      "Compact up" in edit, edit)
+check("edit mode makes widgets resizable",
+      s.eval("__LS.dashboardSlots[1] and __LS.dashboardSlots[1].frame.resizable") is True)
+check("edit mode lists widgets you can add",
+      "Add · WoW Token" in edit and "Add · Weekly reset" in edit
+      and "Add · Gold" not in edit and "Add · Rares" not in edit, edit)
+s.click("Add · WoW Token")
+dash = s.texts()
+check("the token widget uses the client's market price",
+      "258652g" in dash and "WoW Token" in dash, dash)
+check("token letters are the default format",
+      "UI-GoldIcon" not in dash and "258,652g" not in dash, dash)
+s.exec("""
+  for _, slot in ipairs(__LS.dashboardSlots) do
+    if slot.id == "token" then
+      slot.frame.scripts.OnDragStart(slot.frame)
+      break
+    end
+  end
+""")
+check("picking up a widget leaves a drop ghost",
+      s.eval("__LS.dashboardDragGhost and __LS.dashboardDragGhost.shown") is True
+      and "Drop here" in s.texts(), s.texts())
+check("empty drop slots show a plus where the widget could go",
+      "+" in s.texts()
+      and s.eval("""(function()
+        local n = 0
+        for _, hint in ipairs(__LS.dashboardDropHints or {}) do
+          if hint.shown then n = n + 1 end
+        end
+        return n
+      end)()""") >= 1, s.texts())
+check("the lifted widget scales up and follows the cursor",
+      s.eval("__LS.dashboardDragFrame.moving") is True
+      and s.eval("math.abs((__LS.dashboardDragFrame.scale or 1) - 1.05)") < 0.001)
+check("the lifted widget uses the accent border",
+      abs(s.eval("__LS.dashboardDragFrame.borderColor[1]")
+          - s.eval("__LS.colors.accent[1]")) < 1e-6)
+s.exec("__LS.dashboardDragFrame.scripts.OnDragStop(__LS.dashboardDragFrame)")
+s.timers()
+check("dropping a widget clears the ghost",
+      s.eval("__LS.dashboardDragGhost and __LS.dashboardDragGhost.shown") is not True)
+check("dropping a widget hides empty drop slots",
+      s.eval("""(function()
+        for _, hint in ipairs(__LS.dashboardDropHints or {}) do
+          if hint.shown then return true end
+        end
+        return false
+      end)()""") is not True)
+s.click("Done editing")
+check("widget options stay hidden until edit mode",
+      "Coin icons" not in s.texts() and "Separators" not in s.texts(), s.texts())
+s.click("Edit dashboard")
+s.click("Coin icons")
+check("coin icons replace the letter suffix",
+      "UI-GoldIcon" in s.texts() and "258652g" not in s.texts(), s.texts())
+s.click("Letters")
+s.click("Separators")
+check("separators break the gold amount into thousands",
+      "258,652g" in s.texts(), s.texts())
+s.click("Color")
+check("color can be turned off without losing the letter amount",
+      "258,652g" in s.texts(), s.texts())
+s.exec("""
+  __LS.db.tokenHistory = { { t = 1, p = 2000000000 }, { t = 2, p = 2586520000 } }
+  __LS:ShowPage('DASHBOARD')
+""")
+s.timers()
+s.click("Line")
+check("the token trend can use a line chart",
+      s.eval("__LS:WidgetOpts('token').chart") == "line")
+s.click("Bars")
+check("the token trend can use bars",
+      s.eval("__LS:WidgetOpts('token').chart") != "line")
+s.exec("""
+  __LS:DashboardPlace('token', 0, 14, 6, 4)
+  __LS:ShowPage('DASHBOARD')
+""")
+s.timers()
+check("a widget can be placed anywhere on the canvas",
+      s.eval("""(function()
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == 'token' then
+            return e.x == 0 and e.y == 14 and e.w == 6 and e.h == 4
+          end
+        end
+      end)()""") is True)
+s.exec("__LS:DashboardPlace('token', 20, 20, 4, 3)")
+check("placement is clamped to the canvas",
+      s.eval("""(function()
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == 'token' then
+            return e.x == 8 and e.y == 15 and e.w == 4 and e.h == 3
+          end
+        end
+      end)()""") is True)
+s.exec("__LS:DashboardPlace('token', 0, 0, 6, 4)")
+check("widgets are not allowed to overlap",
+      s.eval("""(function()
+        local token
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == 'token' then token = e end
+        end
+        if not token or (token.x == 0 and token.y == 0) then return false end
+        for i, a in ipairs(__LS:DashboardLayout()) do
+          for j, b in ipairs(__LS:DashboardLayout()) do
+            if i < j and a.x < b.x + b.w and b.x < a.x + a.w
+                and a.y < b.y + b.h and b.y < a.y + a.h then
+              return false
+            end
+          end
+        end
+        return true
+      end)()""") is True)
+s.exec("""
+  __LS.db.dashboard.widgets = {
+    { id = "stats", x = 0, y = 3, w = 12, h = 4 },
+    { id = "shortcuts", x = 0, y = 10, w = 12, h = 2 },
+  }
+  __LS:DashboardCompactUp()
+""")
+check("compact up pushes widgets to the top without overlapping",
+      s.eval("""(function()
+        local stats, shortcuts
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == 'stats' then stats = e end
+          if e.id == 'shortcuts' then shortcuts = e end
+        end
+        return stats and stats.y == 0 and shortcuts and shortcuts.y == 4
+      end)()""") is True)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+s.exec("""
+  __LS:RegisterWidget({
+    id = "test_widget",
+    title = "Test Widget",
+    defaultSize = "half",
+    render = function(_, parent, width)
+      local line = __LS.widgets.text(parent, width, 11)
+      line:SetPoint("TOPLEFT", 12, -8)
+      line:SetText("Hello from another addon")
+      return 36
+    end,
+  })
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Test Widget")
+check("another addon can register a dashboard widget",
+      "Hello from another addon" in s.texts(), s.texts())
+s.click("Reset widgets")
+check("reset restores the default dashboard",
+      s.eval("__LS:DashboardLayout()[1].id") == "stats"
+      and s.eval("__LS:DashboardHas('token')") is not True)
+s.exec("""
+  __LS.db.dashboard.widgets = {
+    { id = "stats", x = 0, y = 0, w = 12, h = 4 },
+    { id = "shortcuts", x = 0, y = 4, w = 12, h = 2 },
+    { id = "professions", x = 0, y = 6, w = 12, h = 3 },
+    { id = "next", x = 0, y = 9, w = 12, h = 5 },
+  }
+""")
+check("the old full-width default shrinks to half tiles",
+      s.eval("__LS:DashboardLayout()[1].w") == 6
+      and s.eval("__LS:DashboardLayout()[1].h") == 4
+      and s.eval("__LS:DashboardLayout()[2].x") == 6)
+s.exec("__LS:ResetDashboardLayout()")
+s.click("Done editing")
+check("leaving edit mode hides the add list",
+      "Add · WoW Token" not in s.texts(), s.texts())
 weekly = s.eval("""(function()
   local names = {}
   for _, g in ipairs(__LS:GetCategories("WEEKLY")) do table.insert(names, g.name) end
@@ -580,6 +857,29 @@ s.click("Restore")
 check("restore puts the card back on the plan",
       s.eval("__LS.db.dismissed.delve") in (None, False))
 
+s.exec("__LS:ShowPage('PROFESSIONS')")
+s.timers()
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if p.skillLineID == 2757 then
+      p.isCurrent = false
+      p.unspent = 20
+    else
+      p.unspent = 0
+    end
+  end
+  __LS:SaveSnapshot()
+""")
+check("Dashboard unspent knowledge ignores older expansions",
+      s.eval("__LS:UnspentKnowledge()") == 0)
+check("Warband unspent knowledge matches the Dashboard",
+      s.eval("__LS:GetWarbandTotals().unspentKnowledge") == 0)
+s.exec("__LS.db.currentExpansionOnly = false")
+check("the Dashboard total stays on this expansion while older trees are visible",
+      s.eval("__LS:UnspentKnowledge()") == 0
+      and s.eval("#__LS:VisibleProfessions()") > s.eval("#__LS:CurrentExpansionProfessions()"))
+s.exec("__LS.db.currentExpansionOnly = true")
+s.exec("__LS:ScanProfessions(); __LS:SaveSnapshot()")
 s.exec("__LS:ShowPage('PROFESSIONS')")
 s.timers()
 prof = s.texts()
@@ -670,7 +970,33 @@ check("TomTom pins every remaining point",
       s.eval("#TomTomWaypoints") == 2, s.eval("#TomTomWaypoints"))
 check("TomTom aims the arrow at the closest pin",
       s.eval("TomTomClosest") is True)
-s.exec("OpenedWorldMaps = {}; TomTom = nil")
+check("Auto uses TomTom when it is loaded",
+      s.eval("""(function()
+        local id = __LS:ResolveWaypointSource()
+        return tostring(__LS.db.waypointSource) .. "|" .. tostring(id)
+      end)()""") == "AUTO|TOMTOM")
+s.exec("""
+  Printed = {}
+  TomTomWaypoints = {}
+  UserWaypoint = nil
+  SuperTrackedUserWaypoint = false
+  __LS.db.waypointSource = "BLIZZARD"
+  __LS:MarkWaypoints({
+    { map = 2393, x = 49.11, y = 75.84, title = "A" },
+    { map = 2393, x = 47.75, y = 51.67, title = "B" },
+  })
+""")
+check("Blizzard waypoint ignores TomTom even when it is loaded",
+      s.eval("#TomTomWaypoints") == 0 and s.eval("UserWaypoint ~= nil"),
+      s.eval("#TomTomWaypoints"))
+check("choosing the client pin does not nag about TomTom",
+      "TomTom" not in (s.printed() or ""), s.printed())
+s.exec("""
+  __LS.db.waypointSource = "AUTO"
+  TomTomWaypoints = {}
+  TomTom = nil
+  OpenedWorldMaps = {}
+""")
 s.exec("""
   __LS:MarkWaypoints({
     { map = 2395, title = "Eversong Woods" },
@@ -881,6 +1207,18 @@ s.exec("""
         areaPoiID = 31, name = "Fungal Folly Chest", atlasName = "vignetteloot",
         isPrimaryMapForPOI = true, position = pos(0.50, 0.50),
       },
+      {
+        areaPoiID = 32, name = "Root-Bound Hollow", atlasName = "delves-bountiful",
+        isPrimaryMapForPOI = true, position = pos(0.33, 0.41),
+      },
+    },
+  }
+  AreaPOIs = {
+    [2405] = {
+      {
+        areaPoiID = 41, name = "Devouring Breach", atlasName = "delves-bountiful",
+        isPrimaryMapForPOI = true, position = pos(0.48, 0.52),
+      },
     },
   }
 """)
@@ -897,6 +1235,9 @@ end)()""")
 check("named bountiful delves come from the map POIs",
       "Run today's bountiful delves" in named
       and "Myconic Grotto" in named and "Nightfall Sanctum" in named, named)
+check("portal continents still count when the player is on Quel'Thalas",
+      "Root-Bound Hollow" in named and "Devouring Breach" in named
+      and "Harandar" in named, named)
 check("non-bountiful delves and treasure marks stay off that card",
       "Ordinary Hollow" not in named and "Fungal Folly Chest" not in named, named)
 check("FindActivity can open the named bountiful rec",
@@ -1007,11 +1348,99 @@ end)()""")
 check("a stalled campaign is ranked as catch-up",
       stalled == "Catch up on Midnight Campaign|HIGH", stalled)
 s.exec("""
+  AvailableCampaigns = {}
+  Campaigns = {}
+  QuestLog = {
+    {
+      title = "Building the Voidforge", questLogIndex = 1, questID = 501,
+      isHeader = false, isImportant = true, isOnMap = true,
+    },
+    {
+      title = "A side errand", questLogIndex = 2, questID = 404,
+      isHeader = false, isOnMap = false,
+    },
+  }
+""")
+important = s.eval("""(function()
+  local r
+  for _, rec in ipairs(__LS:GetQuestRecommendations()) do
+    if rec.id == "quest_501" then r = rec break end
+  end
+  if not r then return "none" end
+  return table.concat({ r.title, r.urgency, tostring(r.tags.QUESTING), tostring(r.tags.ENDGAME) }, "|")
+end)()""")
+check("quests the client marks important rank like campaign work",
+      important == "Continue: Building the Voidforge|MEDIUM|14|8", important)
+check("important quests sit ahead of side errands",
+      s.eval("""(function()
+        local recs = __LS:GetQuestRecommendations()
+        return recs[1] and recs[1].id == "quest_501" and recs[2] and recs[2].id == "quest_404"
+      end)()""") is True)
+s.exec("__LS.db.goals.QUESTING = false; __LS.db.goals.ENDGAME = true")
+check("important unlocks still rank while Great Vault & endgame is on",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "quest_501" then return true end
+        end
+        return false
+      end)()""") is True)
+s.exec("__LS.db.goals.ENDGAME = false")
+check("important quests stay quiet when Questing and endgame are off",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "quest_501" then return true end
+        end
+        return false
+      end)()""") is False)
+s.exec("""
+  QuestLog = {
+    {
+      title = "Hunt the Shade", questLogIndex = 1, questID = 777,
+      isHeader = false, isImportant = true, isOnMap = true,
+    },
+  }
+  ActivePreyQuestID = 777
+  __LS.db.goals.PREY = true
+""")
+prey = s.eval("""(function()
+  local r
+  for _, rec in ipairs(__LS:GetPreyRecommendations()) do
+    if rec.id == "prey" then r = rec break end
+  end
+  if not r then return "none" end
+  return r.title .. "|" .. r.urgency
+end)()""")
+check("an active Prey hunt is recommended from the client",
+      prey == "Continue: Hunt the Shade|HIGH", prey)
+check("the active hunt is not also listed as a log quest",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetQuestRecommendations()) do
+          if r.id == "quest_777" then return true end
+        end
+        return false
+      end)()""") is False)
+check("FindActivity can open the Prey hunt",
+      s.eval('(__LS:FindActivity("prey") or {}).title') == "Continue: Hunt the Shade")
+s.exec("ActivePreyQuestID = nil")
+generic_prey = s.eval("""(function()
+  for _, r in ipairs(__LS:GetPreyRecommendations()) do
+    if r.id == "prey" then return r.title end
+  end
+end)()""")
+check("Prey hunts fill the World Vault while that goal is on",
+      generic_prey == "Complete a Prey hunt", generic_prey)
+s.exec("__LS.db.goals.PREY = false")
+check("Prey stays quiet while that goal is off and no hunt is active",
+      s.eval("#__LS:GetPreyRecommendations()") == 0)
+s.exec("""
   QuestLog = {}
   AvailableCampaigns = {}
   Campaigns = {}
   SuperTrackedQuestID = nil
+  ActivePreyQuestID = nil
   __LS.db.goals.QUESTING = false
+  __LS.db.goals.ENDGAME = false
+  __LS.db.goals.PREY = false
 """)
 
 
@@ -1172,25 +1601,42 @@ check("the main window is registered to close on Escape",
         end
       end)()""") is True)
 
-s.exec("__LS:SetCompact(true); __LS.frame:Hide(); __LS:UpdateCompact()")
-s.timers()
-check("compact mode still has rows", s.eval("#__LS:CompactActivities()") > 0)
 s.exec("""
-  for k in pairs(__LS.db.goals) do __LS.db.goals[k] = false end
-  __LS.db.goals.ENDGAME = true
+  __LS.db.tracked = {}
   __LS.db.compact.single = false
   __LS.db.compact.collapsed = false
+  __LS:SetCompact(true)
+  __LS.frame:Hide()
   __LS:UpdateCompact()
 """)
-check("one goal keeps compact to a single row",
-      s.eval("__LS:CompactCount()") == 1 and s.eval("#__LS:CompactActivities()") == 1)
+s.timers()
+check("compact stays empty until something is tracked",
+      s.eval("#__LS:CompactActivities()") == 0)
+s.exec("""
+  local recs = __LS:GetRecommendations()
+  __LS.db.tracked[recs[1].id] = true
+  __LS:UpdateCompact()
+""")
+check("one tracked activity fills one compact row",
+      s.eval("#__LS:CompactActivities()") == 1)
 height1 = s.eval("__LS.compact:GetHeight()")
-s.exec("__LS.db.goals.CRAFTING = true; __LS:UpdateCompact()")
-check("a second goal expands compact to two rows",
-      s.eval("__LS:CompactCount()") == 2 and s.eval("#__LS:CompactActivities()") == 2)
+s.exec("""
+  local recs = __LS:GetRecommendations()
+  __LS.db.tracked[recs[2].id] = true
+  __LS:UpdateCompact()
+""")
+check("a second tracked activity expands compact",
+      s.eval("#__LS:CompactActivities()") == 2)
 height2 = s.eval("__LS.compact:GetHeight()")
 check("compact grows taller when a second row appears", height2 > height1, (height1, height2))
-s.exec("__LS.db.compact.collapsed = true; __LS:UpdateCompact()")
+s.exec("__LS.db.compact.single = true; __LS:UpdateCompact()")
+check("single recommendation keeps compact to one row",
+      s.eval("__LS:CompactCount()") == 1 and s.eval("#__LS:CompactActivities()") == 1)
+s.exec("""
+  __LS.db.compact.single = false
+  __LS.db.compact.collapsed = true
+  __LS:UpdateCompact()
+""")
 height0 = s.eval("__LS.compact:GetHeight()")
 check("collapsing compact contracts to the title bar", height0 < height1, (height0, height1))
 s.exec("__LS.db.compact.collapsed = false; __LS:UpdateCompact()")

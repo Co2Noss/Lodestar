@@ -1,28 +1,31 @@
 local _, LS = ...
 
--- Workspaces, not content categories. Great Vault and Professions live under Progress
--- (and as Today tabs). The sidebar is which kind of work you are doing.
+-- Workspaces, not content categories. Dashboard is a widget layout. Professions and
+-- Great Vault open from those widgets. Progress is the tracked list.
 local workspaces = {
-  { name = "TODAY", items = { { "DASHBOARD", "Dashboard" } } },
+  { name = "TODAY", items = { { "DASHBOARD", "Dashboard", "Da" } } },
   { name = "PLANNING", items = {
-      { "TODAY", "Today's Plan" },
-      { "WEEKLY", "Weekly Plan" },
-      { "LONGTERM", "Long-Term Goals" },
+      { "TODAY", "Today's Plan", "To" },
+      { "WEEKLY", "Weekly Plan", "We" },
+      { "LONGTERM", "Long-Term Goals", "LT" },
     } },
   { name = "TRACKING", items = {
-      { "PROGRESS", "Progress" },
-      { "IGNORED", "Ignored Tasks" },
-      { "COMPLETED", "Completed Tasks" },
+      { "PROGRESS", "Progress", "Pr" },
+      { "IGNORED", "Ignored Tasks", "Ig" },
+      { "COMPLETED", "Completed Tasks", "Co" },
     } },
   { name = "ACCOUNT", items = {
-      { "WARBAND", "Warband" },
-      { "SETTINGS", "Settings" },
+      { "WARBAND", "Warband", "Wa" },
+      { "SETTINGS", "Settings", "Se" },
     } },
 }
+
+local SIDE_EXPANDED, SIDE_COLLAPSED, SIDE_GAP = 180, 52, 16
 
 local goalList = {
   { "ENDGAME", "Great Vault & endgame" },
   { "SOLO", "Solo content" },
+  { "PREY", "Prey hunts" },
   { "CRAFTING", "Professions" },
   { "MOUNTS", "Mounts" },
   { "REPUTATION", "Reputation" },
@@ -85,6 +88,8 @@ LS.widgets = { text = text, panel = panel, paint = paint, button = button, highl
 -- so an art change in a future patch cannot leave the window borderless.
 local CHROME_TEMPLATES = { "DefaultPanelTemplate", "DialogBorderTemplate" }
 local CHROME_PAD = 9
+-- DefaultPanelTemplate's title bar. Blizzard's own inset on this template is y = -26.
+local CHROME_TOP = 26
 
 function LS:UpdateChrome(wanted)
   if wanted and not self.chrome and not self.chromeMissing then
@@ -92,7 +97,6 @@ function LS:UpdateChrome(wanted)
       local ok, frame = pcall(CreateFrame, "Frame", nil, self.frame, template)
       if ok and frame then
         frame:SetAllPoints(self.frame)
-        frame:SetFrameLevel(self.frame:GetFrameLevel())
         -- Decoration only. Anything that took clicks here would stop the window dragging.
         frame:EnableMouse(false)
         if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(false) end
@@ -107,25 +111,97 @@ function LS:UpdateChrome(wanted)
   local active = (wanted and self.chrome ~= nil) or false
   if self.chrome then self.chrome:SetShown(active) end
   self:LayoutFrame(active and CHROME_PAD or 0)
+  -- The template is created after the header, and its NineSlice children raise
+  -- themselves over the logo. Keep the art behind every widget.
+  self:StackChrome(active)
   return active
 end
 
+local function LowerTree(frame, level, depth)
+  if type(frame) ~= "table" or (depth or 0) > 10 then return end
+  if type(frame.SetFrameLevel) == "function" then
+    pcall(frame.SetFrameLevel, frame, level)
+  end
+  if type(frame.EnableMouse) == "function" then
+    pcall(frame.EnableMouse, frame, false)
+  end
+  if type(frame.GetChildren) == "function" then
+    local kids = { frame:GetChildren() }
+    for _, child in ipairs(kids) do
+      LowerTree(child, level, (depth or 0) + 1)
+    end
+  end
+  if type(frame.NineSlice) == "table" then
+    LowerTree(frame.NineSlice, level, (depth or 0) + 1)
+    for _, piece in pairs(frame.NineSlice) do
+      if type(piece) == "table" and piece ~= frame.NineSlice then
+        LowerTree(piece, level, (depth or 0) + 1)
+      end
+    end
+  end
+end
+
+-- Chrome shares the window with the header. NineSlice pieces often sit many
+-- levels above the template, so the whole tree is flattened before the title
+-- is raised over it.
+function LS:StackChrome(active)
+  if not self.frame then return end
+  local base = self.frame:GetFrameLevel() or 1
+  if self.chrome then
+    LowerTree(self.chrome, base + 1, 0)
+    local container = self.chrome.TitleContainer
+    if type(container) == "table" then
+      local title = container.TitleText
+      if type(title) == "table" and title.Hide then pcall(title.Hide, title) end
+    end
+  end
+  local above = base + (active and 20 or 2)
+  if self.sidebar then self.sidebar:SetFrameLevel(above) end
+  if self.content then self.content:SetFrameLevel(above) end
+  if self.header then self.header:SetFrameLevel(above + 8) end
+  if self.resizeGrip then self.resizeGrip:SetFrameLevel(above + 10) end
+end
+
 -- Blizzard's border art is far thicker than a one pixel edge, so the content moves inward
--- to sit inside it rather than under it.
+-- to sit inside it rather than under it. The title bar is taller than the side borders.
+function LS:SidebarCollapsed()
+  return self.db and self.db.sidebarCollapsed and true or false
+end
+
+function LS:SidebarWidth()
+  return self:SidebarCollapsed() and SIDE_COLLAPSED or SIDE_EXPANDED
+end
+
+function LS:SetSidebarCollapsed(on)
+  if not self.db then return end
+  self.db.sidebarCollapsed = on and true or false
+  self:BuildSidebar()
+  if self.ApplyTheme then self:ApplyTheme() end
+  if self.frame and self.frame:IsShown() then
+    self:ShowPage(self.page or "DASHBOARD")
+  end
+end
+
 function LS:LayoutFrame(pad)
-  if self.layoutPad == pad then return end
+  local side = self:SidebarWidth()
+  if self.layoutPad == pad and self.layoutSide == side then return end
   self.layoutPad = pad
+  self.layoutSide = side
 
+  local top = (pad > 0) and CHROME_TOP or 1
   self.header:ClearAllPoints()
-  self.header:SetPoint("TOPLEFT", 1 + pad, -(1 + pad))
-  self.header:SetPoint("TOPRIGHT", -(1 + pad), -(1 + pad))
+  self.header:SetPoint("TOPLEFT", 1 + pad, -top)
+  self.header:SetPoint("TOPRIGHT", -(1 + pad), -top)
 
+  local belowHeader = 68 + ((pad > 0) and CHROME_TOP or pad)
   self.sidebar:ClearAllPoints()
-  self.sidebar:SetPoint("TOPLEFT", 12 + pad, -(68 + pad))
+  self.sidebar:SetPoint("TOPLEFT", 12 + pad, -belowHeader)
   self.sidebar:SetPoint("BOTTOMLEFT", 12 + pad, 14 + pad)
+  self.sidebar:SetWidth(side)
 
+  local contentLeft = 12 + side + SIDE_GAP
   self.content:ClearAllPoints()
-  self.content:SetPoint("TOPLEFT", 208 + pad, -(76 + pad))
+  self.content:SetPoint("TOPLEFT", contentLeft + pad, -(76 + ((pad > 0) and CHROME_TOP or pad)))
   self.content:SetPoint("BOTTOMRIGHT", -(30 + pad), 22 + pad)
 
   if self.resizeGrip then
@@ -227,10 +303,11 @@ function LS:CreateUI()
   self.header:SetPoint("TOPRIGHT", -1, -1)
   self.header:SetHeight(54)
 
-  self.logo = self.header:CreateTexture(nil, "ARTWORK")
+  self.logo = self.header:CreateTexture(nil, "OVERLAY")
   self.logo:SetSize(40, 40)
   self.logo:SetPoint("LEFT", 10, 0)
   self.logo:SetTexture(LS.MEDIA)
+  if self.logo.SetDrawLayer then self.logo:SetDrawLayer("OVERLAY", 7) end
 
   self.title = self.header:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   self.title:SetFont(STANDARD_TEXT_FONT, 20, "")
@@ -262,7 +339,7 @@ function LS:CreateUI()
   self.sidebar = panel(frame)
   self.sidebar:SetPoint("TOPLEFT", 12, -68)
   self.sidebar:SetPoint("BOTTOMLEFT", 12, 14)
-  self.sidebar:SetWidth(180)
+  self.sidebar:SetWidth(self:SidebarWidth())
 
   self.content = CreateFrame("Frame", nil, frame)
   self.content:SetPoint("TOPLEFT", 208, -76)
@@ -297,37 +374,120 @@ end
 function LS:NavActive(key)
   local page = self.page
   if key == page then return true end
-  return key == "PROGRESS" and (page == "VAULT" or page == "PROFESSIONS")
+  if key == "DASHBOARD" and (page == "PROFESSIONS" or page == "VAULT") then return true end
+  return false
+end
+
+local function Tip(owner, label)
+  if not GameTooltip then return end
+  if GameTooltip.SetOwner then pcall(GameTooltip.SetOwner, GameTooltip, owner, "ANCHOR_RIGHT") end
+  if GameTooltip.ClearLines then pcall(GameTooltip.ClearLines, GameTooltip) end
+  if GameTooltip.SetText then
+    GameTooltip:SetText(label)
+  elseif GameTooltip.AddLine then
+    GameTooltip:AddLine(label)
+  end
+  if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
+end
+
+local function HideTip()
+  if GameTooltip and GameTooltip.Hide then pcall(GameTooltip.Hide, GameTooltip) end
 end
 
 function LS:BuildSidebar()
-  local scroll = CreateFrame("ScrollFrame", nil, self.sidebar)
-  scroll:SetPoint("TOPLEFT", 8, -8)
-  scroll:SetPoint("BOTTOMRIGHT", -4, 8)
-  local child = CreateFrame("Frame", nil, scroll)
-  child:SetWidth(164)
-  child:SetHeight(1)
-  if scroll.SetScrollChild then scroll:SetScrollChild(child) end
-  self.sidebarBody = child
+  if not self.sidebar then return end
+  local collapsed = self:SidebarCollapsed()
+  local inner = collapsed and 36 or 164
+  local navW = collapsed and 36 or 156
+
+  if not self.sidebarBody then
+    local version = text(self.sidebar, 164, 10)
+    version:SetPoint("BOTTOMLEFT", 8, 10)
+    version:SetPoint("BOTTOMRIGHT", -6, 10)
+    version:SetJustifyH("LEFT")
+    self.sidebarVersion = version
+
+    local toggle = button(self.sidebar, "«", 36, 22, 12)
+    toggle:SetPoint("TOPLEFT", 8, -8)
+    self.sidebarToggle = toggle
+
+    local scroll = CreateFrame("ScrollFrame", nil, self.sidebar)
+    self.sidebarScroll = scroll
+    local child = CreateFrame("Frame", nil, scroll)
+    child:SetHeight(1)
+    if scroll.SetScrollChild then scroll:SetScrollChild(child) end
+    self.sidebarBody = child
+  else
+    for _, child in ipairs({ self.sidebarBody:GetChildren() }) do
+      child:Hide()
+      child:SetParent(nil)
+    end
+    for _, region in ipairs({ self.sidebarBody:GetRegions() }) do
+      region:Hide()
+    end
+  end
+
+  local version = self.sidebarVersion
+  version:SetText("v" .. (self.version or ""))
+  version:SetShown(not collapsed)
+  if self.colors then version:SetTextColor(unpack(self.colors.muted)) end
+
+  local toggle = self.sidebarToggle
+  toggle:SetWidth(navW)
+  toggle.text:SetWidth(navW)
+  toggle.text:SetText(collapsed and "»" or "«")
+  toggle:SetScript("OnMouseUp", function()
+    self:SetSidebarCollapsed(not self:SidebarCollapsed())
+  end)
+  toggle:SetScript("OnEnter", function(selfFrame)
+    selfFrame:SetBackdropBorderColor(unpack(LS.colors.accent))
+    Tip(selfFrame, collapsed and "Show menu" or "Hide menu")
+  end)
+  toggle:SetScript("OnLeave", function(selfFrame)
+    selfFrame:SetBackdropBorderColor(unpack(LS.colors.border))
+    HideTip()
+  end)
+
+  local scroll = self.sidebarScroll
+  scroll:ClearAllPoints()
+  scroll:SetPoint("TOPLEFT", 8, -34)
+  scroll:SetPoint("BOTTOMRIGHT", -4, collapsed and 8 or 28)
+
+  local child = self.sidebarBody
+  child:SetWidth(inner)
   self.nav = {}
   self.navHeaders = {}
 
   local y = 0
   for _, group in ipairs(workspaces) do
-    local header = text(child, 160, 9)
-    header:SetPoint("TOPLEFT", 6, y)
-    header:SetText(group.name)
-    if self.colors then header:SetTextColor(unpack(self.colors.muted)) end
-    table.insert(self.navHeaders, header)
-    y = y - 18
+    if not collapsed then
+      local header = text(child, inner - 4, 9)
+      header:SetPoint("TOPLEFT", 6, y)
+      header:SetText(group.name)
+      if self.colors then header:SetTextColor(unpack(self.colors.muted)) end
+      table.insert(self.navHeaders, header)
+      y = y - 18
+    end
     for _, item in ipairs(group.items) do
-      local nav = button(child, item[2], 156, 26, 11)
-      nav:SetPoint("TOPLEFT", 4, y)
+      local label = collapsed and (item[3] or item[2]:sub(1, 2)) or item[2]
+      local nav = button(child, label, navW, 26, 11)
+      nav:SetPoint("TOPLEFT", collapsed and 0 or 4, y)
       nav:SetScript("OnMouseUp", function() self:ShowPage(item[1]) end)
+      nav:SetScript("OnEnter", function(selfFrame)
+        if LS.colors then selfFrame:SetBackdropBorderColor(unpack(LS.colors.accent)) end
+        if collapsed then Tip(selfFrame, item[2]) end
+      end)
+      nav:SetScript("OnLeave", function(selfFrame)
+        local active = LS.NavActive and LS:NavActive(item[1])
+        if LS.colors then
+          selfFrame:SetBackdropBorderColor(unpack(active and LS.colors.accent or LS.colors.border))
+        end
+        HideTip()
+      end)
       self.nav[item[1]] = nav
       y = y - 30
     end
-    y = y - 8
+    y = y - (collapsed and 4 or 8)
   end
   child:SetHeight(math.max(1, -y + 8))
 end
@@ -511,6 +671,13 @@ function LS:ActivityCard(parent, activity, y, width)
     table.insert(actions, { activity.openLabel or "Open", activity.open })
   end
   table.insert(actions, { "Details", function() self:ShowDetails(activity.id) end })
+  if self.page == "PROGRESS" then
+    table.insert(actions, 1, { "Untrack", function()
+      self.db.tracked[activity.id] = nil
+      if self.UpdateCompact then self:UpdateCompact() end
+      self:ShowPage("PROGRESS")
+    end })
+  end
   table.insert(actions, { "Done", function()
     self.db.completed[activity.id] = true
     self:ShowPage(self.page == "DETAILS" and "TODAY" or (self.page or "TODAY"))
@@ -630,11 +797,41 @@ function LS:VaultSlotCounts()
 end
 
 function LS:UnspentKnowledge()
+  if self.ProfessionSummary then
+    local n = self:ProfessionSummary()
+    return n or 0
+  end
   local n = 0
-  for _, prof in ipairs(self.professions or {}) do
+  for _, prof in ipairs(self.CurrentExpansionProfessions and self:CurrentExpansionProfessions() or self.professions or {}) do
     n = n + (prof.unspent or 0)
   end
   return n
+end
+
+function LS:ProfessionsHubCard(parent, width, y)
+  local current = self.CurrentExpansionProfessions and self:CurrentExpansionProfessions() or self.professions or {}
+  local trained = #current
+  local unspent = self:UnspentKnowledge()
+  local card = panel(parent)
+  card:SetSize(width, 72)
+  card:SetPoint("TOPLEFT", 0, y)
+  paint(card)
+  local title = text(card, width - 120, 13)
+  title:SetPoint("TOPLEFT", 12, -10)
+  title:SetTextColor(unpack(self.colors.accent))
+  title:SetText("Professions")
+  local line = text(card, width - 120, 11)
+  line:SetPoint("TOPLEFT", 12, -34)
+  if trained == 0 and #(self.professions or {}) == 0 then
+    line:SetText("Open a profession window once so the client sends its data.")
+  else
+    line:SetText(string.format("%d trained. %d unspent knowledge this expansion.", trained, unspent))
+  end
+  local open = button(card, "Open", 74, 26)
+  open:SetPoint("TOPRIGHT", -10, -14)
+  paint(open, "panel")
+  open:SetScript("OnMouseUp", function() self:ShowPage("PROFESSIONS") end)
+  return y - 82
 end
 
 function LS:RenderPlan(groups, pageKey, title)
@@ -691,78 +888,27 @@ function LS:PlanEmpty(title, why, pickLabel, onPick)
   end
 end
 
-function LS:DashboardPage()
-  local recs = self:GetRecommendations()
-  local filled, total = self:VaultSlotCounts()
-  local ignored, completed = self:CountFlags("dismissed"), self:CountFlags("completed")
-  self:Heading("Dashboard", "Where things stand, then the next action.")
-  local body = self:Body(76)
-  local width = body.width
-  local y = 0
-
-  local columns = math.max(1, math.floor(width / 180))
-  local cellW = math.floor(width / columns) - 8
-  local stats = {
-    { #recs, "On the plan" },
-    { string.format("%d/%d", filled, total), "Vault slots filled" },
-    { self:UnspentKnowledge(), "Unspent knowledge" },
-    { ignored, "Ignored" },
-    { completed, "Completed" },
-  }
-  for i, stat in ipairs(stats) do
-    local col = (i - 1) % columns
-    local rowIndex = math.floor((i - 1) / columns)
-    local cell = panel(body)
-    cell:SetSize(cellW, 56)
-    cell:SetPoint("TOPLEFT", col * (cellW + 8), y - rowIndex * 64)
-    paint(cell)
-    local amount = text(cell, cellW - 24, 18)
-    amount:SetPoint("TOPLEFT", 12, -8)
-    amount:SetTextColor(unpack(self.colors.accent))
-    amount:SetText(tostring(stat[1]))
-    local name = text(cell, cellW - 24, 10)
-    name:SetPoint("TOPLEFT", 12, -32)
-    name:SetText(stat[2])
-  end
-  y = y - (math.ceil(#stats / columns) * 64) - 8
-
-  local jumps = {
-    { "Today's Plan", "TODAY" },
-    { "Weekly Plan", "WEEKLY" },
-    { "Progress", "PROGRESS" },
-  }
-  for i, jump in ipairs(jumps) do
-    local go = button(body, jump[1], 140, 28)
-    go:SetPoint("TOPLEFT", (i - 1) * 148, y)
-    go:SetScript("OnMouseUp", function() self:ShowPage(jump[2]) end)
-  end
-  y = y - 42
-
-  if #recs == 0 then
-    local none = text(body, width, 11)
-    none:SetPoint("TOPLEFT", 0, y)
-    if self:GoalsChosen() then
-      none:SetText("Nothing is currently worth ranking. That changes as the week does.")
-    else
-      none:SetText("Every goal is off, so there is nothing to weigh against.")
-      local pick = button(body, "Choose my goals", 200, 30)
-      pick:SetPoint("TOPLEFT", 0, y - 36)
-      highlight(pick)
-      pick:SetScript("OnMouseUp", function() self:ShowPage("WELCOME") end)
-      y = y - 36
+function LS:ShowVaultTooltip(owner, slot)
+  if not GameTooltip then return end
+  if GameTooltip.SetOwner then pcall(GameTooltip.SetOwner, GameTooltip, owner, "ANCHOR_RIGHT") end
+  if GameTooltip.ClearLines then pcall(GameTooltip.ClearLines, GameTooltip) end
+  if GameTooltip.AddLine then
+    GameTooltip:AddLine("Great Vault")
+    local lines
+    if slot and self.VaultSlotTooltipLines then
+      lines = self:VaultSlotTooltipLines(slot)
+    elseif self.VaultTooltipLines then
+      lines = self:VaultTooltipLines()
     end
-    body:finish(-y + 50)
-    return
+    for _, line in ipairs(lines or {}) do
+      GameTooltip:AddLine(line)
+    end
   end
+  if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
+end
 
-  local nextHeading = text(body, width, 13)
-  nextHeading:SetPoint("TOPLEFT", 0, y)
-  nextHeading:SetTextColor(unpack(self.colors.accent))
-  nextHeading:SetText("Next")
-  y = y - 24
-  local _, h = self:ActivityCard(body, recs[1], y, width)
-  y = y - ((h or CARD_HEIGHT) + CARD_GAP)
-  body:finish(-y + 10)
+function LS:HideVaultTooltip()
+  if GameTooltip and GameTooltip.Hide then pcall(GameTooltip.Hide, GameTooltip) end
 end
 
 function LS:WeeklyPlanPage()
@@ -790,52 +936,22 @@ function LS:LongTermPage()
 end
 
 function LS:ProgressPage()
-  local filled, total, upgradable = self:VaultSlotCounts()
-  local unspent = self:UnspentKnowledge()
-  local profs = #(self.professions or {})
-  self:Heading("Progress", "Vault slots and profession knowledge on this character.")
+  local tracked = self:TrackedActivities()
+  self:Heading("Progress", "Activities you tracked. Compact mode shows the same list.")
   local body = self:Body(76)
   local width = body.width
   local y = 0
-
-  local vault = panel(body)
-  vault:SetSize(width, 72)
-  vault:SetPoint("TOPLEFT", 0, y)
-  paint(vault)
-  local vaultTitle = text(vault, width - 120, 13)
-  vaultTitle:SetPoint("TOPLEFT", 12, -10)
-  vaultTitle:SetTextColor(unpack(self.colors.accent))
-  vaultTitle:SetText("Great Vault")
-  local vaultLine = text(vault, width - 120, 11)
-  vaultLine:SetPoint("TOPLEFT", 12, -34)
-  vaultLine:SetText(string.format("%d of %d slots filled. %d can still be improved.",
-    filled, total, upgradable))
-  local vaultOpen = button(vault, "Open", 74, 26)
-  vaultOpen:SetPoint("TOPRIGHT", -10, -14)
-  paint(vaultOpen, "panel")
-  vaultOpen:SetScript("OnMouseUp", function() self:ShowPage("VAULT") end)
-  y = y - 82
-
-  local prof = panel(body)
-  prof:SetSize(width, 72)
-  prof:SetPoint("TOPLEFT", 0, y)
-  paint(prof)
-  local profTitle = text(prof, width - 120, 13)
-  profTitle:SetPoint("TOPLEFT", 12, -10)
-  profTitle:SetTextColor(unpack(self.colors.accent))
-  profTitle:SetText("Professions")
-  local profLine = text(prof, width - 120, 11)
-  profLine:SetPoint("TOPLEFT", 12, -34)
-  if profs == 0 then
-    profLine:SetText("Open a profession window once so the client sends its data.")
-  else
-    profLine:SetText(string.format("%d trained. %d unspent knowledge.", profs, unspent))
+  if #tracked == 0 then
+    local none = text(body, width, 11)
+    none:SetPoint("TOPLEFT", 0, 0)
+    none:SetText("Nothing tracked yet. Open Details on a card and Track it.")
+    body:finish(40)
+    return
   end
-  local profOpen = button(prof, "Open", 74, 26)
-  profOpen:SetPoint("TOPRIGHT", -10, -14)
-  paint(profOpen, "panel")
-  profOpen:SetScript("OnMouseUp", function() self:ShowPage("PROFESSIONS") end)
-  y = y - 82
+  for _, activity in ipairs(tracked) do
+    local _, h = self:ActivityCard(body, activity, y, width)
+    y = y - ((h or CARD_HEIGHT) + CARD_GAP)
+  end
   body:finish(-y + 10)
 end
 
@@ -1037,6 +1153,7 @@ function LS:DetailsPage()
   if tracked then highlight(trackButton) end
   trackButton:SetScript("OnMouseUp", function()
     self.db.tracked[activity.id] = (not tracked) or nil
+    if self.UpdateCompact then self:UpdateCompact() end
     self:ShowPage("DETAILS")
   end)
 
@@ -1118,6 +1235,11 @@ function LS:VaultSlotCard(parent, slot, y, width)
   card:SetSize(width, cardHeight)
   card:SetPoint("TOPLEFT", 0, y)
   paint(card)
+  card:EnableMouse(true)
+  card:SetScript("OnEnter", function(selfFrame)
+    LS:ShowVaultTooltip(selfFrame, slot)
+  end)
+  card:SetScript("OnLeave", function() LS:HideVaultTooltip() end)
   if slot.advice and slot.advice.upgradable then
     card:SetBackdropBorderColor(unpack(self.colors.accent))
   end
@@ -1630,6 +1752,44 @@ function LS:SettingsGoals(body, width, y)
   end
   y = y - 40
 
+  local wayHeading = text(body, width, 13)
+  wayHeading:SetPoint("TOPLEFT", 0, y)
+  wayHeading:SetTextColor(unpack(self.colors.accent))
+  wayHeading:SetText("Waypoints")
+  y = y - 24
+
+  local waySource = (self.db.waypointSource or "AUTO")
+  local wayLabels, wayFromLabel = {}, {}
+  for _, key in ipairs(self.waypointSourceOrder or { "AUTO", "TOMTOM", "BLIZZARD" }) do
+    local label = (self.waypointSourceLabels and self.waypointSourceLabels[key]) or key
+    table.insert(wayLabels, label)
+    wayFromLabel[label] = key
+  end
+  local wayDrop = self:Dropdown(body, width, (self.waypointSourceLabels and self.waypointSourceLabels[waySource]) or waySource, wayLabels, function(choice)
+    self.db.waypointSource = wayFromLabel[choice] or "AUTO"
+    self:ShowPage("SETTINGS")
+  end)
+  wayDrop:SetPoint("TOPLEFT", 0, y)
+  y = y - 42
+
+  local wayNote = text(body, width, 10)
+  wayNote:SetPoint("TOPLEFT", 0, y)
+  local wayId, wayName, wayReady
+  if self.ResolveWaypointSource then
+    wayId, wayName, wayReady = self:ResolveWaypointSource()
+  end
+  if waySource == "BLIZZARD" then
+    wayNote:SetText("The client's single map pin. TomTom is ignored even if it is loaded.")
+  elseif waySource == "TOMTOM" and not wayReady then
+    wayNote:SetTextColor(unpack(self.colors.warn))
+    wayNote:SetText("TomTom is not loaded. Install it, or pick Auto / Blizzard waypoint.")
+  elseif wayId == "TOMTOM" then
+    wayNote:SetText("Pins go to TomTom. Auto uses TomTom when it is loaded, otherwise the client's map pin.")
+  else
+    wayNote:SetText("Auto uses TomTom when it is loaded, otherwise the client's single map pin.")
+  end
+  y = y - 40
+
   local hnHeading = text(body, width, 13)
   hnHeading:SetPoint("TOPLEFT", 0, y)
   hnHeading:SetTextColor(unpack(self.colors.accent))
@@ -1849,8 +2009,8 @@ function LS:SettingsCompact(body, width, y)
 
   local compactNote = text(body, width, 10)
   compactNote:SetPoint("TOPLEFT", 0, y)
-  compactNote:SetText("One goal keeps this to a single row; more goals grow it to two. Click an entry for details, double click for the full window. It collapses on its own in combat.")
-  y = y - 32
+  compactNote:SetText("Shows activities you tracked, ranked by score. Single recommendation keeps one row. Click an entry for details, double click for Progress. It collapses on its own in combat.")
+  y = y - 44
 
   local resetCompact = button(body, "Reset compact position", width, 32)
   resetCompact:SetPoint("TOPLEFT", 0, y)

@@ -1,13 +1,13 @@
 local _, LS = ...
 
--- Compact mode: a small always-on window with the next one or two things to do.
--- One goal keeps it to a single row; more goals grow it to two. It reads the same
--- plan as the Today page, so both always agree.
+-- Compact mode: a small always-on window of activities you tracked. Progress
+-- shows the same list. Single-recommendation mode keeps it to one row.
 
 local HEADER = 24
 local ROW = 46
 local PADDING = 8
 local MIN_WIDTH, MAX_WIDTH = 220, 520
+local MAX_ROWS = 8
 local CLICK_DELAY = 0.25
 
 local function db()
@@ -17,12 +17,7 @@ end
 function LS:CompactCount()
   local settings = db()
   if settings and settings.single then return 1 end
-  local n = 0
-  for _, on in pairs(self.db and self.db.goals or {}) do
-    if on then n = n + 1 end
-  end
-  if n <= 1 then return 1 end
-  return 2
+  return MAX_ROWS
 end
 
 local TONES = { HIGH = "warn", MEDIUM = "accent", LOW = "muted" }
@@ -60,25 +55,12 @@ function LS:Urgency(activity)
   return Rank("LOW")
 end
 
--- Compact is the next action, not a second copy of the same vault row.
-local function CompactFamily(activity)
-  local id = (activity and activity.id) or ""
-  local row = id:match("^vault_(raid)_") or id:match("^vault_(activities)_") or id:match("^vault_(world)_")
-  if row then return "vault_" .. row end
-  if id:find("^vault_claim_", 1, true) then return "vault_claim" end
-  return activity.category or id
-end
-
 function LS:CompactActivities()
-  local out, seen = {}, {}
+  local out = {}
   local wanted = self:CompactCount()
-  for _, activity in ipairs(self:GetRecommendations()) do
-    local family = CompactFamily(activity)
-    if not seen[family] then
-      seen[family] = true
-      table.insert(out, activity)
-      if #out >= wanted then break end
-    end
+  for _, activity in ipairs(self:TrackedActivities()) do
+    table.insert(out, activity)
+    if #out >= wanted then break end
   end
   return out
 end
@@ -154,9 +136,16 @@ local function CreateRow(parent)
       selfRow.pendingClick:Cancel()
       selfRow.pendingClick = nil
     end
-    LS:OpenFull("TODAY")
+    LS:OpenFull("PROGRESS")
   end)
   return row
+end
+
+local function EnsureRows(frame, n)
+  frame.rows = frame.rows or {}
+  for i = #frame.rows + 1, n do
+    frame.rows[i] = CreateRow(frame)
+  end
 end
 
 function LS:CreateCompact()
@@ -205,7 +194,7 @@ function LS:CreateCompact()
   frame.close:SetPoint("TOPRIGHT", -6, -4)
   frame.close:SetScript("OnMouseUp", function() LS:SetCompact(false) end)
 
-  -- Height follows the number of recommendations, so only the width is draggable.
+  -- Height follows the number of tracked rows, so only the width is draggable.
   local grip = CreateFrame("Button", nil, frame)
   grip:SetWidth(6)
   grip:SetPoint("TOPRIGHT", 0, -HEADER)
@@ -233,14 +222,11 @@ function LS:CreateCompact()
   surface:SetPoint("BOTTOMRIGHT", 0, 0)
   surface:SetFrameLevel(frame:GetFrameLevel())
   surface:RegisterForClicks("AnyUp")
-  surface:SetScript("OnDoubleClick", function() LS:OpenFull("TODAY") end)
+  surface:SetScript("OnDoubleClick", function() LS:OpenFull("PROGRESS") end)
   ForwardDrag(surface, frame)
   frame.surface = surface
 
   frame.rows = {}
-  for i = 1, 2 do
-    frame.rows[i] = CreateRow(frame)
-  end
 
   self:ApplyCompactLayout()
 end
@@ -250,8 +236,7 @@ function LS:UpdateCompact()
   local settings = db()
   if not frame or not settings or not self.colors then return end
 
-  -- The two windows show the same plan, so the small one stands down while the full one
-  -- is open and comes back when it closes.
+  -- The compact window hides while the full one is open and comes back when it closes.
   if not settings.enabled or (self.frame and self.frame:IsShown()) then
     frame:Hide()
     return
@@ -277,6 +262,7 @@ function LS:UpdateCompact()
 
   local width = frame:GetWidth()
   local activities = collapsed and {} or self:CompactActivities()
+  EnsureRows(frame, math.max(#activities, #frame.rows))
 
   for index, row in ipairs(frame.rows) do
     local activity = activities[index]
@@ -306,6 +292,7 @@ function LS:UpdateCompact()
   end
 
   if collapsed then
+    if frame.empty then frame.empty:Hide() end
     frame:SetHeight(HEADER + 6)
     frame.grip:Hide()
     if self.compactAutoCollapsed then
@@ -324,7 +311,7 @@ function LS:UpdateCompact()
       end
       frame.empty:SetWidth(width - 20)
       frame.empty:SetTextColor(unpack(palette.muted or palette.text))
-      frame.empty:SetText("Nothing to recommend right now.")
+      frame.empty:SetText("Nothing tracked.")
       frame.empty:Show()
     else
       if frame.empty then frame.empty:Hide() end

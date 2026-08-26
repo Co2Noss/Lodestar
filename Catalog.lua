@@ -58,6 +58,7 @@ function LS:FindActivity(id)
     self.GetGoldRecommendations and self:GetGoldRecommendations() or {},
     self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {},
     self.GetBountifulDelveRecommendations and self:GetBountifulDelveRecommendations() or {},
+    self.GetPreyRecommendations and self:GetPreyRecommendations() or {},
     self.GetQuestRecommendations and self:GetQuestRecommendations() or {},
   }) do
     for _, activity in ipairs(list) do

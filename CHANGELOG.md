@@ -1,3 +1,37 @@
+# 1.4.0
+
+- Settings → Goals includes Prey hunts. Completing a hunt banks World Vault progress and
+  hunt gear. An active hunt comes from `C_QuestLog.GetActivePreyQuest`. Quests the client
+  marks important (Prey unlocks, Voidcores, and the rest) rank with campaign priority.
+- Picking up a dashboard widget lifts it, leaves a drop ghost, and outlines empty rooms
+  with a plus where that tile can land. Widget options such as
+  WoW Token coin icons, letters, colour, thousands separators, and bar vs line charts only
+  appear in edit mode. Compact up packs tiles to the top; widgets cannot overlap.
+- Dashboard widgets sit on a 12 × 18 canvas on that tab only. Default tiles start at
+  half width, the same size as WoW Token and the other addable widgets. Drag to move;
+  drag an edge or corner to resize horizontally or vertically. Edit dashboard to add or
+  remove tiles. Built-in tiles include the plan snapshot, Great Vault, tracked work,
+  professions, WoW Token (the client's market price), weekly reset, warband, gold (when a
+  price addon is loaded), and HandyNotes rares. Other addons can register their own with
+  `Lodestar:RegisterWidget`.
+- The left menu collapses to icons. Hover an icon for Dashboard, Today's Plan, and the
+  rest of the workspaces.
+- Compact mode and Progress list activities you tracked, ranked by score. Compact stays
+  empty until something is tracked.
+- Professions live on Dashboard. Great Vault opens from Dashboard; Progress is the tracked list.
+- Dashboard and Warband unspent knowledge only count the current expansion, so leftover
+  Khaz Algar (or older) points no longer inflate the Dashboard.
+
+- Bountiful delves on portal continents (Harandar, Voidstorm) are picked up even
+  when you are standing on Quel'Thalas. Those maps are siblings of Midnight, not
+  children of it.
+
+- Settings → Goals: choose Auto, TomTom, or the client's map pin for waypoints. Auto still
+  uses TomTom when it is loaded; Blizzard waypoint ignores it.
+- Dashboard opens the client's Great Vault. Hover and each vault slot show named keys and
+  reward item levels the client knows. Champion/Hero ranks stay in Great Vault Key Info
+  inside the client's vault window.
+
 # 1.3.0
 
 - The left menu is workspaces, not a second copy of Today's tabs: Dashboard, Today's Plan,

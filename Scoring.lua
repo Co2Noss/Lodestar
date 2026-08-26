@@ -72,6 +72,12 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.GetPreyRecommendations then
+    for _, hunt in ipairs(self:GetPreyRecommendations()) do
+      consider(hunt)
+    end
+  end
+
   if self.GetQuestRecommendations then
     for _, quest in ipairs(self:GetQuestRecommendations()) do
       consider(quest)
@@ -81,6 +87,34 @@ function LS:GetRecommendations()
   table.sort(out, function(a, b)
     if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
     return a.title < b.title
+  end)
+  return out
+end
+
+-- Compact mode and Progress both read this list: tracked cards that are still on
+-- the plan, then any tracked id that is no longer being generated.
+function LS:TrackedActivities()
+  local out, have = {}, {}
+  for _, activity in ipairs(self:GetRecommendations()) do
+    if self.db.tracked[activity.id] then
+      have[activity.id] = true
+      table.insert(out, activity)
+    end
+  end
+  for id, on in pairs(self.db.tracked or {}) do
+    if on and not have[id] and not self.db.dismissed[id] and not self.db.completed[id] then
+      local activity = self:FindActivity(id)
+      table.insert(out, activity or {
+        id = id,
+        title = id,
+        why = "That activity is no longer being generated.",
+        score = 0,
+      })
+    end
+  end
+  table.sort(out, function(a, b)
+    if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
+    return (a.title or a.id or "") < (b.title or b.id or "")
   end)
   return out
 end
@@ -101,7 +135,7 @@ local CATEGORY_ORDER = {
 function LS:ActivityHorizon(activity)
   local id = (activity and activity.id) or ""
   local cat = (activity and activity.category) or ""
-  if cat == "Great Vault" or id == "delve" or id:sub(1, 6) == "vault_" then
+  if cat == "Great Vault" or id == "delve" or id == "prey" or id:sub(1, 6) == "vault_" then
     return "WEEKLY"
   end
   if id:sub(1, 10) == "kp_weekly_" or id:sub(1, 10) == "kp_gather_" then

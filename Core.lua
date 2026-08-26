@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.3.0"
+LS.version = "1.4.0"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -9,7 +9,7 @@ LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
 LS.defaults = {
   -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
   -- a goal that is off silently removes recommendations the player never learns existed.
-  goals = { ENDGAME = false, SOLO = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
+  goals = { ENDGAME = false, SOLO = false, PREY = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
   dismissed = {},
   completed = {},
   tracked = {},
@@ -19,8 +19,10 @@ LS.defaults = {
   colors = {},
   pageTab = { SETTINGS = "GOALS", VAULT = "raid" },
   goldSource = "AUTO",
+  waypointSource = "AUTO",
   currentExpansionOnly = true,
   collapsed = {},
+  sidebarCollapsed = false,
   repExpansions = {},
   repGroups = {},
   repFactions = {},
@@ -31,6 +33,10 @@ LS.defaults = {
     collapsed = false,
     point = "TOPRIGHT", relative = "TOPRIGHT", x = -20, y = -220, width = 300,
   },
+  -- Widget order is filled in migrate so merge cannot splice the default array
+  -- into a layout the player already edited.
+  dashboard = {},
+  tokenHistory = {},
 }
 
 local function merge(a, b)
@@ -91,6 +97,13 @@ local function migrate(db)
     db.settingsTab = nil
   end
   if db.pageTab.SETTINGS == "WINDOW" then db.pageTab.SETTINGS = "LAYOUT" end
+  db.dashboard = db.dashboard or {}
+  if type(db.dashboard.widgets) ~= "table" or db.dashboard.widgets[1] == nil then
+    if LS.DefaultDashboardWidgets then
+      db.dashboard.widgets = LS.DefaultDashboardWidgets()
+    end
+  end
+  db.tokenHistory = db.tokenHistory or {}
 end
 
 function LS:FormatDuration(seconds)
@@ -244,6 +257,8 @@ local function RefreshState()
   if LS.ScanMounts then LS:ScanMounts() end
   if LS.ScanReputations then LS:ScanReputations() end
   if LS.SaveSnapshot then LS:SaveSnapshot() end
+  if LS.RequestTokenPrice then LS:RequestTokenPrice() end
+  if LS.RecordTokenPrice then LS:RecordTokenPrice() end
   LS:Refresh()
 end
 
@@ -272,6 +287,7 @@ for _, name in ipairs({
   "UPDATE_INSTANCE_INFO",
   "PLAYER_REGEN_DISABLED",
   "PLAYER_REGEN_ENABLED",
+  "TOKEN_MARKET_PRICE_UPDATED",
 }) do
   pcall(events.RegisterEvent, events, name)
 end
@@ -290,6 +306,13 @@ events:SetScript("OnEvent", function(_, event, arg)
   -- Combat only changes how compact mode is displayed, so it skips the rescan entirely.
   if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
     if LS.CompactCombat then LS:CompactCombat(event == "PLAYER_REGEN_DISABLED") end
+    return
+  end
+  if event == "TOKEN_MARKET_PRICE_UPDATED" then
+    if LS.RecordTokenPrice then LS:RecordTokenPrice() end
+    if LS.page == "DASHBOARD" and LS.frame and LS.frame:IsShown() then
+      LS:ShowPage("DASHBOARD")
+    end
     return
   end
   if event == "PLAYER_LOGIN" then

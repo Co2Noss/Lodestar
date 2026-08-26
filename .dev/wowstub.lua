@@ -39,8 +39,10 @@ function methods.SetSize(self, a, b) self.w, self.h = a, b end
 function methods.GetWidth(self) return self.w end
 function methods.GetHeight(self) return self.h end
 function methods.GetPoint(self) return "CENTER", nil, "CENTER", 0, 0 end
-function methods.GetFrameLevel(self) return 1 end
+function methods.SetFrameLevel(self, v) self.frameLevel = v end
+function methods.GetFrameLevel(self) return self.frameLevel or 1 end
 function methods.GetName(self) return self.objName end
+function methods.EnableMouse(self, v) self.mouse = v and true or false end
 function methods.EnableKeyboard(self, v) self.keyboard = v and true or false end
 function methods.SetPropagateKeyboardInput(self, v) self.propagateKeys = v and true or false end
 function methods.SetFrameStrata(self, strata) self.frameStrata = strata end
@@ -97,6 +99,24 @@ function methods.GetThumbTexture(self)
 end
 function methods.GetNormalTexture(self) return methods.GetThumbTexture(self) end
 
+function methods.GetParent(self) return self.parent end
+function methods.SetAlpha(self, v) self.alpha = v end
+function methods.GetAlpha(self) return self.alpha or 1 end
+function methods.SetScale(self, v) self.scale = v end
+function methods.GetScale(self) return self.scale or 1 end
+function methods.SetMovable(self, v) self.movable = v and true or false end
+function methods.SetResizable(self, v) self.resizable = v and true or false end
+function methods.RegisterForDrag(self, btn) self.dragButton = btn end
+function methods.StartMoving(self) self.moving = true end
+function methods.StartSizing(self, edge)
+  self.moving = true
+  self.sizing = edge
+end
+function methods.StopMovingOrSizing(self)
+  self.moving = false
+  self.sizing = nil
+end
+
 AllFrames = {}
 -- Lets a test pretend the client has no such XML template, the way an older or future
 -- client would.
@@ -127,13 +147,26 @@ end
 
 UIParent = new("Frame", "UIParent")
 Minimap = new("Frame", "Minimap")
+WeeklyRewardsFrame = new("Frame", "WeeklyRewardsFrame")
+WeeklyRewardsFrame.shown = false
+OpenedGreatVault = false
+function ShowUIPanel(frame)
+  if type(frame) == "table" then
+    frame.shown = true
+    if frame == WeeklyRewardsFrame then OpenedGreatVault = true end
+  end
+end
 GameTooltip = new("Frame", "GameTooltip")
 GameTooltipTextLeft1 = { GetText = function(self) return self._text end }
+function GameTooltip:SetOwner() end
 function GameTooltip:SetText(t)
   self._tip = t
+  self._lines = { t }
   GameTooltipTextLeft1._text = t
 end
 function GameTooltip:AddLine(t)
+  self._lines = self._lines or {}
+  table.insert(self._lines, t)
   if not GameTooltipTextLeft1._text then
     GameTooltipTextLeft1._text = t
     self._tip = t
@@ -141,6 +174,7 @@ function GameTooltip:AddLine(t)
 end
 function GameTooltip:ClearLines()
   self._tip = nil
+  self._lines = {}
   GameTooltipTextLeft1._text = nil
 end
 function GameTooltip:GetText()
@@ -252,6 +286,7 @@ end
 
 C_AddOns = {
   IsAddOnLoaded = function() return false end,
+  LoadAddOn = function() return true end,
   GetNumAddOns = function() return #addonList end,
   GetAddOnInfo = function(id)
     local a = findAddon(id)
@@ -325,6 +360,7 @@ C_UIWidgetManager = {
 }
 QuestLog = {}
 SuperTrackedQuestID = nil
+ActivePreyQuestID = nil
 C_QuestLog = {
   IsQuestFlaggedCompleted = function() return false end,
   GetNumQuestLogEntries = function() return #QuestLog, #QuestLog end,
@@ -340,6 +376,20 @@ C_QuestLog = {
       if q.questID == id then return q.isTask == true or q.isBounty == true end
     end
     return false
+  end,
+  IsImportantQuest = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.isImportant == true end
+    end
+    return false
+  end,
+  GetActivePreyQuest = function()
+    return ActivePreyQuestID
+  end,
+  GetTitleForQuestID = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.title end
+    end
   end,
   GetQuestUiMapID = function(id)
     for _, q in ipairs(QuestLog) do
@@ -393,15 +443,18 @@ MAP_INFO = {
   [2400] = { name = "Midnight", mapID = 2400, mapType = 2, parentMapID = 947 },
   [2395] = { name = "Eversong Woods", mapID = 2395, mapType = 3, parentMapID = 2400 },
   [2393] = { name = "Silvermoon City", mapID = 2393, mapType = 5, parentMapID = 2395 },
-  [2413] = { name = "Harandar", mapID = 2413, mapType = 3, parentMapID = 2400 },
-  [2405] = { name = "Voidstorm", mapID = 2405, mapType = 3, parentMapID = 2400 },
   [2437] = { name = "Zul'Aman", mapID = 2437, mapType = 3, parentMapID = 2400 },
+  -- Portal continents: siblings of Midnight under Azeroth, not Midnight zones.
+  [2413] = { name = "Harandar", mapID = 2413, mapType = 2, parentMapID = 947 },
+  [2405] = { name = "Voidstorm", mapID = 2405, mapType = 2, parentMapID = 947 },
+  [2444] = { name = "Slayer's Rise", mapID = 2444, mapType = 3, parentMapID = 2405 },
 }
 UserWaypoint = nil
 SuperTrackedUserWaypoint = false
 OpenedWorldMaps = {}
 TomTomWaypoints = {}
 DelvePOIs = {}
+AreaPOIs = {}
 
 C_AreaPoiInfo = {
   GetDelvesForMap = function(mapID)
@@ -410,9 +463,17 @@ C_AreaPoiInfo = {
     for _, poi in ipairs(list) do table.insert(ids, poi.areaPoiID) end
     return ids
   end,
+  GetAreaPOIForMap = function(mapID)
+    local list = AreaPOIs[mapID] or DelvePOIs[mapID] or {}
+    local ids = {}
+    for _, poi in ipairs(list) do table.insert(ids, poi.areaPoiID) end
+    return ids
+  end,
   GetAreaPOIInfo = function(mapID, poiID)
-    for _, poi in ipairs(DelvePOIs[mapID] or {}) do
-      if poi.areaPoiID == poiID then return poi end
+    for _, bucket in ipairs({ DelvePOIs[mapID], AreaPOIs[mapID] }) do
+      for _, poi in ipairs(bucket or {}) do
+        if poi.areaPoiID == poiID then return poi end
+      end
     end
   end,
 }
@@ -575,11 +636,65 @@ DifficultyUtil = {
 C_MythicPlus = {
   GetRunHistory = function()
     return {
-      { level = 7, completed = true }, { level = 6, completed = true },
-      { level = 5, completed = true }, { level = 4, completed = true },
+      { level = 7, completed = true, mapChallengeModeID = 403 },
+      { level = 6, completed = true, mapChallengeModeID = 2 },
+      { level = 5, completed = true, mapChallengeModeID = 403 },
+      { level = 4, completed = true, mapChallengeModeID = 2 },
     }
   end,
 }
+
+C_ChallengeMode = {
+  GetMapUIInfo = function(id)
+    if id == 403 then return "The Rookery" end
+    if id == 2 then return "Temple of the Jade Serpent" end
+  end,
+}
+
+C_Item = {
+  GetDetailedItemLevelInfo = function(link)
+    if type(link) == "string" and link ~= "" then return 305 end
+  end,
+}
+
+C_WowTokenPublic = {
+  UpdateMarketPrice = function() end,
+  GetCurrentMarketPrice = function()
+    return 258652 * 10000
+  end,
+}
+
+C_DateAndTime = {
+  GetSecondsUntilWeeklyReset = function()
+    return 16 * 3600 + 13 * 60
+  end,
+  GetSecondsUntilDailyReset = function()
+    return 8 * 3600
+  end,
+}
+
+GetCursorPosition = function() return 0, 0 end
+
+function BreakUpLargeNumbers(n)
+  n = math.floor(math.abs(tonumber(n) or 0))
+  local s = tostring(n)
+  return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+function GetCoinTextureString(amount, height)
+  amount = math.floor(tonumber(amount) or 0)
+  local g = math.floor(amount / 10000)
+  local size = tonumber(height) or 0
+  return g .. "|TInterface\\MoneyFrame\\UI-GoldIcon:" .. size .. ":" .. size .. ":2:0|t"
+end
+
+function GetMoneyString(amount, separateThousands)
+  amount = math.floor(tonumber(amount) or 0)
+  local g = math.floor(amount / 10000)
+  local num = separateThousands and BreakUpLargeNumbers(g) or tostring(g)
+  return num .. "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+end
+
 
 -- Mirrors the reported live state: raid slot at Raid Finder, dungeons partly done,
 -- world tiers of 11, 11 and 7 where 11 is the cap.
@@ -609,6 +724,11 @@ C_WeeklyRewards = {
   HasAvailableRewards = function() return false end,
   HasGeneratedRewards = function() return false end,
   CanClaimRewards = function() return false end,
+  OnUIInteract = function() end,
+  GetExampleRewardItemHyperlinks = function(id)
+    if not id then return end
+    return "|Hitem:" .. tostring(id) .. "|h|h", nil
+  end,
   GetSortedProgressForActivity = function(kind)
     local id = type(kind) == "table" and kind.type or kind
     if id == 3 then

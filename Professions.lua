@@ -318,24 +318,31 @@ function LS:ScanProfessions()
   self.professions = out
 end
 
-function LS:VisibleProfessions()
-  if not (self.db and self.db.currentExpansionOnly) then
-    return self.professions
-  end
+function LS:CurrentExpansionProfessions()
+  local all = self.professions or {}
   local out = {}
-  for _, prof in ipairs(self.professions) do
+  for _, prof in ipairs(all) do
     if prof.isCurrent then
       table.insert(out, prof)
     end
   end
-  return out
+  return #out > 0 and out or all
+end
+
+function LS:VisibleProfessions()
+  if not (self.db and self.db.currentExpansionOnly) then
+    return self.professions
+  end
+  return self:CurrentExpansionProfessions()
 end
 
 -- Unspent knowledge, weekly tasks left, treasures left, professions where catch-up
 -- knowledge is already farmable, and the knowledge those weekly tasks are still worth.
+-- Dashboard and Warband always use the current expansion so leftover Khaz Algar
+-- (or older) points do not look like work still to do this season.
 function LS:ProfessionSummary()
   local unspent, weeklyLeft, treasureLeft, catchUpReady, weeklyPoints = 0, 0, 0, 0, 0
-  for _, prof in ipairs(self:VisibleProfessions()) do
+  for _, prof in ipairs(self:CurrentExpansionProfessions()) do
     unspent = unspent + (prof.unspent or 0)
     if prof.weekly then
       weeklyLeft = weeklyLeft + (prof.weekly.total - prof.weekly.done)

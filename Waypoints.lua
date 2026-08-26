@@ -1,14 +1,35 @@
 local _, LS = ...
 
--- TomTom if it is loaded, otherwise the client's single user waypoint.
--- Coordinates are percent (0-100), the same form WeeklyKnowledge stores.
+-- Auto uses TomTom if it is loaded, otherwise the client's single user waypoint.
+-- Settings can force TomTom or the client pin. Coordinates are percent (0-100),
+-- the same form WeeklyKnowledge stores.
 
 local function AddonLoaded(name)
   return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
 end
 
+LS.waypointSourceOrder = { "AUTO", "TOMTOM", "BLIZZARD" }
+LS.waypointSourceLabels = {
+  AUTO = "Auto",
+  TOMTOM = "TomTom",
+  BLIZZARD = "Blizzard waypoint",
+}
+
 function LS:HasTomTom()
   return (TomTom and TomTom.AddWaypoint) and true or AddonLoaded("TomTom")
+end
+
+function LS:ResolveWaypointSource()
+  local wanted = (self.db and self.db.waypointSource) or "AUTO"
+  if wanted == "BLIZZARD" then
+    return "BLIZZARD", "Blizzard waypoint", true
+  end
+  if wanted == "TOMTOM" then
+    if self:HasTomTom() then return "TOMTOM", "TomTom", true end
+    return "TOMTOM", "TomTom", false
+  end
+  if self:HasTomTom() then return "TOMTOM", "TomTom", true end
+  return "BLIZZARD", "Blizzard waypoint", true
 end
 
 function LS:NormalizeWaypoints(list)
@@ -169,7 +190,9 @@ function LS:MarkWaypoints(points, title)
     end
   end
 
-  if #pinned > 0 and self:HasTomTom() then
+  local source, _, ready = self:ResolveWaypointSource()
+  local wanted = (self.db and self.db.waypointSource) or "AUTO"
+  if #pinned > 0 and source == "TOMTOM" and ready then
     for _, point in ipairs(pinned) do
       PinTomTom(point)
     end
@@ -185,9 +208,13 @@ function LS:MarkWaypoints(points, title)
   if #pinned > 0 then
     local point = ClosestPoint(pinned)
     if PinBlizzard(point) then
-      local extra = #pinned > 1
-        and (" The client only keeps one pin; TomTom can show all " .. #pinned .. ".")
-        or ""
+      local extra = ""
+      if #pinned > 1 then
+        extra = " The client only keeps one pin."
+        if wanted ~= "BLIZZARD" then
+          extra = extra .. " TomTom can show all " .. #pinned .. "."
+        end
+      end
       print("|cff59d8c9Lodestar|r waypoint set: " .. (point.title or "location")
         .. " at " .. string.format("%.1f, %.1f", point.x, point.y) .. "." .. extra)
       return

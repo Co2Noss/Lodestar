@@ -17,7 +17,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
-**Latest release:** [v1.3.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.3.0)
+**Latest release:** [v1.4.0](https://github.com/Co2Noss/Lodestar/releases/tag/v1.4.0)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -25,20 +25,22 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 ## What it does
 
-On first login Lodestar asks what you care about: Great Vault and endgame, solo content, professions, mounts, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
+On first login Lodestar asks what you care about: Great Vault and endgame, solo content, prey hunts, professions, mounts, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
 
 Lodestar works on its own. Optional addons unlock extra behaviour if they are loaded:
 
 - **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet.
-- **TomTom** — multiple waypoints and a closest-arrow. Without it, Lodestar uses the client's single map pin.
+- **TomTom** — multiple waypoints and a closest-arrow. Settings can force TomTom, the client's map pin, or Auto.
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture, and font.
+- **Great Vault Key Info** — Champion/Hero ranks in the client's Great Vault window. Dashboard hover uses named keys and reward item levels the client already has.
 
 From there it builds a plan. The left menu is workspaces (Dashboard, planning, tracking, account), not a second copy of Today's tabs:
 
-- **Today's Plan** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered. Bountiful delves are named from the map when the client marks them. Questing ranks the current campaign and quests already in the log; if those are empty it asks you to check the map.
+- **Today's Plan** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing). Only categories with work appear. The tab you were last on is remembered. Bountiful delves are named from the map when the client marks them. Questing ranks the current campaign, quests the client marks important (Prey and Voidcore unlocks included), and quests already in the log; if those are empty it asks you to check the map. Prey hunts are a goal; they fill the World Vault and drop gear.
 - **Weekly Plan** / **Long-Term Goals** — the same cards, split by whether they reset this week or wait.
-- **Progress** — this character's Great Vault and professions. Raid, Dungeons, and World each have their own tab. Every slot shows current reward quality, whether it can still be improved, and how much work that takes. A delve slot is only called maxed when it is actually at the cap. If last week's chest is unclaimed, Today's Plan tells you to pick your loot. Professions keep one tab per trained profession; Open (or a click on the page below the tabs) opens that profession.
+- **Dashboard** — snapshot of the plan as widgets you can add, remove, resize, and drag. Edit dashboard to pin Great Vault, WoW Token, weekly reset, tracked work, warband, gold (if a price addon is loaded), or HandyNotes rares. Other addons can register tiles with `Lodestar:RegisterWidget`. Open on Professions still opens the profession tabs.
+- **Progress** — activities you tracked. Compact mode shows the same list.
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Goals picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status.
 - **Settings** — Goals, Appearance, Compact, and Layout on their own tabs.
@@ -51,10 +53,10 @@ There is no time-budget slider. Lodestar ranks everything that matches your goal
 
 ## Compact mode
 
-A small always-on window with the next thing to do, or two when more goals are on.
+A small always-on window of the activities you tracked.
 
 - Toggle it in Settings, with `/ls compact`, or by right-clicking the minimap button.
-- Click an entry for details. Double-click to open the full window.
+- Click an entry for details. Double-click to open Progress.
 - Hides while the main window is open. Collapses to the title bar in combat.
 - Position and width are saved.
 
@@ -83,7 +85,7 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |
 
-Treasure cards with a known location have a **Waypoint** button. TomTom pins every remaining pickup; without it, Lodestar uses the client's single map pin. HandyNotes rares get the same button; treasures and other map marks stay off that card. Bountiful delves pin from the map POIs when the client names them. Midnight gathering farms have a **Map** button for the zone circuit.
+Treasure cards with a known location have a **Waypoint** button. Settings chooses Auto (TomTom when loaded), TomTom, or the client's single map pin. HandyNotes rares get the same button; treasures and other map marks stay off that card. Bountiful delves pin from the map POIs when the client names them. Midnight gathering farms have a **Map** button for the zone circuit.
 
 Left-click the minimap button for the full window. Right-click for compact mode.
 
