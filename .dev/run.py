@@ -348,7 +348,7 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.1", "1.5.0", "1.4.1", "1.4.0", "1.3.0"]), log)
+      all(name in log for name in ["1.5.2", "1.5.1", "1.5.0", "1.4.1", "1.4.0"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -728,6 +728,45 @@ check("a world slot below the cap is not called maxed",
         end
         return table.concat(out, "\\n")
       end)()""") or ""))
+check("a stale World Vault track is labelled, not the raw id",
+      s.eval('__LS:ActivityLabel("vault_world_1_up")') == "Upgrade World Vault slot 1")
+s.exec("""
+  __LS.db.tracked = { vault_world_1_up = true }
+""")
+stale_track = s.eval("""(function()
+  local a = __LS:TrackedActivities()[1]
+  if not a then return "missing" end
+  return table.concat({ a.id, a.title, tostring(a.score) }, "|")
+end)()""")
+check("a maxed World Vault track keeps the id and hides the raw title",
+      stale_track == "vault_world_1_up|Upgrade World Vault slot 1|0", stale_track)
+s.exec("""
+  _G.__oldGetActivitiesStale = C_WeeklyRewards.GetActivities
+  C_WeeklyRewards.GetActivities = function(kind)
+    if kind == Enum.WeeklyRewardChestThresholdType.World then
+      return {
+        { type = 3, index = 1, level = 0, threshold = 2, progress = 0, id = 7 },
+        { type = 3, index = 2, level = 0, threshold = 4, progress = 0, id = 8 },
+        { type = 3, index = 3, level = 0, threshold = 8, progress = 0, id = 9 },
+      }
+    end
+    return __oldGetActivitiesStale(kind)
+  end
+  __LS:ScanVault()
+""")
+sibling = s.eval("""(function()
+  local a = __LS:FindActivity("vault_world_1_up")
+  if not a then return "missing" end
+  return table.concat({ a.id, a.title }, "|")
+end)()""")
+check("a tracked World Vault upgrade follows this week's fill card",
+      sibling.startswith("vault_world_1_up|Complete ") and "vault_world_1_up" not in sibling[18:],
+      sibling)
+s.exec("""
+  C_WeeklyRewards.GetActivities = _G.__oldGetActivitiesStale
+  __LS.db.tracked = {}
+  __LS:ScanVault()
+""")
 check("the plan still groups into categories", s.eval("#(select(1, __LS:GetCategories()))") > 0)
 for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "PROGRESS", "IGNORED", "COMPLETED",
              "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "WELCOME", "DETAILS"]:
@@ -2757,6 +2796,13 @@ s.timers()
 check("compact stays empty until something is tracked",
       s.eval("#__LS:CompactActivities()") == 0)
 s.exec("""
+  __LS.db.tracked = { vault_world_1_up = true }
+  __LS:UpdateCompact()
+""")
+check("compact does not paint a raw vault id",
+      s.eval('(__LS.compact.rows[1].title:GetText())') == "Upgrade World Vault slot 1")
+s.exec("""
+  __LS.db.tracked = {}
   local recs = __LS:GetRecommendations()
   __LS.db.tracked[recs[1].id] = true
   __LS:UpdateCompact()

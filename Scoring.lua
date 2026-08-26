@@ -124,7 +124,7 @@ function LS:TrackedActivities()
       local activity = self:FindActivity(id)
       table.insert(out, activity or {
         id = id,
-        title = id,
+        title = self:ActivityLabel(id),
         why = "That activity is no longer being generated.",
         score = 0,
       })

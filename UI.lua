@@ -1189,7 +1189,9 @@ function LS:FlaggedPage(store, title, why)
   end
   table.sort(ids, function(a, b)
     local aa, bb = self:FindActivity(a), self:FindActivity(b)
-    return (aa and aa.title or a) < (bb and bb.title or b)
+    local left = (aa and aa.title) or self:ActivityLabel(a)
+    local right = (bb and bb.title) or self:ActivityLabel(b)
+    return left < right
   end)
 
   self:Heading(title, why)
@@ -1213,7 +1215,7 @@ function LS:FlaggedPage(store, title, why)
     local heading = text(card, width - 120, 13)
     heading:SetPoint("TOPLEFT", 12, -10)
     heading:SetTextColor(unpack(self.colors.accent))
-    heading:SetText((activity and activity.title) or id)
+    heading:SetText((activity and activity.title) or self:ActivityLabel(id))
     local line = text(card, width - 120, 11)
     line:SetPoint("TOPLEFT", 12, -34)
     line:SetText((activity and activity.why) or "That activity is no longer being generated.")
@@ -1292,7 +1294,7 @@ end
 function LS:DetailsPage()
   local activity = self:FindActivity(self.detailID)
   if not activity then
-    self:Heading("Activity", "That activity is no longer on your plan.")
+    self:Heading(self:ActivityLabel(self.detailID), "That activity is no longer on your plan.")
     local back = button(self.content, "Back to today", 160)
     back:SetPoint("TOPLEFT", 0, -70)
     back:SetScript("OnMouseUp", function() self:ShowPage("TODAY") end)

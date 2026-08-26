@@ -969,10 +969,14 @@ local function RegisterExtraWidgets()
         if art.SetColorTexture and not texture and self.colors then
           art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
         end
+        if art.SetDrawLayer then art:SetDrawLayer("ARTWORK", 0) end
+        -- Dim the whole icon so the key sits on the same field on every dungeon.
+        -- A smaller plate only showed up on bright art.
         local shade = parent:CreateTexture(nil, "ARTWORK")
-        shade:SetSize(math.floor(size * 0.72), math.floor(size * 0.55))
-        shade:SetPoint("CENTER", art, "CENTER", 0, 0)
-        if shade.SetColorTexture then shade:SetColorTexture(0, 0, 0, 0.62) end
+        shade:SetSize(size, size)
+        shade:SetPoint("TOPLEFT", art, "TOPLEFT", 0, 0)
+        if shade.SetDrawLayer then shade:SetDrawLayer("ARTWORK", 1) end
+        if shade.SetColorTexture then shade:SetColorTexture(0, 0, 0, 0.35) end
         local level = self:SeasonBestKeyLevel(mapID)
         local num = w.text(parent, size, fontSize)
         if num.ClearAllPoints then num:ClearAllPoints() end

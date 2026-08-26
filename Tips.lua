@@ -76,6 +76,13 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.2",
+    notes = {
+      "Compact and Progress no longer show a raw vault id when that slot is no longer being ranked.",
+      "Mythic+ dims the whole dungeon icon behind the key level, instead of a smaller plate that only showed up on bright art.",
+    },
+  },
+  {
     version = "1.5.1",
     notes = {
       "Settings → Reputation no longer paints a full-page panel over the faction list, so Rank all and the factions stay readable.",
@@ -102,13 +109,6 @@ LS.CHANGELOG = {
     notes = {
       "Prey hunts are a goal. Dashboard widgets sit on a 12 × 18 canvas you drag and resize.",
       "The left menu collapses to icons. Compact mode lists tracked work only.",
-    },
-  },
-  {
-    version = "1.3.0",
-    notes = {
-      "The left menu is workspaces, not a second copy of Today's tabs.",
-      "Questing ranks the current campaign and a few quests already in the log.",
     },
   },
 }

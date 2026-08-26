@@ -1,3 +1,11 @@
+# 1.5.2
+
+- Mythic+ dims the whole dungeon icon behind the key level, instead of a smaller
+  plate that only showed up on bright art.
+- Compact and Progress no longer show a raw vault id (`vault_world_1_up`) when
+  that slot is no longer being ranked. The label comes from the id scheme, or
+  this week's fill/upgrade card for the same slot.
+
 # 1.5.1
 
 - Settings → Reputation no longer paints a full-page panel over the faction list,
