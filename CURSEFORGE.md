@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.5.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.2)
+**Latest release:** [v1.5.21](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.21)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -30,7 +30,7 @@ On first login Lodestar asks what you care about: Great Vault and endgame, solo 
 
 Lodestar works on its own. Optional addons unlock extra behaviour if they are loaded:
 
-- **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet. TradeSkillMaster also colours the warband gold tile with its account log when it has one.
+- **TradeSkillMaster, Auctionator, or RECrystallize** — gold prices. Without one, gold making stays quiet.
 - **Raider.IO** — colours the Mythic+ dashboard tile from your profile. Without it, that tile still shows the client's mythic rating.
 - **TomTom** — multiple waypoints and a closest-arrow. Settings → Optional Addons can force TomTom, the client's map pin, or Auto.
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
@@ -43,7 +43,7 @@ From there it builds a plan. The left menu is workspaces (Dashboard, planning, t
 
 - **Today's Plan** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing, PvP, Housing). Only categories with work appear. The tab you were last on is remembered. Bountiful delves are named from the map when the client marks them. Questing ranks the current campaign, quests the client marks important (Prey and Voidcore unlocks included), and quests already in the log; if those are empty it asks you to check the map. Prey hunts are a goal; they fill the World Vault and drop gear. PvP ranks weekly Conquest the client still needs. Housing ranks a missing house, unfinished neighborhood initiatives, and weekly housing quests already in the log (Housewarming and the like). Lodestar does not invent housing quest IDs.
 - **Weekly Plan** / **Long-Term Goals** — the same cards, split by whether they reset this week or wait.
-- **Dashboard** — snapshot of the plan as widgets you can add, remove, resize, and drag. Edit dashboard to pin Great Vault, WoW Token, weekly reset, tracked work, warband, gold (if a price addon is loaded), HandyNotes rares, Mythic+, warband gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey. Other addons can register tiles with `Lodestar:RegisterWidget`. Open on Professions still opens the profession tabs.
+- **Dashboard** — snapshot of the plan as widgets you can add, remove, resize, and drag. Edit dashboard to pin Great Vault, WoW Token, weekly reset, tracked work, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey. Other addons can register tiles with `Lodestar:RegisterWidget`. Open on Professions still opens the profession tabs.
 - **Progress** — activities you tracked. Compact mode shows the same list.
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Optional Addons picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status. Track or untrack alts when more than one character is saved.

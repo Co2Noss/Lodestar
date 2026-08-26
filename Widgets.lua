@@ -1,108 +1,11 @@
 local _, LS = ...
 
--- Extra dashboard tiles. Mythic+ and warband gold read the client. Raider.IO and
--- TSM colour or enrich those tiles when they are loaded. Currency and PvP are
--- always available.
-
-local function CopperFrom(entry)
-  if type(entry) == "number" then return entry end
-  if type(entry) ~= "table" then return end
-  return tonumber(entry.copper)
-    or tonumber(entry.p)
-    or (entry.gold and tonumber(entry.gold) * 10000)
-    or tonumber(entry[2])
-end
-
-function LS:TSMGoldLog()
-  local logs
-  if TSM and TSM.db then
-    pcall(function() logs = TSM.db.sync.internalData.goldLog end)
-    if type(logs) ~= "table" then
-      pcall(function() logs = TSM.db.factionrealm.internalData.goldLog end)
-    end
-    if type(logs) ~= "table" then
-      pcall(function() logs = TSM.db.factionrealm.goldLog end)
-    end
-  end
-  return type(logs) == "table" and logs or nil
-end
-
-function LS:TSMAccountGoldNow()
-  local logs = self:TSMGoldLog()
-  local total, found = 0, false
-  if logs then
-    for key, data in pairs(logs) do
-      if type(key) == "string" then
-        local last
-        if type(data) == "table" and data[1] then
-          last = CopperFrom(data[#data])
-        else
-          last = CopperFrom(data)
-        end
-        if last then
-          total = total + last
-          found = true
-        end
-      end
-    end
-    if not found then
-      local last = logs[1] and CopperFrom(logs[#logs]) or CopperFrom(logs)
-      if last then return last end
-    end
-  end
-  if found then return total end
-  if self.WarbandGold then return self:WarbandGold() end
-  if GetMoney then return tonumber(GetMoney()) or 0 end
-  return 0
-end
-
-function LS:TSMAccountGoldHistory()
-  local logs = self:TSMGoldLog()
-  local byTime, series = {}, {}
-  local function consume(data)
-    if type(data) ~= "table" then return end
-    if data[1] then
-      for _, entry in ipairs(data) do
-        local copper = CopperFrom(entry)
-        if copper then
-          local t = type(entry) == "table"
-            and (entry.endMinute or entry.startMinute or entry.t or entry.time)
-            or nil
-          t = tonumber(t) or (#series + 1)
-          byTime[t] = (byTime[t] or 0) + copper
-        end
-      end
-    else
-      local copper = CopperFrom(data)
-      if copper then byTime[0] = (byTime[0] or 0) + copper end
-    end
-  end
-  if logs then
-    local named
-    for key in pairs(logs) do
-      if type(key) == "string" then named = true break end
-    end
-    if named then
-      for _, data in pairs(logs) do consume(data) end
-    else
-      consume(logs)
-    end
-  end
-  local times = {}
-  for t in pairs(byTime) do table.insert(times, t) end
-  table.sort(times)
-  for _, t in ipairs(times) do
-    table.insert(series, { t = t, p = byTime[t] })
-  end
-  if #series < 2 and self.db and self.db.goldHistory then
-    return self.db.goldHistory, self:TSMAccountGoldNow()
-  end
-  return series, series[#series] and series[#series].p or self:TSMAccountGoldNow()
-end
+-- Extra dashboard tiles. Mythic+ and gold read the client. Raider.IO colours
+-- Mythic+ when it is loaded. Currency and PvP are always available.
 
 function LS:RecordAccountGold()
   if not self.db then return end
-  local copper = self:TSMAccountGoldNow()
+  local copper = self.WarbandGold and self:WarbandGold() or (GetMoney and tonumber(GetMoney())) or 0
   if not copper or copper <= 0 then return end
   self.db.goldHistory = self.db.goldHistory or {}
   local last = self.db.goldHistory[#self.db.goldHistory]
@@ -1020,25 +923,10 @@ local function RegisterExtraWidgets()
 
   LS:RegisterWidget({
     id = "tsm_gold",
-    title = function()
-      if TSM_API or TSM then return "TSM Gold" end
-      return "Warband Gold"
-    end,
+    title = "Gold",
     defaultSize = "half",
     tooltip = function(self, tip)
-      if tip.ClearLines then tip:ClearLines() end
-      local usingTSM = (TSM_API or TSM) and self:TSMGoldLog()
-      tip:SetText(usingTSM and "TSM Gold" or "Warband Gold")
-      local copper = self:TSMAccountGoldNow()
-      if tip.AddLine then
-        local text = self:FormatTokenMoney(copper or 0, { format = "letters", separators = true })
-        tip:AddLine(text)
-        if usingTSM then
-          tip:AddLine("Account gold TSM has logged. Lodestar does not invent an auction house.")
-        else
-          tip:AddLine("Gold across characters Lodestar has seen, plus the warband bank when the client reports it.")
-        end
-      end
+      if self.FillGoldTooltip then self:FillGoldTooltip(tip) end
     end,
     render = function(self, parent, width, height)
       if self.dashboardEdit then
@@ -1047,17 +935,18 @@ local function RegisterExtraWidgets()
       local w = self.widgets
       height = height or 80
       self:RecordAccountGold()
-      local history, now = self:TSMAccountGoldHistory()
-      now = now or self:TSMAccountGoldNow()
+      local now = self:WarbandGold()
+      local history = self.db and self.db.goldHistory
       local opts = self:WidgetOpts("tsm_gold")
       local format = opts.format or "letters"
       local colorOn = opts.color ~= false
       local sepOn = opts.separators
       if sepOn == nil then sepOn = true end
       sepOn = sepOn and true or false
-      local chart = (opts.chart or "line") == "line" and "line" or "bars"
+      local style = (opts.chart or "line") == "line" and "line" or "bars"
       local amount = w.text(parent, width - 24, 18)
       amount:SetPoint("TOPLEFT", 12, -6)
+      if amount.SetDrawLayer then amount:SetDrawLayer("OVERLAY", 6) end
       local text, r, g, b = self:FormatTokenMoney(now or 0, {
         format = format, color = colorOn, separators = sepOn,
       })
@@ -1066,31 +955,19 @@ local function RegisterExtraWidgets()
       if self.FitText then self:FitText(amount, width - 24, 1) end
       local hint = w.text(parent, width - 24, 10)
       hint:SetPoint("TOPLEFT", 12, -30)
+      if hint.SetDrawLayer then hint:SetDrawLayer("OVERLAY", 6) end
       if self.FitText then self:FitText(hint, width - 24, 1) end
       if self.colors then hint:SetTextColor(unpack(self.colors.muted)) end
-      local logs = self:TSMGoldLog()
-      local named = 0
-      if logs then
-        for key in pairs(logs) do
-          if type(key) == "string" then named = named + 1 end
-        end
-      end
-      if logs and #(history or {}) >= 2 then
-        hint:SetText(named > 1 and "Account gold TSM has logged." or "Gold TSM has logged.")
-        local remain = math.max(24, height - 44)
-        self:PaintSparkline(parent, history, width, -44, self.colors, chart, remain)
-        return height
-      end
+      hint:SetText("Gold Lodestar has seen across this warband.")
       if #(history or {}) >= 2 then
-        hint:SetText("Gold Lodestar has seen across this warband.")
-        local remain = math.max(24, height - 44)
-        self:PaintSparkline(parent, history, width, -44, self.colors, chart, remain)
-        return height
-      end
-      if logs then
-        hint:SetText("A graph appears after TSM logs another gold sample.")
-      else
-        hint:SetText("Gold Lodestar has seen across this warband.")
+        local inset = 46
+        local plotH = math.max(16, (height or 80) - inset - 6)
+        local plot = CreateFrame("Frame", nil, parent)
+        plot:SetPoint("TOPLEFT", 0, -inset)
+        plot:SetPoint("BOTTOMRIGHT", 0, 4)
+        plot:SetHeight(plotH)
+        if plot.SetClipsChildren then plot:SetClipsChildren(true) end
+        self:PaintSparkline(plot, history, width, 0, self.colors, style, plotH)
       end
       return height
     end,

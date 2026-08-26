@@ -1,3 +1,10 @@
+# 1.5.21
+
+- The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each
+  character (and the warband bank when the client reports it). The old farm-location
+  tile is gone; gold farms still rank on Today while that goal is on.
+- The Gold trend sits under the amount instead of drawing through the coins.
+
 # 1.5.2
 
 - Mythic+ dims the whole dungeon icon behind the key level, instead of a smaller

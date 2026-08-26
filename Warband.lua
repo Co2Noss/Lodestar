@@ -88,31 +88,39 @@ end
 
 -- Live bags for the logged-in character, snapshots for the rest, plus the
 -- warband bank when the client reports it. Lodestar does not invent an AH.
-function LS:WarbandGold()
-  local total, seen, countedMe = 0, 0, false
+function LS:WarbandGoldBreakdown()
+  local rows, total, seen, countedMe = {}, 0, 0, false
   local me = self.CharacterKey and self:CharacterKey() or ""
   local live = GetMoney and tonumber(GetMoney()) or 0
-  if self.db and self.db.characters then
-    for key, snap in pairs(self.db.characters) do
-      if self:CharacterIsTracked(key) then
-        local gold
-        if key == me then
-          gold = live
-          countedMe = true
-        else
-          gold = snap and tonumber(snap.gold)
-        end
-        if gold then
-          total = total + gold
-          seen = seen + 1
-        end
+
+  local function push(name, realm, gold, kind)
+    if gold == nil then return end
+    gold = tonumber(gold) or 0
+    table.insert(rows, { name = name or "Unknown", realm = realm or "", gold = gold, kind = kind })
+    total = total + gold
+    if kind ~= "bank" then seen = seen + 1 end
+  end
+
+  for _, character in ipairs(self:GetWarband()) do
+    if character.tracked then
+      local gold
+      if character.isCurrent or character.key == me then
+        gold = live
+        countedMe = true
+      else
+        local snap = self.db.characters and self.db.characters[character.key]
+        gold = snap and tonumber(snap.gold)
+      end
+      if gold ~= nil then
+        local kind = (character.isCurrent or character.key == me) and "live" or "snap"
+        push(character.name, character.realm, gold, kind)
       end
     end
   end
   if not countedMe then
-    total = total + live
-    seen = seen + 1
+    push(UnitName and UnitName("player") or "You", GetRealmName and GetRealmName() or "", live, "live")
   end
+
   local bankType = Enum and Enum.BankType and Enum.BankType.Account
   if C_Bank and C_Bank.FetchDepositedMoney then
     local ok, bank
@@ -121,7 +129,43 @@ function LS:WarbandGold()
     else
       ok, bank = pcall(C_Bank.FetchDepositedMoney, 2)
     end
-    if ok then total = total + (tonumber(bank) or 0) end
+    if ok then bank = tonumber(bank) or 0 end
+    if (bank or 0) > 0 then
+      push("Warband bank", "", bank, "bank")
+    end
   end
+  return rows, total, seen
+end
+
+function LS:WarbandGold()
+  local _, total, seen = self:WarbandGoldBreakdown()
   return total, seen
+end
+
+function LS:GoldRowLabel(row)
+  if not row then return "Unknown" end
+  if row.kind == "bank" then return "Warband bank" end
+  local name = row.name or "Unknown"
+  local realm = row.realm or ""
+  local mine = GetRealmName and GetRealmName() or ""
+  if realm ~= "" and realm ~= mine then
+    return name .. "-" .. realm
+  end
+  return name
+end
+
+function LS:FillGoldTooltip(tip)
+  if not tip then return end
+  if tip.ClearLines then tip:ClearLines() end
+  if tip.SetText then tip:SetText("Gold") end
+  local rows = self:WarbandGoldBreakdown()
+  if not tip.AddLine then return end
+  if #rows == 0 then
+    tip:AddLine("No gold recorded yet.")
+    return
+  end
+  for _, row in ipairs(rows) do
+    local amount = self:FormatTokenMoney(row.gold, { format = "letters", separators = true, color = false })
+    tip:AddLine(self:GoldRowLabel(row) .. "  " .. amount)
+  end
 end

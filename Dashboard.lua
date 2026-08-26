@@ -277,6 +277,17 @@ function LS:MigrateStockDashboard()
   self.db.dashboard.widgets = self:DefaultDashboardWidgets()
 end
 
+-- The old Gold tile ranked a farm from the AH addon. That work stays on Today.
+function LS:DropRetiredDashboardWidgets()
+  local layout = WidgetList(self)
+  if type(layout) ~= "table" then return end
+  for i = #layout, 1, -1 do
+    if layout[i].id == "gold" then
+      table.remove(layout, i)
+    end
+  end
+end
+
 function LS:DashboardLayout()
   self.db.dashboard = self.db.dashboard or {}
   local widgets = self.db.dashboard.widgets
@@ -284,6 +295,7 @@ function LS:DashboardLayout()
     self.db.dashboard.widgets = self:DefaultDashboardWidgets()
   end
   self:MigrateStockDashboard()
+  self:DropRetiredDashboardWidgets()
   self:NormalizeDashboardLayout()
   return self.db.dashboard.widgets
 end
@@ -908,10 +920,18 @@ function LS:PaintSparkline(parent, history, width, y, colors, style, chartH)
   local span = math.max(1, hi - lo)
   local up = history[#history].p >= history[start].p
   local tone = up and colors.accent or colors.warn
+  -- y is a TOPLEFT inset. Sit on the bottom of the parent and never grow through
+  -- the copy above that line (a jump in gold used to paint over the coins).
+  local topGap = math.max(0, -(tonumber(y) or 0))
   chartH = math.max(16, tonumber(chartH) or 24)
-  local left, bottom, chartW = 12, 8 - y, math.max(8, width - 24)
+  local parentH = parent and parent.GetHeight and tonumber(parent:GetHeight())
+  if parentH and parentH > 0 then
+    local maxH = parentH - topGap - 8
+    if maxH >= 16 then chartH = math.min(chartH, maxH) end
+  end
+  local left, bottom, chartW = 12, 8, math.max(8, width - 24)
   local function SampleY(p)
-    return bottom + 6 + math.floor((chartH - 6) * ((p - lo) / span))
+    return bottom + math.floor((chartH - 2) * ((p - lo) / span))
   end
   if style == "line" then
     local prevX, prevY
@@ -942,7 +962,7 @@ function LS:PaintSparkline(parent, history, width, y, colors, style, chartH)
     local barW = math.max(2, math.floor(chartW / n) - 1)
     for i = 0, n - 1 do
       local p = history[start + i].p
-      local bh = 6 + math.floor((chartH - 6) * ((p - lo) / span))
+      local bh = math.max(2, math.floor(chartH * ((p - lo) / span)))
       local bar = parent:CreateTexture(nil, "ARTWORK")
       bar:SetSize(barW, bh)
       bar:SetPoint("BOTTOMLEFT", left + i * (barW + 1), bottom)
@@ -1632,43 +1652,6 @@ local function RegisterBuiltins()
         end
       end
       return (-y) + 8
-    end,
-  })
-
-  LS:RegisterWidget({
-    id = "gold",
-    title = "Gold",
-    defaultSize = "half",
-    sizes = { half = true, wide = true },
-    tooltip = function(self, tip)
-      if tip.ClearLines then tip:ClearLines() end
-      local recs = self.GetGoldRecommendations and self:GetGoldRecommendations() or {}
-      tip:SetText((recs[1] and recs[1].title) or "Gold")
-      if tip.AddLine and recs[1] and recs[1].why then tip:AddLine(recs[1].why, 1, 1, 1, true) end
-    end,
-    available = function(self)
-      local _, _, ready = self:ResolveGoldSource()
-      return ready and self.db.goals.GOLD
-    end,
-    render = function(self, parent, width)
-      if self.dashboardEdit then
-        return self:PaintEditIdle(parent, width)
-      end
-      local w = self.widgets
-      local recs = self.GetGoldRecommendations and self:GetGoldRecommendations() or {}
-      local line = w.text(parent, width - 20, 11)
-      line:SetPoint("TOPLEFT", 12, -8)
-      if #recs == 0 then
-        line:SetText("Nothing priced from the loaded auction house addon.")
-        return 36
-      end
-      line:SetText(recs[1].title)
-      local meta = w.text(parent, width - 20, 10)
-      meta:SetPoint("TOPLEFT", 12, -28)
-      meta:SetTextColor(unpack(self.colors.muted))
-      local _, name = self:ResolveGoldSource()
-      meta:SetText((name or "AH") .. (recs[1].why and ("  •  " .. recs[1].why) or ""))
-      return 52
     end,
   })
 

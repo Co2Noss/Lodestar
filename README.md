@@ -42,7 +42,7 @@ Lodestar answers one question: what is the best use of your next hour in World o
 
 Lodestar works on its own. These addons unlock extra behaviour if they are loaded:
 
-- **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house. Settings → Optional Addons picks the source. TradeSkillMaster also colours the warband gold tile with its account log when it has one.
+- **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house. Settings → Optional Addons picks the source.
 - **Raider.IO** — colours the Mythic+ dashboard tile from your profile. Without it, that tile still shows the client's mythic rating.
 - **TomTom** — multiple waypoints and a closest-arrow. Settings → Optional Addons can force TomTom, the client's map pin, or Auto (TomTom when loaded).
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks (trainers, vendors, chests). Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
@@ -75,7 +75,7 @@ primary profession icons and opens that profession in front of Lodestar when you
 click again to close it. Great Vault opens from
 Dashboard; Progress is the tracked list.
 
-- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, gold, HandyNotes rares, Mythic+, warband gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
+- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
 - **Today's Plan** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
 - **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge, weekly Conquest, neighborhood initiatives, housing weeklies already in the log.
 - **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up. Which of those to rank is still chosen in Settings.
@@ -95,12 +95,11 @@ packs them to the top. Dragging lifts the tile, leaves a ghost in its old cell, 
 marks empty rooms with a bordered plus so you can see where it can land.
 The default layout is Overview, Jump, Professions, and Next, each starting at half
 width — the same size as WoW Token and the other addable tiles. Tiles that need another
-addon stay out of the add list until that addon is loaded: gold farms need TSM, Auctionator
-or RECrystallize (and the Gold goal), rares need HandyNotes plus a notes pack.
-Mythic+, Warband Gold, Currencies, PvP, Item Level, Housing, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
+addon stay out of the add list until that addon is loaded: rares need HandyNotes plus a notes pack.
+Mythic+, Gold, Currencies, PvP, Item Level, Housing, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
 the client's overall dungeon score (Raider.IO colours it when loaded). Click the tile to
-open the client's Mythic+ Dungeons tab; click again to close it. Warband Gold sums
-characters Lodestar has seen, or TSM's account log when TSM is loaded. Currencies start on
+open the client's Mythic+ Dungeons tab; click again to close it. Gold sums
+characters Lodestar has seen, plus the warband bank when the client reports it; hover lists each character. Currencies start on
 this expansion and use the client's rarity colour; edit mode toggles what to track
 (and hides live amounts until you click Done editing). Click
 the tile to open the currency tab; click again to close it. PvP

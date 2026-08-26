@@ -348,7 +348,7 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.2", "1.5.1", "1.5.0", "1.4.1", "1.4.0"]), log)
+      all(name in log for name in ["1.5.21", "1.5.2", "1.5.1", "1.5.0", "1.4.1"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -916,9 +916,10 @@ check("edit mode lists widgets you can add",
       and "Add · Housing" in edit
       and "Add · Calendar" in edit and "Add · Guild" in edit
       and "Add · Delver's Journey" in edit and "Add · Preyhunter's Journey" in edit
-      and "Add · Mythic+" in edit and "Add · Warband Gold" in edit
-      and "Add · Gold" not in edit and "Add · Rares" not in edit
-      and "Add · Raider.IO" not in edit and "Add · TSM Gold" not in edit, edit)
+      and "Add · Mythic+" in edit and "Add · Gold" in edit
+      and "Add · Rares" not in edit
+      and "Add · Raider.IO" not in edit and "Add · TSM Gold" not in edit
+      and "Add · Warband Gold" not in edit, edit)
 check("edit mode shows settings instead of live tile data",
       "Totals on this tile." in edit
       and "Shortcuts on this tile." in edit
@@ -2138,12 +2139,12 @@ s.timers()
 edit_extra = s.texts()
 check("Mythic+ is on the add list without Raider.IO",
       "Add · Mythic+" in edit_extra, edit_extra)
-check("Warband Gold is on the add list without TSM",
-      "Add · Warband Gold" in edit_extra, edit_extra)
+check("Gold is on the add list without TSM",
+      "Add · Gold" in edit_extra, edit_extra)
 check("the old Raider.IO add label is gone",
       "Add · Raider.IO" not in edit_extra, edit_extra)
-check("TSM Gold stays off the add list until TSM is loaded",
-      "Add · TSM Gold" not in edit_extra, edit_extra)
+check("TSM Gold is not a tile name",
+      "Add · TSM Gold" not in edit_extra and "Add · Warband Gold" not in edit_extra, edit_extra)
 s.exec("""
   OverallDungeonScore = 1800
   ChallengeMaps = { 403, 2 }
@@ -2226,18 +2227,37 @@ s.exec("""
 """)
 s.timers()
 s.click("Edit dashboard")
-s.click("Add · Warband Gold")
+s.click("Add · Gold")
 warband_gold = s.texts()
-check("Warband Gold edit lists gold format, not the live total",
+check("Gold edit lists gold format, not the live total",
       "Coin icons" in warband_gold and "Letters" in warband_gold
       and "6,500g" not in warband_gold, warband_gold)
 s.click("Done editing")
 warband_gold = s.texts()
-check("without TSM the gold tile sums warband characters Lodestar has seen",
+check("the gold tile sums warband characters Lodestar has seen",
       "6,500g" in warband_gold and "0s" in warband_gold and "0c" in warband_gold
-      and "Warband Gold" in warband_gold
-      and "Gold Lodestar has seen across this warband." in warband_gold,
+      and "Gold" in warband_gold
+      and "Gold Lodestar has seen across this warband." in warband_gold
+      and "TSM Gold" not in warband_gold and "Warband Gold" not in warband_gold,
       warband_gold)
+s.exec("""
+  GameTooltip:ClearLines()
+  __LS:FillGoldTooltip(GameTooltip)
+""")
+gold_tip = s.eval('table.concat(GameTooltip._lines or {}, "\\n")')
+check("the gold tooltip lists each character Lodestar has seen",
+      "Gold" in gold_tip and "Testchar" in gold_tip and "1,500g" in gold_tip
+      and "Alts" in gold_tip and "5,000g" in gold_tip, gold_tip)
+s.exec("""
+  table.insert(__LS.db.dashboard.widgets, { id = "gold", x = 0, y = 16, w = 6, h = 4 })
+  __LS:DashboardLayout()
+""")
+check("the old gold-farm tile is dropped from saved layouts",
+      s.eval("""(function()
+        for _, e in ipairs(__LS.db.dashboard.widgets) do
+          if e.id == "gold" then return true end
+        end
+      end)()""") is not True)
 s.exec("""
   TSM_API = {}
   TSM = {
@@ -2262,15 +2282,32 @@ s.exec("""
 """)
 s.timers()
 tsm = s.texts()
-check("TSM Gold graphs the logged account total",
-      "28,000g" in tsm and "0s" in tsm and "0c" in tsm
-      and "Account gold TSM has logged." in tsm and "TSM Gold" in tsm, tsm)
-check("TSM Gold colourizes silver and copper",
+check("TSM does not replace the gold tile with its account log",
+      "6,500g" in tsm and "0s" in tsm and "0c" in tsm
+      and "Gold Lodestar has seen across this warband." in tsm
+      and "TSM Gold" not in tsm and "28,000g" not in tsm, tsm)
+check("letter gold still colourizes silver and copper",
       s.eval("""(function()
         local t = select(1, __LS:FormatTokenMoney(280000000, { format = "letters", separators = true, color = true }))
         return t:find("|cff", 1, true) ~= nil and t:find("28,000g", 1, true) ~= nil
           and t:find("0s", 1, true) ~= nil and t:find("0c", 1, true) ~= nil
       end)()""") is True)
+s.exec("""
+  local f = CreateFrame("Frame")
+  f:SetSize(200, 120)
+  __LS:PaintSparkline(f, { { t = 1, p = 1 }, { t = 2, p = 100000 } }, 200, -40,
+    { accent = { 0.3, 0.8, 0.8 } }, "line", 400)
+  local hi = 0
+  for _, r in ipairs(f.regions or {}) do
+    for _, pt in ipairs(r.points or {}) do
+      if pt[1] == "CENTER" and (pt[5] or 0) > hi then hi = pt[5] end
+    end
+  end
+  _G.__sparkHi, _G.__sparkH = hi, f:GetHeight()
+""")
+check("a sparkline stays below the text inset",
+      s.eval("__sparkHi") <= s.eval("__sparkH") - 40 + 2,
+      (s.eval("__sparkHi"), s.eval("__sparkH")))
 s.exec("""
   CurrencyList = {
     { name = "Midnight", isHeader = true },

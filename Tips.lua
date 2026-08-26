@@ -17,7 +17,7 @@ LS.TIPS = {
     id = "dashboard",
     firstRun = true,
     title = "Dashboard is yours",
-    body = "Edit dashboard to add tiles, then drag and resize them. Gold farms and rares stay off the add list until their addon is loaded.",
+    body = "Edit dashboard to add tiles, then drag and resize them. Rares stay off the add list until HandyNotes is loaded.",
     page = "DASHBOARD",
     highlight = "edit",
   },
@@ -76,6 +76,13 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.21",
+    notes = {
+      "The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each character. The farm-location tile is gone.",
+      "The Gold trend sits under the amount instead of drawing through the coins.",
+    },
+  },
+  {
     version = "1.5.2",
     notes = {
       "Compact and Progress no longer show a raw vault id when that slot is no longer being ranked.",
@@ -102,13 +109,6 @@ LS.CHANGELOG = {
     version = "1.4.1",
     notes = {
       "Below the expansion cap, Great Vault and bountiful delves stay quiet. The plan is to level; professions still rank if that goal is on.",
-    },
-  },
-  {
-    version = "1.4.0",
-    notes = {
-      "Prey hunts are a goal. Dashboard widgets sit on a 12 × 18 canvas you drag and resize.",
-      "The left menu collapses to icons. Compact mode lists tracked work only.",
     },
   },
 }
