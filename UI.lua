@@ -1928,24 +1928,32 @@ function LS:Settings()
   end)
 
   local bodyOffset = 96
+  local nest
   if chosen[1] == "REPUTATION" then
     if self.ScanReputations then self:ScanReputations() end
     local expansions = self.RepExpansionTabs and self:RepExpansionTabs() or {}
     if #expansions > 0 then
-      local nest = panel(self.content)
+      -- Wrap the expansion strip only. Stretching this panel to the bottom
+      -- covered the reused body scroll, so the faction list sat under a near-black sheet.
+      nest = panel(self.content)
       nest:SetPoint("TOPLEFT", 0, -90)
-      nest:SetPoint("BOTTOMRIGHT", 0, 0)
+      nest:SetPoint("TOPRIGHT", 0, -90)
       paint(nest, "panel")
       nest:SetBackdropBorderColor(unpack(self.colors.accent))
       local _, stripH = self:TabStrip(expansions, self:PageTab("REP"), function(id)
         self:SetPageTab("REP", id)
         self:ShowPage("SETTINGS")
       end, -8, nest)
-      bodyOffset = 106 + (stripH or 30)
+      stripH = stripH or 30
+      nest:SetHeight(stripH + 16)
+      bodyOffset = 90 + stripH + 16
     end
   end
 
   local body = self:Body(bodyOffset)
+  if nest and self.bodyScroll and self.bodyScroll.SetFrameLevel then
+    self.bodyScroll:SetFrameLevel((nest:GetFrameLevel() or 1) + 2)
+  end
   local width = (chosen[1] == "REPUTATION" or chosen[1] == "CHANGELOG") and body.width or math.min(420, body.width)
   local y = 0
   if chosen[1] == "GOALS" then

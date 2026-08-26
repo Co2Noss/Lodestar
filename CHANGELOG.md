@@ -1,3 +1,8 @@
+# 1.5.1
+
+- Settings → Reputation no longer paints a full-page panel over the faction list,
+  so Rank all and the factions stay readable.
+
 # 1.5.0
 
 - Edit dashboard shows **settings only** on a tile — live Honor, gold, house

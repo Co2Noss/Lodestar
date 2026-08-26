@@ -76,6 +76,12 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.1",
+    notes = {
+      "Settings → Reputation no longer paints a full-page panel over the faction list, so Rank all and the factions stay readable.",
+    },
+  },
+  {
     version = "1.5.0",
     notes = {
       "Dashboard tiles for Mythic+, currencies, PvP, item level, housing, calendar, guild, and journeys. Edit a tile to pick what it shows; live Honor and gold stay off until Done editing.",
@@ -103,13 +109,6 @@ LS.CHANGELOG = {
     notes = {
       "The left menu is workspaces, not a second copy of Today's tabs.",
       "Questing ranks the current campaign and a few quests already in the log.",
-    },
-  },
-  {
-    version = "1.2.0",
-    notes = {
-      "Profession tabs only switch the card. Cards no longer estimate how long something takes.",
-      "HandyNotes ranks rares only, not treasures or other map marks.",
     },
   },
 }

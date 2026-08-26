@@ -348,7 +348,7 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.0", "1.4.1", "1.4.0", "1.3.0", "1.2.0"]), log)
+      all(name in log for name in ["1.5.1", "1.5.0", "1.4.1", "1.4.0", "1.3.0"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -2013,6 +2013,27 @@ rep_settings = s.texts()
 check("Settings Reputation lists expansions and factions from the client",
       "The War Within" in rep_settings and "Khaz Algar" in rep_settings
       and "Council of Dornogal" in rep_settings, rep_settings)
+rep_nest = s.eval("""(function()
+  local nestH, bodyOver = 0, false
+  local bodyLevel = __LS.bodyScroll and __LS.bodyScroll:GetFrameLevel() or 0
+  for _, c in ipairs(__LS.content.children or {}) do
+    if c ~= __LS.bodyScroll then
+      for _, kid in ipairs(c.children or {}) do
+        for _, r in ipairs(kid.regions or {}) do
+          local t = r.text_value
+          if t == "The War Within" or t == "Midnight" then
+            nestH = c.h or 0
+            bodyOver = bodyLevel > (c:GetFrameLevel() or 0)
+          end
+        end
+      end
+    end
+  end
+  return nestH .. "|" .. tostring(bodyOver)
+end)()""")
+nest_h, body_over = rep_nest.split("|", 1)
+check("the reputation expansion strip does not cover the faction list",
+      20 < int(float(nest_h)) < 220 and body_over == "true", rep_nest)
 sizes = s.eval("""(function()
   local allW, allH, factionW, factionH
   local function visit(frame, depth)
