@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.4.1"
+LS.version = "1.5.0"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -9,7 +9,7 @@ LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
 LS.defaults = {
   -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
   -- a goal that is off silently removes recommendations the player never learns existed.
-  goals = { ENDGAME = false, SOLO = false, PREY = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
+  goals = { ENDGAME = false, SOLO = false, PREY = false, PVP = false, HOUSING = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
   dismissed = {},
   completed = {},
   tracked = {},
@@ -37,6 +37,8 @@ LS.defaults = {
   -- into a layout the player already edited.
   dashboard = {},
   tokenHistory = {},
+  goldHistory = {},
+  seenTips = {},
 }
 
 local function merge(a, b)
@@ -104,6 +106,7 @@ local function migrate(db)
     end
   end
   db.tokenHistory = db.tokenHistory or {}
+  if LS.SeedSeenTips then LS:SeedSeenTips(db) end
 end
 
 function LS:FormatDuration(seconds)
@@ -259,6 +262,7 @@ local function RefreshState()
   if LS.SaveSnapshot then LS:SaveSnapshot() end
   if LS.RequestTokenPrice then LS:RequestTokenPrice() end
   if LS.RecordTokenPrice then LS:RecordTokenPrice() end
+  if LS.RecordAccountGold then LS:RecordAccountGold() end
   LS:Refresh()
 end
 
@@ -288,7 +292,11 @@ for _, name in ipairs({
   "PLAYER_REGEN_DISABLED",
   "PLAYER_REGEN_ENABLED",
   "TOKEN_MARKET_PRICE_UPDATED",
-}) do
+      "PLAYER_MONEY",
+      "MODIFIER_STATE_CHANGED",
+      "CALENDAR_UPDATE_EVENT_LIST",
+      "GUILD_ROSTER_UPDATE",
+    }) do
   pcall(events.RegisterEvent, events, name)
 end
 
@@ -309,14 +317,20 @@ events:SetScript("OnEvent", function(_, event, arg)
     return
   end
   if event == "TOKEN_MARKET_PRICE_UPDATED" then
-    if LS.RecordTokenPrice then LS:RecordTokenPrice() end
-    if LS.page == "DASHBOARD" and LS.frame and LS.frame:IsShown() then
+    local changed = LS.RecordTokenPrice and LS:RecordTokenPrice()
+    if changed and LS.page == "DASHBOARD" and LS.frame and LS.frame:IsShown() then
       LS:ShowPage("DASHBOARD")
     end
     return
   end
+  if event == "MODIFIER_STATE_CHANGED" then
+    if LS.RefreshWidgetTooltip then LS:RefreshWidgetTooltip() end
+    return
+  end
   if event == "PLAYER_LOGIN" then
     if RequestRaidInfo then RequestRaidInfo() end
+    if C_Calendar and C_Calendar.OpenCalendar then pcall(C_Calendar.OpenCalendar) end
+    if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
     RefreshState()
     if LS.db.welcomed then
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")

@@ -15,8 +15,8 @@ ADDON = os.path.dirname(HERE)
 # Load order must match the .toc.
 FILES = [
     "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
-    "Vault.lua", "Delves.lua", "Prey.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
-    "UI.lua", "Dashboard.lua", "Compact.lua", "Minimap.lua",
+    "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Housing.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
+    "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
 
 WALK_TEXTS = """
@@ -119,7 +119,7 @@ class Session:
         self.timers()
 
 
-GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
+GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "PvP", "Housing", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
 
 # --- a fresh install ------------------------------------------------------
 print("-- fresh install --")
@@ -157,7 +157,18 @@ check("recommendations appear once a goal is on",
       s.eval("#__LS:GetRecommendations()") > 0)
 
 s.click("Show me my plan")
-check("continuing lands on Today", s.eval("__LS.page") == "TODAY")
+check("continuing opens the first-run tips",
+      s.eval("__LS.page") == "SETTINGS" and s.eval("__LS.coachActive") is True)
+tips = s.texts()
+check("the first tip can be skipped or advanced",
+      "Skip" in tips and "Next" in tips and "Goals decide the plan" in tips, tips)
+check("the first tip walks to Settings Goals",
+      "Great Vault & endgame" in tips and s.eval("__LS:SettingsTab()[1]") == "GOALS", tips)
+s.click("Next")
+check("Next shows the following tip",
+      s.eval("__LS.page") == "DASHBOARD" and "Dashboard is yours" in s.texts(), s.texts())
+s.click("Skip")
+check("Skip hides the rest and lands on Today", s.eval("__LS.page") == "TODAY")
 page = s.texts()
 check("Today shows the plan rather than an empty state",
       "Complete a Bountiful Delve" in page and "Every goal is off" not in page, page)
@@ -205,7 +216,7 @@ check("select all turns on every goal",
         local n = 0
         for _, on in pairs(__LS.db.goals) do if on then n = n + 1 end end
         return n
-      end)()""") == 8)
+      end)()""") == 10)
 check("the same button becomes clear all", "Clear all" in s.texts())
 s.click("Clear all")
 check("clear all turns every goal off", not s.eval("__LS:GoalsChosen()"))
@@ -233,6 +244,14 @@ check("an upgrade gets the normal login line",
       "/ls to open" in old.printed(), old.printed())
 check("an upgrade does not have its window forced open",
       old.eval("__LS.frame:IsShown()") is not True)
+old.exec("__LS:Toggle()")
+old.timers()
+check("an upgrade sees new-feature tips, not the first-run tour",
+      old.eval("__LS.page") == "SETTINGS"
+      and old.eval("__LS.coachActive") is True
+      and "Housing and PvP" in old.texts()
+      and "Goals decide the plan" not in old.texts())
+old.exec("__LS.frame:Hide()")
 
 # --- the Blizzard theme -------------------------------------------------
 print()
@@ -297,13 +316,39 @@ s.exec("__LS:ShowPage('SETTINGS')")
 s.timers()
 settings = s.texts()
 check("Settings opens on Goals", s.eval("__LS:SettingsTab()[1]") == "GOALS")
-check("the five settings tabs are on the strip",
-      all(name in settings for name in ["Goals", "Reputation", "Appearance", "Compact", "Layout"]),
+check("the seven settings tabs are on the strip",
+      all(name in settings for name in
+          ["Goals", "Optional Addons", "Reputation", "Appearance", "Compact", "Layout", "Changelog"]),
       settings)
 check("Goals does not bury colors underneath it",
       "Click a color to change it" not in settings and "Accent" not in settings, settings)
-check("Goals has a waypoint source next to gold prices",
-      "Waypoints" in settings and "Gold prices" in settings, settings)
+check("Goals does not bury addon options",
+      "Gold prices" not in settings and "Waypoints" not in settings, settings)
+s.click("Optional Addons")
+check("Optional Addons is remembered", s.eval("__LS:SettingsTab()[1]") == "ADDONS")
+addons = s.texts()
+check("Optional Addons has gold prices, waypoints, and HandyNotes",
+      "Gold prices" in addons and "Waypoints" in addons and "HandyNotes" in addons, addons)
+check("Optional Addons lists every addon Lodestar talks to",
+      all(name in addons for name in
+          ["TradeSkillMaster", "Auctionator", "RECrystallize", "TomTom",
+           "HandyNotes", "Raider.IO", "ElvUI", "GW2 UI", "RealUI", "Great Vault Key Info"]),
+      addons)
+check("unloaded addons read as not loaded",
+      "TradeSkillMaster  ·  Not loaded" in addons and "TomTom  ·  Not loaded" in addons, addons)
+s.exec("TomTom = { AddWaypoint = function() end }")
+check("a loaded addon reports as loaded",
+      s.eval("""(function()
+        for _, row in ipairs(__LS:OptionalAddonStatus()) do
+          if row.name == "TomTom" then return row.loaded end
+        end
+      end)()""") is True)
+s.exec("TomTom = nil")
+s.click("Changelog")
+check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
+log = s.texts()
+check("Changelog shows the last five versions",
+      all(name in log for name in ["1.5.0", "1.4.1", "1.4.0", "1.3.0", "1.2.0"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -344,6 +389,8 @@ s.click("Reset colors to the theme")
 check("resetting clears the override", s.eval("__LS:HasCustomColors()") is False)
 check("resetting restores the theme accent",
       s.eval("__LS.colors.accent[1]") == s.eval("__LS.palettes.ELVUI.accent[1]"))
+check("the ElvUI theme's default border is a visible grey",
+      s.eval("__LS.colors.border[1]") >= 0.35)
 
 s.exec("__LS:ShowPage('SETTINGS')")
 s.timers()
@@ -379,7 +426,98 @@ check("the sidebar no longer carries a theme readout",
       quiet.eval("__LS.themeText") is None)
 quiet.exec("__LS:PrintThemes()")
 check("asking for the theme list still answers",
-      "Lodestar themes" in quiet.printed())
+      "Lodestar themes" in quiet.printed()
+      and "gw2" in quiet.printed() and "realui" in quiet.printed())
+
+print()
+print("-- ElvUI near-black border --")
+elv = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+elv.fire("ADDON_LOADED", "Lodestar")
+elv.fire("PLAYER_LOGIN")
+elv.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "ElvUI" end
+  ElvUI = {{
+    media = {
+      backdropcolor = {0.025, 0.025, 0.025},
+      backdropfadecolor = {0.06, 0.06, 0.06, 0.9},
+      bordercolor = {0, 0, 0, 1},
+      normTex = "Interface/Buttons/WHITE8X8",
+      normFont = "Fonts\\\\FRIZQT__.TTF",
+    },
+    db = { general = { fontSize = 12, valuecolor = {0.25, 0.75, 0.70} } },
+  }}
+  __LS:SetTheme("ELVUI")
+""")
+elv.timers()
+check("ElvUI's default black border is replaced with a visible grey",
+      elv.eval("__LS.colors.border[1]") >= 0.35)
+elv.exec("""
+  ElvUI[1].media.bordercolor = {0.55, 0.55, 0.55, 1}
+  __LS:SetTheme("ELVUI")
+""")
+elv.timers()
+check("a border ElvUI actually set is kept",
+      abs(elv.eval("__LS.colors.border[1]") - 0.55) < 0.02)
+
+print()
+print("-- GW2 UI and RealUI themes --")
+gw = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+gw.fire("ADDON_LOADED", "Lodestar")
+gw.fire("PLAYER_LOGIN")
+gw.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "GW2_UI" end
+  GW2_ADDON = { Gw2Color = "|cffffedba", Colors = {} }
+  __LS:SetTheme("AUTO")
+""")
+gw.timers()
+check("Auto picks GW2 UI when it is loaded",
+      gw.eval("__LS:CurrentTheme()") == "GW2")
+check("GW2 UI's gold becomes the accent",
+      abs(gw.eval("__LS.colors.accent[1]") - 1) < 0.02
+      and abs(gw.eval("__LS.colors.accent[2]") - 0.929) < 0.02)
+rui = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+rui.fire("ADDON_LOADED", "Lodestar")
+rui.fire("PLAYER_LOGIN")
+rui.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "Aurora" end
+  Aurora = {
+    Color = {
+      highlight = { GetRGBA = function() return 0.1, 0.5, 0.9, 1 end },
+      panelBg = { r = 0.08, g = 0.08, b = 0.08, a = 1 },
+      border = { r = 0.15, g = 0.15, b = 0.15, a = 1 },
+      red = { r = 0.8, g = 0.2, b = 0.2, a = 1 },
+    },
+  }
+  __LS:SetTheme("REALUI")
+""")
+rui.timers()
+check("RealUI reads Aurora's highlight as the accent",
+      abs(rui.eval("__LS.colors.accent[1]") - 0.1) < 0.02
+      and abs(rui.eval("__LS.colors.accent[3]") - 0.9) < 0.02)
+check("RealUI's near-black Aurora border is replaced with a visible grey",
+      rui.eval("__LS.colors.border[1]") >= 0.35)
+elv_aurora = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+elv_aurora.fire("ADDON_LOADED", "Lodestar")
+elv_aurora.fire("PLAYER_LOGIN")
+elv_aurora.exec("""
+  C_AddOns.IsAddOnLoaded = function(name)
+    return name == "ElvUI" or name == "Aurora"
+  end
+  __LS:SetTheme("AUTO")
+""")
+elv_aurora.timers()
+check("Auto keeps ElvUI when Aurora is also loaded",
+      elv_aurora.eval("__LS:CurrentTheme()") == "ELVUI")
+nrib = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+nrib.fire("ADDON_LOADED", "Lodestar")
+nrib.fire("PLAYER_LOGIN")
+nrib.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "nibRealUI" end
+  __LS:SetTheme("AUTO")
+""")
+nrib.timers()
+check("Auto picks RealUI when nibRealUI is loaded",
+      nrib.eval("__LS:CurrentTheme()") == "REALUI")
 
 # --- debug isolation ----------------------------------------------------
 print()
@@ -664,11 +802,44 @@ s.exec("OpenedGreatVault = false; WeeklyRewardsFrame.shown = false")
 s.click("Great Vault")
 check("Dashboard opens the client's Great Vault",
       s.eval("OpenedGreatVault") is True)
+s.exec("__LS:OpenGreatVault()")
+check("clicking Great Vault again closes the chest",
+      s.eval("WeeklyRewardsFrame.shown") is not True)
 s.exec("__LS:ShowPage('DASHBOARD')")
 s.timers()
 dash = s.texts()
 check("Dashboard hosts Professions",
       "Professions" in dash and "unspent knowledge this expansion" in dash, dash)
+check("Dashboard professions shows the two primary profession icons",
+      s.eval("""(function()
+        local n = 0
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.professionIcon then n = n + 1 end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        return n
+      end)()""") == 2)
+s.exec("""
+  OpenedTradeSkills = {}
+  local primaries = __LS:PrimaryProfessions()
+  __LS:OpenProfessionWindow(primaries[1])
+""")
+check("clicking a primary profession icon opens that profession",
+      s.eval("OpenedTradeSkills[#OpenedTradeSkills]") == 2871
+      or s.eval("OpenedTradeSkills[#OpenedTradeSkills]") == 171,
+      s.eval("table.concat(OpenedTradeSkills, ',')"))
+check("the profession window opens in front of Lodestar",
+      s.eval("ProfessionsFrame.frameStrata") == "DIALOG")
+s.exec("""
+  local primaries = __LS:PrimaryProfessions()
+  __LS:OpenProfessionWindow(primaries[1])
+""")
+check("clicking a profession icon again closes the profession window",
+      s.eval("ProfessionsFrame.shown") is not True)
 s.click("Open")
 check("Dashboard opens the Professions page", s.eval("__LS.page") == "PROFESSIONS")
 check("the Professions page highlights the Dashboard workspace",
@@ -691,19 +862,61 @@ check("default dashboard tiles start at half size",
         end
         return layout[1].id == "stats" and layout[1].w == 6 and layout[2].x == 6
       end)()""") is True)
-check("edit mode names the maximum canvas",
-      "Maximum canvas: 12 × 18" in edit, edit)
+check("edit mode names the canvas and that it can grow",
+      "Canvas: 12 × 18" in edit and "grows to 36" in edit, edit)
+check("edit mode lists each addable widget's size in cells",
+      "Add · WoW Token  6×4" in edit and "Add · Weekly reset  " in edit, edit)
 check("edit mode can pack widgets up",
       "Compact up" in edit, edit)
 check("edit mode makes widgets resizable",
       s.eval("__LS.dashboardSlots[1] and __LS.dashboardSlots[1].frame.resizable") is True)
 check("edit mode lists widgets you can add",
       "Add · WoW Token" in edit and "Add · Weekly reset" in edit
-      and "Add · Gold" not in edit and "Add · Rares" not in edit, edit)
+      and "Add · Currencies" in edit and "Add · PvP" in edit
+      and "Add · Item Level" in edit
+      and "Add · Housing" in edit
+      and "Add · Calendar" in edit and "Add · Guild" in edit
+      and "Add · Delver's Journey" in edit and "Add · Preyhunter's Journey" in edit
+      and "Add · Mythic+" in edit and "Add · Warband Gold" in edit
+      and "Add · Gold" not in edit and "Add · Rares" not in edit
+      and "Add · Raider.IO" not in edit and "Add · TSM Gold" not in edit, edit)
+check("edit mode shows settings instead of live tile data",
+      "Totals on this tile." in edit
+      and "Shortcuts on this tile." in edit
+      and "Controls on this tile." in edit
+      and "Nothing extra to set on this tile." in edit
+      and "unspent knowledge this expansion" not in edit, edit)
+s.exec("""
+  __LS.bodyScroll:SetHeight(200)
+  if __LS._bodySync then __LS._bodySync(360) end
+""")
+check("edit mode can scroll the dashboard body",
+      s.eval("__LS.bodyScroll:GetVerticalScroll()") == 360)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+check("redrawing the dashboard in edit mode keeps the body scroll",
+      s.eval("__LS.bodyScroll:GetVerticalScroll()") == 360)
+s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('DASHBOARD')")
+s.timers()
+check("leaving the dashboard resets the body scroll",
+      s.eval("__LS.bodyScroll:GetVerticalScroll()") == 0)
 s.click("Add · WoW Token")
 dash = s.texts()
-check("the token widget uses the client's market price",
-      "258652g" in dash and "WoW Token" in dash, dash)
+check("token settings appear in edit mode, not the live price",
+      "Coin icons" in dash and "Letters" in dash
+      and "258652g" not in dash and "WoW Token" in dash, dash)
+check("token letters keep silver and copper",
+      s.eval("""(function()
+        local t = select(1, __LS:FormatTokenMoney(12345, { format = "letters", color = false }))
+        return t
+      end)()""") == "1g 23s 45c")
+check("letter colour paints gold, silver, and copper separately",
+      s.eval("""(function()
+        local t = select(1, __LS:FormatTokenMoney(12345, { format = "letters", color = true }))
+        return type(t) == "string" and t:find("|cff", 1, true) ~= nil
+          and t:find("1g", 1, true) ~= nil and t:find("23s", 1, true) ~= nil
+          and t:find("45c", 1, true) ~= nil
+      end)()""") is True)
 check("token letters are the default format",
       "UI-GoldIcon" not in dash and "258,652g" not in dash, dash)
 s.exec("""
@@ -746,19 +959,28 @@ check("dropping a widget hides empty drop slots",
 s.click("Done editing")
 check("widget options stay hidden until edit mode",
       "Coin icons" not in s.texts() and "Separators" not in s.texts(), s.texts())
+dash = s.texts()
+check("the token widget uses the client's market price",
+      "258652g" in dash and "0s" in dash and "0c" in dash and "WoW Token" in dash, dash)
 s.click("Edit dashboard")
 s.click("Coin icons")
+s.click("Done editing")
 check("coin icons replace the letter suffix",
       "UI-GoldIcon" in s.texts() and "258652g" not in s.texts(), s.texts())
+s.click("Edit dashboard")
 s.click("Letters")
 s.click("Separators")
+s.click("Done editing")
 check("separators break the gold amount into thousands",
       "258,652g" in s.texts(), s.texts())
+s.click("Edit dashboard")
 s.click("Color")
+s.click("Done editing")
 check("color can be turned off without losing the letter amount",
       "258,652g" in s.texts(), s.texts())
 s.exec("""
   __LS.db.tokenHistory = { { t = 1, p = 2000000000 }, { t = 2, p = 2586520000 } }
+  __LS.dashboardEdit = true
   __LS:ShowPage('DASHBOARD')
 """)
 s.timers()
@@ -848,6 +1070,45 @@ s.click("Reset widgets")
 check("reset restores the default dashboard",
       s.eval("__LS:DashboardLayout()[1].id") == "stats"
       and s.eval("__LS:DashboardHas('token')") is not True)
+s.exec("""
+  Printed = {}
+  __LS.db.dashboard.widgets = { { id = "stats", x = 0, y = 0, w = 12, h = 18 } }
+  __LS:DashboardAdd("vault")
+""")
+check("a full canvas grows down to place a new widget",
+      s.eval("__LS:DashboardRows()") == 22
+      and s.eval("""(function()
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == "vault" then return e.y == 18 and e.w == 6 and e.h == 4 end
+        end
+      end)()""") is True)
+s.exec("""
+  Printed = {}
+  __LS.db.dashboard.rows = 36
+  __LS.db.dashboard.widgets = {
+    { id = "stats", x = 0, y = 0, w = 12, h = 34 },
+    { id = "next", x = 0, y = 34, w = 8, h = 2 },
+  }
+  __LS:DashboardAdd("token")
+""")
+check("a maxed canvas fits a widget into the remaining hole",
+      s.eval("""(function()
+        for _, e in ipairs(__LS:DashboardLayout()) do
+          if e.id == "token" then return e.w == 4 and e.h == 2 and e.x == 8 and e.y == 34 end
+        end
+      end)()""") is True)
+check("fitting a widget into leftover room says so",
+      "room left on the canvas" in s.printed(), s.printed())
+s.exec("""
+  Printed = {}
+  __LS.db.dashboard.rows = 36
+  __LS.db.dashboard.widgets = { { id = "stats", x = 0, y = 0, w = 12, h = 36 } }
+  __LS:DashboardAdd("token")
+""")
+check("a packed max canvas says it is full",
+      s.eval("__LS:DashboardHas('token')") is not True
+      and "canvas is full" in s.printed(), s.printed())
+s.exec("__LS:ResetDashboardLayout()")
 s.exec("""
   __LS.db.dashboard.widgets = {
     { id = "stats", x = 0, y = 0, w = 12, h = 4 },
@@ -1139,12 +1400,12 @@ capped = s.eval("""(function()
 end)()""")
 check("HandyNotes waypoints cap at the closest 12",
       capped.startswith("12|Hunt 15 rares"), capped)
-s.exec("__LS:SetPageTab('SETTINGS', 'GOALS'); __LS:ShowPage('SETTINGS')")
+s.exec("__LS:SetPageTab('SETTINGS', 'ADDONS'); __LS:ShowPage('SETTINGS')")
 s.timers()
 check("Settings notes that HandyNotes is loaded with notes packs",
       "HandyNotes is loaded with notes packs" in s.texts(), s.texts())
 s.exec("HandyNotes.plugins = {}")
-s.exec("__LS:SetPageTab('SETTINGS', 'GOALS'); __LS:ShowPage('SETTINGS')")
+s.exec("__LS:SetPageTab('SETTINGS', 'ADDONS'); __LS:ShowPage('SETTINGS')")
 s.timers()
 check("Settings says HandyNotes needs a notes pack",
       "no notes packs" in s.texts(), s.texts())
@@ -1466,6 +1727,194 @@ s.exec("""
   __LS.db.goals.PREY = false
 """)
 
+s.exec("""
+  C_WeeklyRewards.GetConquestWeeklyProgress = function()
+    return { progress = 200, maxProgress = 550 }
+  end
+  __LS.db.goals.PVP = false
+""")
+check("PvP stays quiet while that goal is off",
+      s.eval("#__LS:GetPvPRecommendations()") == 0)
+s.exec("__LS.db.goals.PVP = true")
+pvp = s.eval("""(function()
+  local r = __LS:GetPvPRecommendations()[1]
+  if not r then return "none" end
+  return table.concat({ r.id, r.title, r.category, r.why }, "|")
+end)()""")
+check("PvP ranks weekly Conquest the client still needs",
+      pvp == "pvp_conquest|Earn weekly Conquest|PvP|200 / 550 Conquest this week.", pvp)
+check("PvP Conquest ranks while that goal is on",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "pvp_conquest" then return true end
+        end
+        return false
+      end)()""") is True)
+check("FindActivity can open that Conquest rec",
+      s.eval('(__LS:FindActivity("pvp_conquest") or {}).title') == "Earn weekly Conquest")
+check("weekly Conquest sits on the weekly plan",
+      s.eval('__LS:ActivityHorizon({ id = "pvp_conquest", category = "PvP" })') == "WEEKLY")
+s.exec("""
+  C_WeeklyRewards.GetConquestWeeklyProgress = function()
+    return { progress = 550, maxProgress = 550 }
+  end
+""")
+check("finished weekly Conquest stays off the plan",
+      s.eval("#__LS:GetPvPRecommendations()") == 0)
+s.exec("""
+  C_WeeklyRewards.GetConquestWeeklyProgress = function()
+    return { progress = 200, maxProgress = 550 }
+  end
+  UnitLevel = function() return 50 end
+  __LS:ScanPlayer()
+""")
+check("below the cap PvP stays quiet",
+      s.eval("#__LS:GetPvPRecommendations()") == 0)
+s.exec("""
+  UnitLevel = function() return 90 end
+  __LS:ScanPlayer()
+  C_WeeklyRewards.GetConquestWeeklyProgress = nil
+  __LS.db.goals.PVP = false
+""")
+
+s.exec("""
+  OwnedHouses = {}
+  CurrentHouseInfo = nil
+  CurrentInitiative = nil
+  InitiativeProgress = nil
+  PlayerContribution = nil
+  __LS.db.goals.HOUSING = false
+""")
+check("Housing stays quiet while that goal is off",
+      s.eval("#__LS:GetHousingRecommendations()") == 0)
+s.exec("__LS.db.goals.HOUSING = true")
+house = s.eval("""(function()
+  local r = __LS:GetHousingRecommendations()[1]
+  if not r then return "none" end
+  return table.concat({ r.id, r.title, r.category, r.why }, "|")
+end)()""")
+check("Housing ranks a missing house the client reports",
+      house == "housing_house|Claim a house|Housing|The client has no house on this character.", house)
+check("Housing ranks while that goal is on",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "housing_house" then return true end
+        end
+        return false
+      end)()""") is True)
+check("FindActivity can open that housing rec",
+      s.eval('(__LS:FindActivity("housing_house") or {}).title') == "Claim a house")
+check("claiming a house sits on the long-term plan",
+      s.eval('__LS:ActivityHorizon({ id = "housing_house", category = "Housing" })') == "LONG")
+s.exec("""
+  OwnedHouses = { { plotID = 1, houseName = "Test House" } }
+  CurrentInitiative = { name = "Neighborhood garden", isComplete = false }
+  InitiativeProgress = { progress = 12, maxProgress = 100 }
+""")
+init = s.eval("""(function()
+  local r
+  for _, row in ipairs(__LS:GetHousingRecommendations()) do
+    if row.id == "housing_initiative" then r = row end
+  end
+  if not r then return "none" end
+  return table.concat({ r.id, r.title, r.why }, "|")
+end)()""")
+check("Housing ranks an unfinished neighborhood initiative",
+      init == "housing_initiative|Neighborhood garden|12 / 100 neighborhood contribution.", init)
+check("neighborhood initiatives sit on the weekly plan",
+      s.eval('__LS:ActivityHorizon({ id = "housing_initiative", category = "Housing" })') == "WEEKLY")
+s.exec("""
+  InitiativeProgress = { progress = 100, maxProgress = 100 }
+""")
+check("a finished neighborhood initiative stays off the plan",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetHousingRecommendations()) do
+          if r.id == "housing_initiative" then return true end
+        end
+        return false
+      end)()""") is False)
+s.exec("""
+  OwnedHouses = { {
+    plotID = 7, houseName = "Test House", neighborhoodName = "Founder's Point",
+    houseGUID = "House-1", neighborhoodGUID = "Hood-1",
+  } }
+  CurrentHouseFavor = 500
+""")
+prog = s.eval("""(function()
+  local p = __LS:HousingProgress()
+  return table.concat({
+    tostring(p.owned), tostring(p.name), tostring(p.level),
+    tostring(p.favor), tostring(p.nextFavor)
+  }, "|")
+end)()""")
+check("Housing progress reads house level and favor from the client",
+      prog == "true|Test House|2|500|1200", prog)
+check("Housing reports fill toward the next house level",
+      abs(s.eval("__LS:HousingProgress().fill") - (490 / 1190)) < 0.01)
+s.exec("""
+  OpenedHousingDashboard = false
+  __LS:OpenHousingDashboard()
+""")
+check("Housing opens the client's Housing Dashboard",
+      s.eval("OpenedHousingDashboard") is True)
+s.exec("__LS:OpenHousingDashboard()")
+check("clicking Housing Dashboard again closes it",
+      s.eval("HousingDashboardFrame.shown") is not True)
+s.exec("""
+  TeleportedHome = nil
+  __LS:TeleportToHouse()
+""")
+check("Housing teleport uses the client's house GUIDs",
+      s.eval("TeleportedHome and TeleportedHome[1]") == "Hood-1"
+      and s.eval("TeleportedHome[2]") == "House-1"
+      and s.eval("TeleportedHome[3]") == 7)
+s.exec("""
+  QuestLog = { { questID = 1001, title = "Housewarming", frequency = 2 } }
+  __LS.db.goals.QUESTING = true
+""")
+warm = s.eval("""(function()
+  local r
+  for _, row in ipairs(__LS:GetHousingRecommendations()) do
+    if row.id == "housing_quest_1001" then r = row end
+  end
+  if not r then return "none" end
+  return table.concat({ r.id, r.title, r.why }, "|")
+end)()""")
+check("Housing ranks Housewarming when it is already in the log",
+      warm == "housing_quest_1001|Housewarming|Weekly housing work already in your log.", warm)
+check("housing weeklies sit on the weekly plan",
+      s.eval('__LS:ActivityHorizon({ id = "housing_quest_1001", category = "Housing" })') == "WEEKLY")
+check("Housing weeklies are not also listed as questing cards",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetQuestRecommendations()) do
+          if r.id == "quest_1001" or (r.title or ""):find("Housewarming", 1, true) then
+            return true
+          end
+        end
+        return false
+      end)()""") is False)
+s.exec("""
+  QuestLog = {}
+  CurrentHouseFavor = nil
+  OwnedHouses = {}
+  CurrentInitiative = nil
+  InitiativeProgress = nil
+  UnitLevel = function() return 50 end
+  __LS:ScanPlayer()
+""")
+check("below the cap Housing stays quiet about claiming a house",
+      s.eval("#__LS:GetHousingRecommendations()") == 0)
+s.exec("""
+  UnitLevel = function() return 90 end
+  __LS:ScanPlayer()
+  OwnedHouses = {}
+  CurrentHouseInfo = nil
+  CurrentInitiative = nil
+  InitiativeProgress = nil
+  PlayerContribution = nil
+  __LS.db.goals.HOUSING = false
+""")
+
 
 s.exec("__LS.db.goals.MOUNTS = true")
 s.exec("__LS:ShowPage('TODAY')")
@@ -1624,6 +2073,657 @@ check("the main window is registered to close on Escape",
         end
       end)()""") is True)
 
+s.exec("__LS.frame:Show(); __LS:ResetDashboardLayout(); __LS.dashboardEdit = true; __LS:ShowPage('DASHBOARD')")
+s.timers()
+edit_extra = s.texts()
+check("Mythic+ is on the add list without Raider.IO",
+      "Add · Mythic+" in edit_extra, edit_extra)
+check("Warband Gold is on the add list without TSM",
+      "Add · Warband Gold" in edit_extra, edit_extra)
+check("the old Raider.IO add label is gone",
+      "Add · Raider.IO" not in edit_extra, edit_extra)
+check("TSM Gold stays off the add list until TSM is loaded",
+      "Add · TSM Gold" not in edit_extra, edit_extra)
+s.exec("""
+  OverallDungeonScore = 1800
+  ChallengeMaps = { 403, 2 }
+  SeasonBestForMap[403] = 12
+  SeasonBestForMap[2] = 7
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Mythic+")
+mythic = s.texts()
+check("Mythic+ edit lists score and dungeon toggles, not the live score",
+      "Score" in mythic and "Dungeons" in mythic
+      and "Honor 47" not in mythic, mythic)
+s.click("Done editing")
+mythic = s.texts()
+check("Mythic+ shows the client's overall dungeon score",
+      "1800" in mythic and "Mythic+" in mythic, mythic)
+s.exec("""
+  RaiderIO = {
+    GetProfile = function()
+      return {
+        mythicKeystoneProfile = {
+          hasRenderableData = true,
+          currentScore = 2450,
+          sortedDungeons = { { dungeon = { id = 403 }, level = 12 } },
+        },
+      }
+    end,
+    GetScoreColor = function(score)
+      if (score or 0) >= 2000 then return 0.64, 0.21, 0.93 end
+      return 1, 1, 1
+    end,
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+rio = s.texts()
+check("Raider.IO replaces the client score when it is loaded",
+      "2450" in rio and "Mythic+" in rio, rio)
+check("Raider.IO paints this season's highest key on the dungeon",
+      s.eval("__LS:SeasonBestKeyLevel(403)") == 12
+      and s.eval("__LS:SeasonBestKeyLevel(2)") == 7)
+s.exec("""
+  OpenedMythicPlus = false
+  __LS:OpenMythicPlus()
+""")
+check("Mythic+ opens the Mythic+ Dungeons tab", s.eval("OpenedMythicPlus") is True)
+check("Mythic+ opens in front of Lodestar",
+      s.eval("PVEFrame.frameStrata") == "DIALOG")
+s.exec("__LS:OpenMythicPlus()")
+check("clicking Mythic+ again closes the Dungeons tab",
+      s.eval("PVEFrame.shown") is not True
+      and s.eval("ChallengesFrame.shown") is not True)
+check("a narrow activity card keeps a readable text column",
+      s.eval("""(function()
+        local parent = CreateFrame("Frame")
+        local card = select(1, __LS:ActivityCard(parent, {
+          id = "narrow_card", title = "Fill a Raid Vault slot",
+          why = "The Raid Vault is empty this week.",
+          score = 12, priority = "HIGH PRIORITY",
+        }, 0, 200))
+        local minW = 999
+        for _, r in ipairs(card.regions or {}) do
+          if r.text_value and (r.w or 0) > 0 then
+            minW = math.min(minW, r.w)
+          end
+        end
+        return minW
+      end)()""") >= 140)
+check("a high M+ score uses Raider.IO's colour",
+      s.eval("""(function()
+        local r, g, b = RaiderIO.GetScoreColor(2450)
+        return math.abs(r - 0.64) < 0.001 and math.abs(g - 0.21) < 0.001
+      end)()""") is True)
+s.exec("""
+  PlayerMoney = 15000000
+  __LS:SaveSnapshot()
+  __LS.db.characters["Alts-Testrealm"] = { gold = 50000000, name = "Alts" }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Edit dashboard")
+s.click("Add · Warband Gold")
+warband_gold = s.texts()
+check("Warband Gold edit lists gold format, not the live total",
+      "Coin icons" in warband_gold and "Letters" in warband_gold
+      and "6,500g" not in warband_gold, warband_gold)
+s.click("Done editing")
+warband_gold = s.texts()
+check("without TSM the gold tile sums warband characters Lodestar has seen",
+      "6,500g" in warband_gold and "0s" in warband_gold and "0c" in warband_gold
+      and "Warband Gold" in warband_gold
+      and "Gold Lodestar has seen across this warband." in warband_gold,
+      warband_gold)
+s.exec("""
+  TSM_API = {}
+  TSM = {
+    db = {
+      sync = {
+        internalData = {
+          goldLog = {
+            ["Alpha-Testrealm"] = {
+              { copper = 100000000, startMinute = 1 },
+              { copper = 200000000, startMinute = 2 },
+            },
+            ["Beta-Testrealm"] = {
+              { copper = 50000000, startMinute = 1 },
+              { copper = 80000000, startMinute = 2 },
+            },
+          },
+        },
+      },
+    },
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+tsm = s.texts()
+check("TSM Gold graphs the logged account total",
+      "28,000g" in tsm and "0s" in tsm and "0c" in tsm
+      and "Account gold TSM has logged." in tsm and "TSM Gold" in tsm, tsm)
+check("TSM Gold colourizes silver and copper",
+      s.eval("""(function()
+        local t = select(1, __LS:FormatTokenMoney(280000000, { format = "letters", separators = true, color = true }))
+        return t:find("|cff", 1, true) ~= nil and t:find("28,000g", 1, true) ~= nil
+          and t:find("0s", 1, true) ~= nil and t:find("0c", 1, true) ~= nil
+      end)()""") is True)
+s.exec("""
+  CurrencyList = {
+    { name = "Midnight", isHeader = true },
+    { name = "Midnight Test Coin", isHeader = false, quantity = 42,
+      currencyTypesID = 90001, discovered = true, iconFileID = 464076, quality = 4 },
+    { name = "The War Within", isHeader = true },
+    { name = "Old Expansion Coin", isHeader = false, quantity = 9,
+      currencyTypesID = 90002, discovered = true, iconFileID = 132372 },
+  }
+  Currencies[90001] = { quantity = 42, iconFileID = 464076, quality = 4 }
+  Currencies[90002] = { quantity = 9, iconFileID = 132372, quality = 1 }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Edit dashboard")
+s.click("Add · Currencies")
+check("Currencies default to this expansion",
+      s.eval("""(function()
+        local rows = __LS:TrackedCurrencies()
+        return #rows == 1 and rows[1].name == "Midnight Test Coin" and rows[1].quantity == 42
+      end)()""") is True)
+check("tracked currencies use the client's icon",
+      s.eval("(__LS:TrackedCurrencies()[1] or {}).icon") == 464076
+      and s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 14 or not frame then return false end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.texture == 464076 then return true end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if visit(c, depth + 1) then return true end
+          end
+          return false
+        end
+        return visit(__LS.frame, 0)
+      end)()""") is True)
+check("tracked currencies use rarity colour",
+      s.eval("""(function()
+        local r, g, b = __LS:QualityColor(4)
+        return math.abs((r or 0) - 0.64) < 0.01 and math.abs((b or 0) - 0.93) < 0.01
+      end)()""") is True)
+s.click("Old Expansion Coin")
+check("Currencies can track a currency from another expansion",
+      s.eval("""(function()
+        local rows = __LS:TrackedCurrencies()
+        if #rows ~= 2 then return false end
+        local names = rows[1].name .. " " .. rows[2].name
+        return names:find("Midnight Test Coin", 1, true) ~= nil
+           and names:find("Old Expansion Coin", 1, true) ~= nil
+      end)()""") is True)
+s.exec("""
+  CharacterFrame.shown = false
+  TokenFrame.shown = false
+  OpenedCurrencies = false
+  CharacterTab = nil
+  __LS:OpenCurrencies()
+""")
+check("Currencies opens the client's currency tab",
+      s.eval("OpenedCurrencies") is True
+      and s.eval("CharacterFrame.shown") is True
+      and s.eval("TokenFrame.shown") is True)
+check("Currencies opens in front of Lodestar",
+      s.eval("CharacterFrame.frameStrata") == "DIALOG")
+s.exec("__LS:OpenCurrencies()")
+check("clicking Currencies again closes the currency tab",
+      s.eval("CharacterFrame.shown") is not True)
+s.exec("""
+  HonorLevel = 47
+  RatedInfo[1] = { 1800, 1850, 0, 10, 5 }
+  RatedInfo[2] = { 2100, 2200, 0, 20, 12 }
+  RatedInfo[7] = { 1600, 1700, 0, 15, 8 }
+  RatedInfo[9] = { 1400, 1450, 0, 8, 3 }
+  RatedInfo[4] = { 1200, 1250, 0, 4, 2 }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · PvP")
+pvp_tile = s.texts()
+check("PvP edit lists every bracket, including Blitz, and hides live Honor",
+      "Season rating. Toggle brackets" in pvp_tile
+      and "2v2" in pvp_tile and "3v3" in pvp_tile
+      and "Shuffle" in pvp_tile and "Blitz" in pvp_tile and "RBG" in pvp_tile
+      and "Honor 47" not in pvp_tile
+      and "2v2  1800" not in pvp_tile, pvp_tile)
+s.click("RBG")
+s.click("Done editing")
+pvp_tile = s.texts()
+check("PvP shows honor level and the chosen brackets after editing",
+      "Honor 47" in pvp_tile and "2v2  1800" in pvp_tile
+      and "Blitz  1400" in pvp_tile and "RBG  1200" in pvp_tile, pvp_tile)
+s.exec("""
+  OwnedHouses = { {
+    plotID = 7, houseName = "Test House", neighborhoodName = "Founder's Point",
+    houseGUID = "House-1", neighborhoodGUID = "Hood-1",
+  } }
+  CurrentHouseFavor = 500
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.click("Add · Housing")
+housing_tile = s.texts()
+check("Housing edit lists Dashboard and Teleport, not live house favor",
+      "Dashboard" in housing_tile and "Teleport" in housing_tile
+      and "Test House" not in housing_tile
+      and "500 / 1200 favor" not in housing_tile, housing_tile)
+s.click("Done editing")
+housing_tile = s.texts()
+check("Housing tile shows the house name, level, and favor",
+      "Test House" in housing_tile and "Level 2" in housing_tile
+      and "500 / 1200 favor" in housing_tile
+      and "Founder's Point" in housing_tile
+      and "Teleport" in housing_tile, housing_tile)
+check("Housing paints a bar toward the next house level",
+      abs(s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.progressFill then return r.progressFill end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            local v = visit(c, depth + 1)
+            if v then return v end
+          end
+        end
+        return visit(__LS.frame, 0)
+      end)()""") - (490 / 1190)) < 0.01)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.exec("""
+  CalendarDayEvents = {
+    ["0:26"] = {
+      { title = "Darkmoon Faire", calendarType = "HOLIDAY", sequenceType = "ONGOING" },
+      { title = "Raid Night", calendarType = "GUILD", eventID = 11 },
+    },
+    ["0:27"] = {
+      { title = "Dinner", calendarType = "PLAYER", invitedBy = "Friend", eventID = 12 },
+    },
+    ["0:30"] = {
+      { title = "Next week holiday", calendarType = "HOLIDAY", sequenceType = "START" },
+    },
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Calendar")
+cal = s.texts()
+check("Calendar edit lists weeks, not live holidays",
+      "This week" in cal and "Next week" in cal
+      and "Darkmoon Faire" not in cal
+      and "Next week holiday" not in cal, cal)
+s.click("Done editing")
+cal = s.texts()
+check("Calendar lists this week and next from the client",
+      "This week" in cal and "Darkmoon Faire" in cal
+      and "Guild  ·  Raid Night" in cal and "Invite  ·  Dinner" in cal
+      and "Next week" in cal and "Next week holiday" in cal, cal)
+s.exec("""
+  OpenedCalendar = false
+  __LS:OpenCalendar()
+""")
+check("Calendar opens the client's calendar", s.eval("OpenedCalendar") is True)
+check("Calendar opens in front of Lodestar",
+      s.eval("CalendarFrame.frameStrata") == "DIALOG")
+s.exec("__LS:OpenCalendar()")
+check("clicking Calendar again closes the calendar",
+      s.eval("CalendarFrame.shown") is not True)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.exec("""
+  GuildName = "Silvermoon Regulars"
+  GuildMemberTotal = 228
+  GuildOnlineCount = 4
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Guild")
+guild = s.texts()
+check("Guild edit lists the emblem toggle, not live roster counts",
+      "Emblem" in guild and "Silvermoon Regulars" not in guild
+      and "4 / 228 online" not in guild, guild)
+s.click("Done editing")
+guild = s.texts()
+check("Guild shows the name and who is online",
+      "Silvermoon Regulars" in guild and "4 / 228 online" in guild, guild)
+s.exec("""
+  OpenedCommunities = false
+  __LS:OpenCommunities()
+""")
+check("Guild opens the Communities window", s.eval("OpenedCommunities") is True)
+s.exec("__LS:OpenCommunities()")
+check("clicking Guild again closes Communities",
+      s.eval("CommunitiesFrame.shown") is not True)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.click("Add · Delver's Journey")
+delve_j = s.texts()
+check("Delver's Journey edit lists the progress bar, not live rank",
+      "Progress bar" in delve_j
+      and "Rank 4" not in delve_j and "1200 / 4200" not in delve_j, delve_j)
+s.click("Done editing")
+delve_j = s.texts()
+check("Delver's Journey shows this season's rank from the client",
+      "Delver's Journey" in delve_j and "Season 1" in delve_j
+      and "Rank 4" in delve_j and "1200 / 4200" in delve_j, delve_j)
+check("Delver's Journey paints a bar toward the next rank",
+      abs(s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.progressFill then return r.progressFill end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            local v = visit(c, depth + 1)
+            if v then return v end
+          end
+        end
+        return visit(__LS.frame, 0)
+      end)()""") - (1200 / 4200)) < 0.01)
+s.exec("""
+  OpenedJourneys = false
+  EncounterJournal.shown = false
+  __LS:OpenDelvesJourney()
+""")
+check("Delver's Journey opens Journeys", s.eval("OpenedJourneys") is True)
+s.exec("__LS:OpenDelvesJourney()")
+check("clicking Delver's Journey again closes Journeys",
+      s.eval("EncounterJournal.shown") is not True)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.click("Add · Preyhunter's Journey")
+prey_j = s.texts()
+check("Preyhunter's Journey edit lists the progress bar, not live rank",
+      "Progress bar" in prey_j
+      and "Rank 2" not in prey_j and "800 / 4000" not in prey_j, prey_j)
+s.click("Done editing")
+prey_j = s.texts()
+check("Preyhunter's Journey shows this season's rank from the client",
+      "Preyhunter's Journey" in prey_j and "Rank 2" in prey_j
+      and "800 / 4000" in prey_j, prey_j)
+check("Preyhunter's Journey paints a bar toward the next rank",
+      abs(s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.progressFill then return r.progressFill end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            local v = visit(c, depth + 1)
+            if v then return v end
+          end
+        end
+        return visit(__LS.frame, 0)
+      end)()""") - 0.2) < 0.01)
+s.exec("""
+  OpenedJourneys = false
+  EncounterJournal.shown = false
+  __LS:OpenPreyJourney()
+""")
+check("Preyhunter's Journey opens Journeys", s.eval("OpenedJourneys") is True)
+s.exec("__LS:OpenPreyJourney()")
+check("clicking Preyhunter's Journey again closes Journeys",
+      s.eval("EncounterJournal.shown") is not True)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.exec("""
+  EquippedItemLevel = 620
+  AverageItemLevel = 640
+  EquipmentQuality[1] = 4
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Item Level")
+ilvl = s.texts()
+check("Item Level edit lists bags, slots, and flags, not live averages",
+      "Bags" in ilvl and "Slots" in ilvl and "Flags" in ilvl
+      and "Equipped" not in ilvl and "In bags" not in ilvl, ilvl)
+s.click("Done editing")
+ilvl = s.texts()
+check("Item Level shows equipped and bag averages from the client",
+      "620" in ilvl and "640" in ilvl and "Equipped" in ilvl and "In bags" in ilvl, ilvl)
+s.exec("""
+  CharacterFrame.shown = false
+  PaperDollFrame.shown = false
+  OpenedCharacter = false
+  CharacterTab = nil
+  __LS:OpenCharacter()
+""")
+check("Item Level opens the character panel",
+      s.eval("OpenedCharacter") is True
+      and s.eval("CharacterFrame.shown") is True
+      and s.eval("PaperDollFrame.shown") is True)
+check("Item Level opens in front of Lodestar",
+      s.eval("CharacterFrame.frameStrata") == "DIALOG")
+s.exec("__LS:OpenCharacter()")
+check("clicking Item Level again closes the character panel",
+      s.eval("CharacterFrame.shown") is not True)
+s.exec("""
+  local chest = "|Hitem:99901:0:0:0:0:0:0:0:90:0|h[Chest]|h|r"
+  local ring = "|Hitem:99902:4242:0:0:0:0:0:0:90:0|h[Ring]|h|r"
+  EquipmentLinks[5] = chest
+  EquipmentLinks[11] = ring
+  EquipmentQuality[5] = 4
+  EquipmentQuality[11] = 3
+  EquipmentTexture[5] = 132751
+  EquipmentTexture[11] = 133345
+  ItemInfoByLink[chest] = { name = "Chest", quality = 4, ilvl = 677, equipLoc = "INVTYPE_CHEST", icon = 132751 }
+  ItemInfoByLink[ring] = { name = "Ring", quality = 3, ilvl = 681, equipLoc = "INVTYPE_FINGER", icon = 133345 }
+  ItemStats[chest] = { EMPTY_SOCKET_PRISMATIC = 1 }
+  ItemStats[ring] = { EMPTY_SOCKET_PRISMATIC = 1 }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+gear = s.eval("""(function()
+  local missing, socket, quiet
+  for _, piece in ipairs(__LS:EquippedGear()) do
+    if piece.slot == 5 then missing = piece.missingEnchant and piece.emptySocket and piece.ilvl == 677 end
+    if piece.slot == 11 then socket = piece.emptySocket and not piece.missingEnchant and piece.ilvl == 681 end
+    if piece.slot == 1 then quiet = piece.missingEnchant end
+  end
+  return tostring(missing) .. "|" .. tostring(socket) .. "|" .. tostring(quiet)
+end)()""")
+check("chest without an enchant is flagged, punched sockets are not invented",
+      gear == "true|true|false", gear)
+s.exec("""
+  local helm = "|Hitem:99910:0:0:0:0:0:0:0:90:0|h[Helm]|h|r"
+  local shoulder = "|Hitem:99911:0:0:0:0:0:0:0:90:0|h[Shoulder]|h|r"
+  local wrist = "|Hitem:99912:0:0:0:0:0:0:0:90:0|h[Wrist]|h|r"
+  local back = "|Hitem:99913:0:0:0:0:0:0:0:90:0|h[Cloak]|h|r"
+  local gemmed = "|Hitem:99914:4242:12345:0:0:0:0:0:90:0|h[Gemmed Ring]|h|r"
+  EquipmentLinks[1] = helm
+  EquipmentLinks[3] = shoulder
+  EquipmentLinks[9] = wrist
+  EquipmentLinks[15] = back
+  EquipmentLinks[12] = gemmed
+  ItemInfoByLink[helm] = { name = "Helm", quality = 4, ilvl = 670, equipLoc = "INVTYPE_HEAD", icon = 133071 }
+  ItemInfoByLink[shoulder] = { name = "Shoulder", quality = 4, ilvl = 670, equipLoc = "INVTYPE_SHOULDER", icon = 135053 }
+  ItemInfoByLink[wrist] = { name = "Wrist", quality = 4, ilvl = 670, equipLoc = "INVTYPE_WRIST", icon = 132608 }
+  ItemInfoByLink[back] = { name = "Cloak", quality = 4, ilvl = 670, equipLoc = "INVTYPE_CLOAK", icon = 133768 }
+  ItemInfoByLink[gemmed] = { name = "Gemmed Ring", quality = 3, ilvl = 681, equipLoc = "INVTYPE_FINGER", icon = 133345 }
+  ItemStats[helm] = { EMPTY_SOCKET_PRISMATIC = 1 }
+  ItemStats[wrist] = { EMPTY_SOCKET_PRISMATIC = 1 }
+  ItemStats[gemmed] = { EMPTY_SOCKET_PRISMATIC = 1 }
+""")
+slots = s.eval("""(function()
+  local helmE, helmS, shE, wrE, wrS, backE, gemS
+  for _, piece in ipairs(__LS:EquippedGear()) do
+    if piece.slot == 1 then helmE, helmS = piece.missingEnchant, piece.emptySocket end
+    if piece.slot == 3 then shE = piece.missingEnchant end
+    if piece.slot == 9 then wrE, wrS = piece.missingEnchant, piece.emptySocket end
+    if piece.slot == 15 then backE = piece.missingEnchant end
+    if piece.slot == 12 then gemS = piece.emptySocket end
+  end
+  return tostring(helmE) .. "|" .. tostring(helmS) .. "|" .. tostring(shE)
+    .. "|" .. tostring(wrE) .. "|" .. tostring(wrS) .. "|" .. tostring(backE)
+    .. "|" .. tostring(gemS)
+end)()""")
+check("helm takes an enchant and a socket, shoulder an enchant, wrist a socket, back neither",
+      slots == "true|true|true|false|true|false|false", slots)
+check("a gemmed ring is not flagged for sockets",
+      s.eval("__LS:ItemGemCount('|Hitem:99914:4242:12345:0:0:0:0:0:90:0|h[Gemmed Ring]|h|r')") == 1)
+ilvl = s.texts()
+check("slot icons show each piece's item level",
+      "677" in ilvl and "681" in ilvl, ilvl)
+check("missing enchants paint a red border on that slot",
+      s.eval("""(function()
+        local wr, wg, wb = __LS:MissingEnchantColor()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return false end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.missingEnchant and r.color then
+              return math.abs((r.color[1] or 0) - wr) < 0.02
+                and math.abs((r.color[2] or 0) - wg) < 0.02
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if visit(c, depth + 1) then return true end
+          end
+          return false
+        end
+        return visit(__LS.frame, 0)
+      end)()""") is True)
+check("the tile names the missing enchant and socket",
+      "No enchant" in ilvl and "No socket" in ilvl, ilvl)
+check("missing flags sit in a list beside the icons",
+      "Chest  ·  No enchant" in ilvl and "Chest  ·  No socket" in ilvl
+      and "Finger  ·  No socket" in ilvl, ilvl)
+check("empty sockets mark the slot with a caution icon",
+      s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return false end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.emptySocket and type(r.texture) == "string"
+                and r.texture:find("AlertNew", 1, true) then
+              return true
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if visit(c, depth + 1) then return true end
+          end
+          return false
+        end
+        return visit(__LS.frame, 0)
+      end)()""") is True)
+check("the caution sits above the missing-enchant border",
+      s.eval("""(function()
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return false end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.emptySocket and r.points and r.points[1] then
+              local yOff = r.points[1][5] or 0
+              local layer = r.drawSubLevel or 0
+              return yOff >= 3 and layer >= 7
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if visit(c, depth + 1) then return true end
+          end
+          return false
+        end
+        return visit(__LS.frame, 0)
+      end)()""") is True)
+check("slot item levels use the piece's rarity colour",
+      s.eval("""(function()
+        local er, eg, eb = __LS:QualityColor(4)
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return false end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.text_value == "677" and r.color then
+              return math.abs((r.color[1] or 0) - er) < 0.02
+                and math.abs((r.color[2] or 0) - eg) < 0.02
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if visit(c, depth + 1) then return true end
+          end
+          return false
+        end
+        return visit(__LS.frame, 0)
+      end)()""") is True)
+s.exec("""
+  local alt = __LS.db.characters["Alts-Testrealm"]
+  if alt then
+    alt.knowledge = { unspent = 40, weeklyPoints = 8 }
+    alt.vault = { filled = 2, total = 9, upgradable = 1 }
+    alt.gold = 50000000
+  else
+    __LS.db.characters["Alts-Testrealm"] = {
+      name = "Alts", realm = "Testrealm", level = 80,
+      knowledge = { unspent = 40, weeklyPoints = 8 },
+      vault = { filled = 2, total = 9, upgradable = 1 },
+      gold = 50000000,
+    }
+  end
+  PlayerMoney = 15000000
+  __LS:ShowPage("WARBAND")
+""")
+s.timers()
+warband = s.texts()
+check("Warband offers Track when more than one character is saved",
+      "ON  •  Track" in warband and "Untrack an alt" in warband, warband)
+before_unspent = s.eval("__LS:GetWarbandTotals().unspentKnowledge")
+s.click("ON  •  Track")
+check("untracking an alt drops them from warband totals",
+      s.eval("__LS:GetWarbandTotals().unspentKnowledge") == before_unspent - 40)
+check("untracking an alt drops them from warband gold",
+      s.eval("(function() local t = __LS:WarbandGold(); return t end)()") == 15000000)
+check("the logged-in character stays tracked",
+      s.eval("__LS:CharacterIsTracked(__LS:CharacterKey())") is True)
+check("the alt can be tracked again",
+      "OFF  •  Track" in s.texts(), s.texts())
+s.click("OFF  •  Track")
+s.exec("""
+  __LS:ForgetCharacter("Alts-Testrealm")
+  __LS:ShowPage("WARBAND")
+""")
+s.timers()
+check("Track is hidden when Lodestar has only seen one character",
+      "ON  •  Track" not in s.texts() and "OFF  •  Track" not in s.texts(),
+      s.texts())
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+s.exec("""
+  GameTooltip:ClearLines()
+  __LS:FillCurrencyTooltip(GameTooltip, 90001)
+""")
+check("currency tooltip uses the currency tab API",
+      s.eval("GameTooltip.currencyID") == 90001)
+s.exec("""
+  RaiderIO.ShowProfile = function(tip, name)
+    tip:SetText("profile:" .. tostring(name))
+  end
+  GameTooltip:ClearLines()
+  __LS:FillPlayerTooltip(GameTooltip)
+""")
+check("Raider.IO tooltip uses the player profile, including shift refreshes",
+      s.eval("GameTooltip._tip") == "profile:Testchar")
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.click("Done editing")
+s.exec("""
+  RaiderIO = nil
+  TSM = nil
+  TSM_API = nil
+  CurrencyList = {}
+  HonorLevel = 0
+  RatedInfo = {}
+  EquipmentLinks, EquipmentQuality, EquipmentTexture = {}, {}, {}
+  ItemInfoByLink = {}
+  ItemStats = {}
+""")
+
 s.exec("""
   __LS.db.tracked = {}
   __LS.db.compact.single = false
@@ -1664,9 +2764,9 @@ height0 = s.eval("__LS.compact:GetHeight()")
 check("collapsing compact contracts to the title bar", height0 < height1, (height0, height1))
 s.exec("__LS.db.compact.collapsed = false; __LS:UpdateCompact()")
 check("the window sits above nameplates",
-      s.eval('__LS.frame.frameStrata') == "DIALOG")
+      s.eval('__LS.frame.frameStrata') == "HIGH")
 check("compact sits above nameplates",
-      s.eval('__LS.compact and __LS.compact.frameStrata') == "DIALOG")
+      s.eval('__LS.compact and __LS.compact.frameStrata') == "HIGH")
 
 print()
 if failures:

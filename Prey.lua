@@ -106,3 +106,51 @@ function LS:GetPreyRecommendations()
   }, points))
   return out
 end
+
+local function SafePrey(fn, ...)
+  if type(fn) ~= "function" then return end
+  local ok, a = pcall(fn, ...)
+  if ok then return a end
+end
+
+local function PreyFactionFromName()
+  local ids = SafePrey(C_MajorFactions and C_MajorFactions.GetMajorFactionIDs)
+  if type(ids) ~= "table" then return end
+  local needles = { "preyhunter", "preyseeker", "prey hunter", "prey seeker" }
+  for _, id in ipairs(ids) do
+    local data = SafePrey(C_MajorFactions and C_MajorFactions.GetMajorFactionData, id)
+    local name = data and string.lower(data.name or data.factionName or "")
+    if name ~= "" then
+      for _, needle in ipairs(needles) do
+        if name:find(needle, 1, true) then return tonumber(id) or tonumber(data.factionID) end
+      end
+    end
+  end
+end
+
+function LS:PreyJourneyFaction()
+  for _, ns in ipairs({ C_QuestLog, C_Prey, C_PreyUI, C_PreyHunts, C_DelvesUI }) do
+    if type(ns) == "table" then
+      local id = SafePrey(ns.GetPreyFactionForSeason)
+        or SafePrey(ns.GetPreyHuntsFactionForSeason)
+        or SafePrey(ns.GetPreyseekerFactionForSeason)
+      if tonumber(id) then return tonumber(id) end
+    end
+  end
+  return PreyFactionFromName()
+end
+
+function LS:OpenPreyJourney()
+  if self.OpenJourneys and self:OpenJourneys() then return true end
+  return false
+end
+
+function LS:PreyJourney()
+  local faction = self:PreyJourneyFaction()
+  local progress = self.SeasonJourneyProgress and self:SeasonJourneyProgress(faction)
+  if progress then
+    progress.name = progress.name or "Preyhunter's Journey"
+    return progress
+  end
+  return { name = "Preyhunter's Journey" }
+end

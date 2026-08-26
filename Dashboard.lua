@@ -7,11 +7,13 @@ local HEADER = 26
 local MAX_HISTORY = 32
 local CANVAS_COLS = 12
 local CANVAS_ROWS = 18
+local MAX_ROWS = 36
 local MIN_W, MIN_H = 3, 2
 local CELL_H = 48
 
 LS.DASHBOARD_COLS = CANVAS_COLS
 LS.DASHBOARD_ROWS = CANVAS_ROWS
+LS.DASHBOARD_MAX_ROWS = MAX_ROWS
 
 function LS:DefaultDashboardWidgets()
   -- Half-canvas tiles, same starting size as Token / Vault / the rest.
@@ -32,10 +34,11 @@ end
 
 function LS:ClampDashboardRect(entry)
   if not entry then return end
+  local rows = self.DashboardRows and self:DashboardRows() or CANVAS_ROWS
   entry.w = math.max(MIN_W, math.min(CANVAS_COLS, math.floor(tonumber(entry.w) or MIN_W)))
-  entry.h = math.max(MIN_H, math.min(CANVAS_ROWS, math.floor(tonumber(entry.h) or MIN_H)))
+  entry.h = math.max(MIN_H, math.min(rows, math.floor(tonumber(entry.h) or MIN_H)))
   entry.x = math.max(0, math.min(CANVAS_COLS - entry.w, math.floor(tonumber(entry.x) or 0)))
-  entry.y = math.max(0, math.min(CANVAS_ROWS - entry.h, math.floor(tonumber(entry.y) or 0)))
+  entry.y = math.max(0, math.min(rows - entry.h, math.floor(tonumber(entry.y) or 0)))
 end
 
 local function RectsOverlap(a, b)
@@ -44,6 +47,42 @@ end
 
 local function WidgetList(self)
   return self.db and self.db.dashboard and self.db.dashboard.widgets
+end
+
+function LS:DashboardUsedRows()
+  local used = 0
+  for _, entry in ipairs(WidgetList(self) or {}) do
+    local y = tonumber(entry.y) or 0
+    if y < MAX_ROWS then
+      used = math.max(used, y + (tonumber(entry.h) or 0))
+    end
+  end
+  return used
+end
+
+function LS:DashboardRows()
+  local saved = self.db and self.db.dashboard and tonumber(self.db.dashboard.rows)
+  return math.max(CANVAS_ROWS, math.min(MAX_ROWS, math.floor(saved or CANVAS_ROWS)))
+end
+
+function LS:GrowDashboardRows(needed)
+  needed = math.floor(tonumber(needed) or CANVAS_ROWS)
+  local rows = math.max(self:DashboardRows(), math.min(MAX_ROWS, needed))
+  self.db = self.db or {}
+  self.db.dashboard = self.db.dashboard or {}
+  self.db.dashboard.rows = rows
+  return rows
+end
+
+function LS:LargestDashboardHole(ignoreId)
+  local best
+  for _, hole in ipairs(self:DashboardEmptyRects(ignoreId, MIN_W, MIN_H)) do
+    local area = (hole.w or 0) * (hole.h or 0)
+    if not best or area > best.area then
+      best = { x = hole.x, y = hole.y, w = hole.w, h = hole.h, area = area }
+    end
+  end
+  return best
 end
 
 function LS:DashboardCollision(id, x, y, w, h)
@@ -56,12 +95,13 @@ function LS:DashboardCollision(id, x, y, w, h)
 end
 
 function LS:FindDashboardSlot(w, h, preferX, preferY, ignoreId)
+  local rows = self:DashboardRows()
   w = math.max(MIN_W, math.min(CANVAS_COLS, math.floor(tonumber(w) or MIN_W)))
-  h = math.max(MIN_H, math.min(CANVAS_ROWS, math.floor(tonumber(h) or MIN_H)))
+  h = math.max(MIN_H, math.min(rows, math.floor(tonumber(h) or MIN_H)))
   preferX = math.floor(tonumber(preferX) or 0)
   preferY = math.floor(tonumber(preferY) or 0)
   local bestX, bestY, bestDist
-  for y = 0, CANVAS_ROWS - h do
+  for y = 0, rows - h do
     for x = 0, CANVAS_COLS - w do
       if not self:DashboardCollision(ignoreId, x, y, w, h) then
         local dx, dy = x - preferX, y - preferY
@@ -81,8 +121,9 @@ end
 function LS:DashboardEmptyRects(ignoreId, minW, minH)
   minW = math.max(1, math.floor(tonumber(minW) or 1))
   minH = math.max(1, math.floor(tonumber(minH) or 1))
+  local rows = self:DashboardRows()
   local occ = {}
-  for y = 0, CANVAS_ROWS - 1 do occ[y] = {} end
+  for y = 0, rows - 1 do occ[y] = {} end
   for _, entry in ipairs(WidgetList(self) or {}) do
     if entry.id ~= ignoreId then
       local x1, y1 = entry.x or 0, entry.y or 0
@@ -95,7 +136,7 @@ function LS:DashboardEmptyRects(ignoreId, minW, minH)
     end
   end
   local closed, active = {}, {}
-  for y = 0, CANVAS_ROWS - 1 do
+  for y = 0, rows - 1 do
     local runs, x = {}, 0
     while x < CANVAS_COLS do
       if occ[y][x] then
@@ -162,16 +203,17 @@ function LS:DashboardCompactUp()
   local parked = {}
   for _, entry in ipairs(order) do
     parked[entry.id] = { x = entry.x, y = entry.y, w = entry.w, h = entry.h }
-    entry.y = CANVAS_ROWS
+    entry.y = MAX_ROWS
   end
+  local rows = self:DashboardRows()
   for _, entry in ipairs(order) do
     local x = parked[entry.id].x
     local w, h = entry.w, entry.h
     local y = 0
-    while y + h <= CANVAS_ROWS and self:DashboardCollision(entry.id, x, y, w, h) do
+    while y + h <= rows and self:DashboardCollision(entry.id, x, y, w, h) do
       y = y + 1
     end
-    if y + h > CANVAS_ROWS then
+    if y + h > rows then
       local nx, ny = self:FindDashboardSlot(w, h, x, 0, entry.id)
       if nx then
         x, y = nx, ny
@@ -253,7 +295,8 @@ end
 
 function LS:DashboardCanvasSize(width)
   local cellW, cellH = self:DashboardCellSize(width)
-  return cellW * CANVAS_COLS, cellH * CANVAS_ROWS, cellW, cellH
+  local rows = self:DashboardRows()
+  return cellW * CANVAS_COLS, cellH * rows, cellW, cellH
 end
 
 function LS:RegisterWidget(spec)
@@ -268,6 +311,98 @@ function LS:RegisterWidget(spec)
     end
   end
   table.insert(self.widgetCatalog, spec)
+end
+
+function LS:WidgetTitle(spec)
+  if type(spec) ~= "table" then return "" end
+  if type(spec.title) == "function" then
+    local ok, title = pcall(spec.title, self)
+    if ok and type(title) == "string" and title ~= "" then return title end
+    return spec.id or ""
+  end
+  return spec.title
+end
+
+function LS:QualityColor(quality)
+  quality = tonumber(quality)
+  if quality == nil then return end
+  if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
+    local c = ITEM_QUALITY_COLORS[quality]
+    if c.GetRGB then return c:GetRGB() end
+    if c.r then return c.r, c.g, c.b end
+  end
+  if GetItemQualityColor then
+    local ok, r, g, b = pcall(GetItemQualityColor, quality)
+    if ok and r then return r, g, b end
+  end
+end
+
+function LS:PaintWidgetTip(owner, fill)
+  if not GameTooltip or not owner or not fill then return end
+  if GameTooltip.SetOwner then pcall(GameTooltip.SetOwner, GameTooltip, owner, "ANCHOR_RIGHT") end
+  fill(GameTooltip, owner)
+  if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
+end
+
+function LS:HideWidgetTip()
+  self._tipOwner = nil
+  self._tipFill = nil
+  if GameTooltip and GameTooltip.Hide then pcall(GameTooltip.Hide, GameTooltip) end
+end
+
+function LS:RefreshWidgetTooltip()
+  if self._tipOwner and self._tipFill then
+    self:PaintWidgetTip(self._tipOwner, self._tipFill)
+  end
+end
+
+function LS:HoverTip(frame, fill)
+  if not frame or not fill then return end
+  frame:EnableMouse(true)
+  local prevEnter = frame.GetScript and frame:GetScript("OnEnter")
+  local prevLeave = frame.GetScript and frame:GetScript("OnLeave")
+  frame:SetScript("OnEnter", function(owner, ...)
+    if prevEnter then prevEnter(owner, ...) end
+    LS._tipOwner = owner
+    LS._tipFill = fill
+    LS:PaintWidgetTip(owner, fill)
+  end)
+  frame:SetScript("OnLeave", function(owner, ...)
+    if prevLeave then prevLeave(owner, ...) end
+    if LS._tipOwner == owner then LS:HideWidgetTip() end
+  end)
+end
+
+function LS:FillPlayerTooltip(tip)
+  if not tip then return end
+  if RaiderIO and RaiderIO.ShowProfile then
+    local name = UnitName and UnitName("player")
+    local realm = GetRealmName and GetRealmName()
+    local ok = pcall(RaiderIO.ShowProfile, tip, name, realm)
+    if not ok then ok = pcall(RaiderIO.ShowProfile, tip, "player") end
+    if ok then return end
+  end
+  if tip.SetUnit then
+    local ok = pcall(tip.SetUnit, tip, "player")
+    if ok then return end
+  end
+  if tip.ClearLines then pcall(tip.ClearLines, tip) end
+  local name = UnitName and UnitName("player") or "Player"
+  if tip.SetText then tip:SetText(name) end
+end
+
+function LS:FillCurrencyTooltip(tip, id)
+  if not tip or not id then return end
+  if tip.SetCurrencyByID then
+    local ok = pcall(tip.SetCurrencyByID, tip, id)
+    if ok then return end
+  end
+  if tip.SetHyperlink then
+    local ok = pcall(tip.SetHyperlink, tip, "currency:" .. tostring(id))
+    if ok then return end
+  end
+  if tip.ClearLines then pcall(tip.ClearLines, tip) end
+  if tip.SetText then tip:SetText("Currency " .. tostring(id)) end
 end
 
 function LS:WidgetSpec(id)
@@ -294,16 +429,39 @@ end
 function LS:DashboardAdd(id)
   local spec = self:WidgetSpec(id)
   if not spec or self:DashboardHas(id) or not self:WidgetAvailable(spec) then return end
-  local w, h = SpecSpan(spec)
-  local preferY = 0
-  for _, entry in ipairs(self:DashboardLayout()) do
-    preferY = math.max(preferY, (entry.y or 0) + (entry.h or h))
-  end
+  local wantW, wantH = SpecSpan(spec)
+  local w, h = wantW, wantH
+  local preferY = self:DashboardUsedRows()
   local x, y = self:FindDashboardSlot(w, h, 0, preferY, id)
-  if not x then return end
+  local fitted
+  if not x then
+    local rows = self:DashboardRows()
+    local growTo = math.min(MAX_ROWS, math.max(rows, preferY + h))
+    if growTo > rows then
+      self:GrowDashboardRows(growTo)
+      x, y = self:FindDashboardSlot(w, h, 0, preferY, id)
+    end
+  end
+  if not x then
+    local hole = self:LargestDashboardHole(id)
+    if hole then
+      w = math.max(MIN_W, math.min(wantW, hole.w))
+      h = math.max(MIN_H, math.min(wantH, hole.h))
+      x, y = self:FindDashboardSlot(w, h, hole.x, hole.y, id)
+      if x and (w ~= wantW or h ~= wantH) then fitted = true end
+    end
+  end
+  if not x then
+    print("|cff59d8c9Lodestar|r The dashboard canvas is full. Remove a widget or Compact up.")
+    return
+  end
   local placed = { id = id, x = x, y = y, w = w, h = h }
   self:ClampDashboardRect(placed)
   table.insert(self:DashboardLayout(), placed)
+  if fitted then
+    print("|cff59d8c9Lodestar|r Added " .. self:WidgetTitle(spec)
+      .. " at " .. placed.w .. " × " .. placed.h .. ", the room left on the canvas.")
+  end
 end
 
 function LS:DashboardRemove(id)
@@ -383,7 +541,112 @@ function LS:SetWidgetOpt(id, key, value)
   self:WidgetOpts(id)[key] = value
 end
 
+function LS:WidgetOptOn(id, key, default)
+  local v = self:WidgetOpts(id)[key]
+  if v == nil then
+    if default == nil then return true end
+    return default and true or false
+  end
+  return v and true or false
+end
+
+function LS:PaintEditIdle(parent, width, copy)
+  local line = self.widgets.text(parent, width - 24, 11)
+  line:SetPoint("TOPLEFT", 12, -8)
+  if self.colors then line:SetTextColor(unpack(self.colors.muted)) end
+  line:SetText(copy or "Nothing extra to set on this tile.")
+  return 36
+end
+
+function LS:PaintWidgetSettings(parent, width, id, note, rows)
+  local w = self.widgets
+  local y = -8
+  if note then
+    local line = w.text(parent, width - 24, 10)
+    line:SetPoint("TOPLEFT", 12, y)
+    if self.colors then line:SetTextColor(unpack(self.colors.muted)) end
+    line:SetText(note)
+    y = y - 18
+  end
+  local btnW = 88
+  local col = 0
+  for _, row in ipairs(rows or {}) do
+    local key, label, default = row[1], row[2], row[3]
+    local on = self:WidgetOptOn(id, key, default)
+    local btn = w.button(parent, label, btnW, 20, 10)
+    btn:SetPoint("TOPLEFT", 12 + col * (btnW + 4), y)
+    if on then w.highlight(btn) else w.paint(btn, "panel") end
+    local widgetID, optKey, optDefault = id, key, default
+    btn:SetScript("OnMouseUp", function()
+      LS:SetWidgetOpt(widgetID, optKey, not LS:WidgetOptOn(widgetID, optKey, optDefault))
+      LS:ShowPage("DASHBOARD")
+    end)
+    col = col + 1
+    if col >= 2 then
+      col = 0
+      y = y - 24
+    end
+  end
+  if col > 0 then y = y - 24 end
+  return math.max(40, -y + 8)
+end
+
+function LS:PaintMoneyFormatSettings(parent, width, id, defaultChart, defaultSep)
+  local w = self.widgets
+  local opts = self:WidgetOpts(id)
+  local format = opts.format or "letters"
+  local colorOn = opts.color ~= false
+  local sepOn = opts.separators
+  if sepOn == nil then sepOn = defaultSep and true or false end
+  sepOn = sepOn and true or false
+  local chart = opts.chart or (defaultChart == "line" and "line" or "bars")
+  if chart ~= "line" then chart = "bars" end
+  local y = -8
+  local note = w.text(parent, width - 24, 10)
+  note:SetPoint("TOPLEFT", 12, y)
+  if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+  note:SetText("How this tile writes gold.")
+  y = y - 22
+  local function toggle(label, on, x, click)
+    local btn = w.button(parent, label, 78, 20, 10)
+    btn:SetPoint("TOPLEFT", x, y)
+    if on then w.highlight(btn) else w.paint(btn, "panel") end
+    btn:SetScript("OnMouseUp", click)
+    return btn
+  end
+  toggle("Coin icons", format == "coins", 12, function()
+    self:SetWidgetOpt(id, "format", "coins")
+    self:ShowPage("DASHBOARD")
+  end)
+  toggle("Letters", format == "letters", 94, function()
+    self:SetWidgetOpt(id, "format", "letters")
+    self:ShowPage("DASHBOARD")
+  end)
+  y = y - 24
+  toggle("Color", colorOn, 12, function()
+    self:SetWidgetOpt(id, "color", not colorOn)
+    self:ShowPage("DASHBOARD")
+  end)
+  toggle("Separators", sepOn, 94, function()
+    self:SetWidgetOpt(id, "separators", not sepOn)
+    self:ShowPage("DASHBOARD")
+  end)
+  y = y - 24
+  toggle("Bars", chart ~= "line", 12, function()
+    self:SetWidgetOpt(id, "chart", "bars")
+    self:ShowPage("DASHBOARD")
+  end)
+  toggle("Line", chart == "line", 94, function()
+    self:SetWidgetOpt(id, "chart", "line")
+    self:ShowPage("DASHBOARD")
+  end)
+  y = y - 24
+  return (-y) + 8
+end
+
 local LETTER_GOLD = { 1, 0.82, 0 }
+local LETTER_SILVER = { 0.78, 0.78, 0.81 }
+local LETTER_COPPER = { 0.85, 0.55, 0.33 }
 
 local function GroupDigits(n)
   n = math.floor(math.abs(tonumber(n) or 0))
@@ -393,6 +656,13 @@ local function GroupDigits(n)
   end
   local s = tostring(n)
   return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+local function CoinHex(c)
+  return string.format("%02x%02x%02x",
+    math.floor(((c and c[1]) or 1) * 255 + 0.5),
+    math.floor(((c and c[2]) or 1) * 255 + 0.5),
+    math.floor(((c and c[3]) or 1) * 255 + 0.5))
 end
 
 -- Token display: coin icons, or letters (g/s/c), with optional colour and thousands
@@ -432,21 +702,17 @@ function LS:FormatTokenMoney(copper, opts)
   local function amount(n)
     return sep and GroupDigits(n) or tostring(n)
   end
-  local text
-  if gold >= 100 then
-    text = amount(gold) .. "g"
-  elseif gold > 0 and silver > 0 then
-    text = amount(gold) .. "g " .. amount(silver) .. "s"
-  elseif gold > 0 then
-    text = amount(gold) .. "g"
-  elseif silver > 0 then
-    text = amount(silver) .. "s"
-  else
-    text = amount(copperCoins) .. "c"
-  end
+  local goldText = amount(gold) .. "g"
+  local silverText = amount(silver) .. "s"
+  local copperText = amount(copperCoins) .. "c"
   if color then
-    return sign .. text, LETTER_GOLD[1], LETTER_GOLD[2], LETTER_GOLD[3]
+    local text = string.format("|cff%s%s|r |cff%s%s|r |cff%s%s|r",
+      CoinHex(LETTER_GOLD), goldText,
+      CoinHex(LETTER_SILVER), silverText,
+      CoinHex(LETTER_COPPER), copperText)
+    return sign .. text, 1, 1, 1
   end
+  local text = goldText .. " " .. silverText .. " " .. copperText
   local tone = self.colors and self.colors.text or { 1, 1, 1, 1 }
   return sign .. text, tone[1], tone[2], tone[3]
 end
@@ -462,7 +728,7 @@ function LS:BeginWidgetDrag(chrome, id)
   local ghost = self.dashboardDragGhost
   if not ghost then
     ghost = self.widgets.panel(self.frame)
-    ghost:SetFrameStrata("DIALOG")
+    ghost:SetFrameStrata((self.frame and self.frame:GetFrameStrata()) or "HIGH")
     self.dashboardDragGhost = ghost
   end
   ghost:SetParent(parent or self.content)
@@ -611,6 +877,7 @@ function LS:RecordTokenPrice()
   while #self.db.tokenHistory > MAX_HISTORY do
     table.remove(self.db.tokenHistory, 1)
   end
+  return true
 end
 
 local function FormatCountdown(seconds)
@@ -627,7 +894,8 @@ local function AddonLoaded(name)
   return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
 end
 
-local function PaintSparkline(parent, history, width, y, colors, style)
+function LS:PaintSparkline(parent, history, width, y, colors, style, chartH)
+  colors = colors or self.colors or {}
   if #(history or {}) < 2 then return y end
   local n = math.min(#history, 24)
   local start = #history - n + 1
@@ -640,7 +908,8 @@ local function PaintSparkline(parent, history, width, y, colors, style)
   local span = math.max(1, hi - lo)
   local up = history[#history].p >= history[start].p
   local tone = up and colors.accent or colors.warn
-  local left, bottom, chartW, chartH = 12, 8 - y, math.max(8, width - 24), 24
+  chartH = math.max(16, tonumber(chartH) or 24)
+  local left, bottom, chartW = 12, 8 - y, math.max(8, width - 24)
   local function SampleY(p)
     return bottom + 6 + math.floor((chartH - 6) * ((p - lo) / span))
   end
@@ -673,14 +942,14 @@ local function PaintSparkline(parent, history, width, y, colors, style)
     local barW = math.max(2, math.floor(chartW / n) - 1)
     for i = 0, n - 1 do
       local p = history[start + i].p
-      local bh = 6 + math.floor(18 * ((p - lo) / span))
+      local bh = 6 + math.floor((chartH - 6) * ((p - lo) / span))
       local bar = parent:CreateTexture(nil, "ARTWORK")
       bar:SetSize(barW, bh)
       bar:SetPoint("BOTTOMLEFT", left + i * (barW + 1), bottom)
       if bar.SetColorTexture then bar:SetColorTexture(unpack(tone)) end
     end
   end
-  return y - 32
+  return y - chartH - 8
 end
 
 function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
@@ -698,7 +967,8 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
   local title = w.text(chrome, width - (edit and 90 or 16), 12)
   title:SetPoint("TOPLEFT", 10, -6)
   title:SetTextColor(unpack(self.colors.accent))
-  title:SetText(spec.title)
+  title:SetText(self:WidgetTitle(spec))
+  if self.FitText then self:FitText(title, width - (edit and 90 or 16), 1) end
 
   if edit then
     local remove = w.button(chrome, "Remove", 74, 20, 10)
@@ -713,7 +983,17 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
   local body = CreateFrame("Frame", nil, chrome)
   body:SetPoint("TOPLEFT", 0, -HEADER)
   body:SetPoint("BOTTOMRIGHT", -8, 10)
-  spec.render(self, body, width - 8)
+  if body.SetClipsChildren then body:SetClipsChildren(true) end
+  spec.render(self, body, width - 8, math.max(1, height - HEADER - 10))
+  if spec.tooltip then
+    self:HoverTip(chrome, function(tip) spec.tooltip(self, tip) end)
+  end
+  if spec.click and not edit then
+    chrome:EnableMouse(true)
+    chrome:SetScript("OnMouseUp", function()
+      spec.click(self)
+    end)
+  end
 
   if edit then
     chrome:SetMovable(true)
@@ -721,7 +1001,7 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
     chrome:EnableMouse(true)
     chrome:RegisterForDrag("LeftButton")
     if chrome.SetResizeBounds then
-      chrome:SetResizeBounds(MIN_W * cellW, MIN_H * cellH, CANVAS_COLS * cellW, CANVAS_ROWS * cellH)
+      chrome:SetResizeBounds(MIN_W * cellW, MIN_H * cellH, CANVAS_COLS * cellW, self:DashboardRows() * cellH)
     end
     chrome:SetScript("OnDragStart", function(selfFrame)
       LS:BeginWidgetDrag(selfFrame, entry.id)
@@ -760,8 +1040,9 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
     Grip(6, 18, "RIGHT", "RIGHT")
     Grip(18, 6, "BOTTOM", "BOTTOM")
     Grip(12, 12, "BOTTOMRIGHT", "BOTTOMRIGHT")
-    table.insert(self.dashboardSlots, { id = entry.id, frame = chrome })
   end
+  table.insert(self.dashboardSlots, { id = entry.id, frame = chrome })
+  if self.MarkCoach then self:MarkCoach("widget:" .. entry.id, chrome) end
 end
 
 function LS:DashboardPage()
@@ -776,7 +1057,8 @@ function LS:DashboardPage()
   line:SetPoint("TOPLEFT", 0, -32)
   line:SetText(editing
     and ("Drag to move. Drag an edge or corner to resize. Widgets cannot overlap. Canvas is "
-      .. CANVAS_COLS .. " × " .. CANVAS_ROWS .. " cells.")
+      .. CANVAS_COLS .. " × " .. self:DashboardRows() .. " cells, and grows down to "
+      .. MAX_ROWS .. ".")
     or "Where things stand, then the next action.")
 
   local edit = w.button(self.content, editing and "Done editing" or "Edit dashboard", 110, 26, 11)
@@ -785,8 +1067,11 @@ function LS:DashboardPage()
   edit:SetScript("OnMouseUp", function()
     self:SetDashboardEdit(not editing)
   end)
+  if self.MarkCoach then self:MarkCoach("edit", edit) end
 
-  self:RequestTokenPrice()
+  if not self:TokenPrice() then
+    self:RequestTokenPrice()
+  end
   self:RecordTokenPrice()
   if self.dashboardDragGhost then self.dashboardDragGhost:Hide() end
   if self.HideWidgetDropHints then self:HideWidgetDropHints() end
@@ -825,7 +1110,8 @@ function LS:DashboardPage()
     local bound = w.text(canvas, canvasW - 16, 10)
     bound:SetPoint("BOTTOMLEFT", 8, 6)
     bound:SetTextColor(unpack(self.colors.muted))
-    bound:SetText("Maximum canvas: " .. CANVAS_COLS .. " × " .. CANVAS_ROWS)
+    bound:SetText("Canvas: " .. CANVAS_COLS .. " × " .. self:DashboardRows()
+      .. "  ·  grows to " .. MAX_ROWS)
   end
   for _, entry in ipairs(layout) do
     if self:WidgetAvailable(self:WidgetSpec(entry.id)) then
@@ -838,18 +1124,20 @@ function LS:DashboardPage()
     local addHeading = w.text(body, body.width, 12)
     addHeading:SetPoint("TOPLEFT", 0, y)
     addHeading:SetTextColor(unpack(self.colors.accent))
-    addHeading:SetText("Add a widget")
+    addHeading:SetText("Add a widget. Each button shows that tile's size in cells.")
     y = y - 22
-    local addW, col, cols, gap = 168, 0, math.max(1, math.floor((body.width + 8) / 176)), 8
+    local addW, col, cols, gap = 210, 0, math.max(1, math.floor((body.width + 8) / 218)), 8
     local added = 0
     for _, spec in ipairs(self.widgetCatalog or {}) do
       if self:WidgetAvailable(spec) and not self:DashboardHas(spec.id) then
-        local add = w.button(body, "Add · " .. spec.title, addW, 26, 10)
+        local dw, dh = SpecSpan(spec)
+        local add = w.button(body, "Add · " .. self:WidgetTitle(spec) .. "  " .. dw .. "×" .. dh, addW, 26, 10)
         add:SetPoint("TOPLEFT", col * (addW + gap), y)
         add:SetScript("OnMouseUp", function()
           self:DashboardAdd(spec.id)
           self:ShowPage("DASHBOARD")
         end)
+        if self.MarkCoach then self:MarkCoach("add:" .. spec.id, add) end
         col = col + 1
         if col >= cols then
           col = 0
@@ -889,7 +1177,26 @@ local function RegisterBuiltins()
     title = "Overview",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Overview")
+      if tip.AddLine then
+        tip:AddLine((#self:GetRecommendations()) .. " on the plan")
+        local filled, total = self:VaultSlotCounts()
+        tip:AddLine(string.format("Vault %d/%d", filled, total))
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "stats", "Totals on this tile.", {
+          { "plan", "On the plan", true },
+          { "vault", "Vault", true },
+          { "knowledge", "Knowledge", true },
+          { "ignored", "Ignored", true },
+          { "completed", "Completed", true },
+          { "tracked", "Tracked", true },
+        })
+      end
       local w = self.widgets
       local recs = self:GetRecommendations()
       local filled, total = self:VaultSlotCounts()
@@ -899,15 +1206,33 @@ local function RegisterBuiltins()
         vaultLabel = "Vault at " .. self:EndgameLevel()
         vaultValue = "—"
       end
-      local stats = {
-        { #recs, "On the plan" },
-        { vaultValue, vaultLabel,
-          function() self:ShowPage("VAULT") end, true },
-        { self:UnspentKnowledge(), "Unspent knowledge" },
-        { self:CountFlags("dismissed"), "Ignored" },
-        { self:CountFlags("completed"), "Completed" },
-        { #(self:TrackedActivities()), "Tracked" },
-      }
+      local stats = {}
+      if self:WidgetOptOn("stats", "plan", true) then
+        table.insert(stats, { #recs, "On the plan" })
+      end
+      if self:WidgetOptOn("stats", "vault", true) then
+        table.insert(stats, { vaultValue, vaultLabel,
+          function() self:ShowPage("VAULT") end, true })
+      end
+      if self:WidgetOptOn("stats", "knowledge", true) then
+        table.insert(stats, { self:UnspentKnowledge(), "Unspent knowledge" })
+      end
+      if self:WidgetOptOn("stats", "ignored", true) then
+        table.insert(stats, { self:CountFlags("dismissed"), "Ignored" })
+      end
+      if self:WidgetOptOn("stats", "completed", true) then
+        table.insert(stats, { self:CountFlags("completed"), "Completed" })
+      end
+      if self:WidgetOptOn("stats", "tracked", true) then
+        table.insert(stats, { #(self:TrackedActivities()), "Tracked" })
+      end
+      if #stats == 0 then
+        local none = w.text(parent, width - 24, 11)
+        none:SetPoint("TOPLEFT", 12, -8)
+        if self.colors then none:SetTextColor(unpack(self.colors.muted)) end
+        none:SetText("Every total is hidden. Edit dashboard to pick some.")
+        return 36
+      end
       local columns = math.max(1, math.floor((width + 8) / 118))
       local cellW = math.floor(width / columns) - 8
       local rowH = 48
@@ -931,9 +1256,11 @@ local function RegisterBuiltins()
         amount:SetPoint("TOPLEFT", 8, -6)
         amount:SetTextColor(unpack(self.colors.accent))
         amount:SetText(tostring(stat[1]))
+        if self.FitText then self:FitText(amount, cellW - 16, 1) end
         local name = w.text(cell, cellW - 16, 10)
         name:SetPoint("TOPLEFT", 8, -24)
         name:SetText(stat[2])
+        if self.FitText then self:FitText(name, cellW - 16, 1) end
       end
       return math.ceil(#stats / columns) * rowH + 4
     end,
@@ -944,14 +1271,41 @@ local function RegisterBuiltins()
     title = "Jump",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(_, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Jump")
+      if tip.AddLine then tip:AddLine("Open Today's Plan, Weekly, Progress, or the Great Vault.") end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "shortcuts", "Shortcuts on this tile.", {
+          { "today", "Today", true },
+          { "weekly", "Weekly", true },
+          { "progress", "Progress", true },
+          { "vault", "Great Vault", true },
+        })
+      end
       local w = self.widgets
-      local jumps = {
-        { "Today's Plan", function() self:ShowPage("TODAY") end },
-        { "Weekly Plan", function() self:ShowPage("WEEKLY") end },
-        { "Progress", function() self:ShowPage("PROGRESS") end },
-        { "Great Vault", function() self:OpenGreatVault() end, true },
-      }
+      local jumps = {}
+      if self:WidgetOptOn("shortcuts", "today", true) then
+        table.insert(jumps, { "Today's Plan", function() self:ShowPage("TODAY") end })
+      end
+      if self:WidgetOptOn("shortcuts", "weekly", true) then
+        table.insert(jumps, { "Weekly Plan", function() self:ShowPage("WEEKLY") end })
+      end
+      if self:WidgetOptOn("shortcuts", "progress", true) then
+        table.insert(jumps, { "Progress", function() self:ShowPage("PROGRESS") end })
+      end
+      if self:WidgetOptOn("shortcuts", "vault", true) then
+        table.insert(jumps, { "Great Vault", function() self:OpenGreatVault() end, true })
+      end
+      if #jumps == 0 then
+        local none = w.text(parent, width - 24, 11)
+        none:SetPoint("TOPLEFT", 12, -8)
+        if self.colors then none:SetTextColor(unpack(self.colors.muted)) end
+        none:SetText("Every shortcut is hidden. Edit dashboard to pick some.")
+        return 36
+      end
       local jumpGap, minBtn = 8, 88
       local inner = math.max(minBtn, width - 16)
       local cols = math.min(#jumps, math.max(1, math.floor((inner + jumpGap) / (110 + jumpGap))))
@@ -976,28 +1330,77 @@ local function RegisterBuiltins()
     title = "Professions",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Professions")
+      if tip.AddLine then
+        local current = self.CurrentExpansionProfessions and self:CurrentExpansionProfessions() or self.professions or {}
+        tip:AddLine(string.format("%d trained this expansion. %d unspent knowledge.", #current, self:UnspentKnowledge()))
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "professions", "Controls on this tile.", {
+          { "icons", "Icons", true },
+          { "open", "Open", true },
+        })
+      end
       local w = self.widgets
       local current = self.CurrentExpansionProfessions and self:CurrentExpansionProfessions() or self.professions or {}
       local trained = #current
       local unspent = self:UnspentKnowledge()
+      local primaries = self.PrimaryProfessions and self:PrimaryProfessions() or {}
+      local showIcons = self:WidgetOptOn("professions", "icons", true)
+      local showOpen = self:WidgetOptOn("professions", "open", true)
+      local iconSize = 32
+      local iconGap = 6
+      local iconsW = (showIcons and #primaries > 0) and (#primaries * (iconSize + iconGap)) or 0
       local stacked = width < 360
-      local line = w.text(parent, width - (stacked and 24 or 100), 11)
-      line:SetPoint("TOPLEFT", 12, -8)
+      local line = w.text(parent, width - (stacked and 24 or (showOpen and 100 or 24)) - iconsW, 11)
+      line:SetPoint("TOPLEFT", 12 + iconsW, -8)
       if trained == 0 and #(self.professions or {}) == 0 then
         line:SetText("Open a profession window once so the client sends its data.")
       else
         line:SetText(string.format("%d trained. %d unspent knowledge this expansion.", trained, unspent))
       end
-      local open = w.button(parent, "Open", 74, 26)
-      if stacked then
-        open:SetPoint("TOPLEFT", 12, -32)
-      else
-        open:SetPoint("TOPRIGHT", -10, -8)
+      if showIcons then
+        for i, prof in ipairs(primaries) do
+          local x = 12 + (i - 1) * (iconSize + iconGap)
+          local art = parent:CreateTexture(nil, "ARTWORK")
+          art:SetSize(iconSize, iconSize)
+          art:SetPoint("TOPLEFT", x, -6)
+          art.professionIcon = true
+          art.professionName = prof.name
+          if art.SetTexture and prof.icon then art:SetTexture(prof.icon) end
+          if (not prof.icon or not art.SetTexture) and art.SetColorTexture and self.colors then
+            art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
+          end
+          local hit = CreateFrame("Frame", nil, parent)
+          hit:SetPoint("TOPLEFT", x, -6)
+          hit:SetSize(iconSize, iconSize)
+          hit:EnableMouse(true)
+          local skill = prof
+          self:HoverTip(hit, function(tip)
+            if tip.ClearLines then tip:ClearLines() end
+            tip:SetText(skill.name or "Profession")
+            if tip.AddLine then tip:AddLine("Open this profession. Click again to close it.") end
+          end)
+          hit:SetScript("OnMouseUp", function()
+            if self.OpenProfessionWindow then self:OpenProfessionWindow(skill) end
+          end)
+        end
       end
-      w.paint(open, "panel")
-      open:SetScript("OnMouseUp", function() self:ShowPage("PROFESSIONS") end)
-      return stacked and 64 or 48
+      if showOpen then
+        local open = w.button(parent, "Open", 74, 26)
+        if stacked then
+          open:SetPoint("TOPLEFT", 12, -42)
+        else
+          open:SetPoint("TOPRIGHT", -10, -8)
+        end
+        w.paint(open, "panel")
+        open:SetScript("OnMouseUp", function() self:ShowPage("PROFESSIONS") end)
+      end
+      return (stacked and showOpen) and 72 or math.max(48, iconSize + 16)
     end,
   })
 
@@ -1006,7 +1409,21 @@ local function RegisterBuiltins()
     title = "Next",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      local recs = self:GetRecommendations()
+      if recs[1] then
+        tip:SetText(recs[1].title or "Next")
+        if tip.AddLine and recs[1].why then tip:AddLine(recs[1].why, 1, 1, 1, true) end
+      else
+        tip:SetText("Next")
+        if tip.AddLine then tip:AddLine("Nothing is currently worth ranking.") end
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintEditIdle(parent, width)
+      end
       local w = self.widgets
       local recs = self:GetRecommendations()
       if #recs == 0 then
@@ -1034,6 +1451,12 @@ local function RegisterBuiltins()
     defaultSize = "half",
     sizes = { half = true, wide = true },
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "vault", "Buttons on this tile.", {
+          { "chest", "Vault", true },
+          { "open", "Open", true },
+        })
+      end
       local w = self.widgets
       if self.IsEndgameLevel and not self:IsEndgameLevel() then
         local cap = self:EndgameLevel()
@@ -1053,23 +1476,29 @@ local function RegisterBuiltins()
       parent:EnableMouse(true)
       parent:SetScript("OnEnter", function(selfFrame) LS:ShowVaultTooltip(selfFrame) end)
       parent:SetScript("OnLeave", function() LS:HideVaultTooltip() end)
-      local line = w.text(parent, width - 100, 11)
+      local showChest = self:WidgetOptOn("vault", "chest", true)
+      local showOpen = self:WidgetOptOn("vault", "open", true)
+      local line = w.text(parent, width - ((showChest or showOpen) and 100 or 24), 11)
       line:SetPoint("TOPLEFT", 12, -8)
       line:SetText(string.format("%d of %d slots filled. %d can still be improved.",
         filled, total, upgradable))
-      local hint = w.text(parent, width - 100, 10)
+      local hint = w.text(parent, width - ((showChest or showOpen) and 100 or 24), 10)
       hint:SetPoint("TOPLEFT", 12, -28)
       hint:SetTextColor(unpack(self.colors.muted))
       hint:SetText("Hover for named keys and reward item levels.")
-      local vault = w.button(parent, "Vault", 70, 24, 10)
-      vault:SetPoint("TOPRIGHT", -10, -8)
-      w.paint(vault, "panel")
-      w.highlight(vault)
-      vault:SetScript("OnMouseUp", function() self:OpenGreatVault() end)
-      local open = w.button(parent, "Open", 70, 24, 10)
-      open:SetPoint("TOPRIGHT", -10, -36)
-      w.paint(open, "panel")
-      open:SetScript("OnMouseUp", function() self:ShowPage("VAULT") end)
+      if showChest then
+        local vault = w.button(parent, "Vault", 70, 24, 10)
+        vault:SetPoint("TOPRIGHT", -10, -8)
+        w.paint(vault, "panel")
+        w.highlight(vault)
+        vault:SetScript("OnMouseUp", function() self:OpenGreatVault() end)
+      end
+      if showOpen then
+        local open = w.button(parent, "Open", 70, 24, 10)
+        open:SetPoint("TOPRIGHT", -10, showChest and -36 or -8)
+        w.paint(open, "panel")
+        open:SetScript("OnMouseUp", function() self:ShowPage("VAULT") end)
+      end
       return 68
     end,
   })
@@ -1079,7 +1508,26 @@ local function RegisterBuiltins()
     title = "Tracked",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      local tracked = self:TrackedActivities()
+      tip:SetText("Tracked")
+      if tip.AddLine then
+        if #tracked == 0 then
+          tip:AddLine("Nothing tracked yet. Details → Track.")
+        else
+          for i = 1, math.min(6, #tracked) do
+            tip:AddLine(tracked[i].title)
+          end
+        end
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "tracked", "Buttons on this tile.", {
+          { "progress", "Progress", true },
+        })
+      end
       local w = self.widgets
       local tracked = self:TrackedActivities()
       if #tracked == 0 then
@@ -1102,10 +1550,13 @@ local function RegisterBuiltins()
         more:SetText(string.format("%d more on Progress.", #tracked - shown))
         y = y - 16
       end
-      local go = w.button(parent, "Progress", 80, 22, 10)
-      go:SetPoint("TOPLEFT", 12, y - 4)
-      go:SetScript("OnMouseUp", function() self:ShowPage("PROGRESS") end)
-      return (-y) + 30
+      if self:WidgetOptOn("tracked", "progress", true) then
+        local go = w.button(parent, "Progress", 80, 22, 10)
+        go:SetPoint("TOPLEFT", 12, y - 4)
+        go:SetScript("OnMouseUp", function() self:ShowPage("PROGRESS") end)
+        return (-y) + 30
+      end
+      return (-y) + 8
     end,
   })
 
@@ -1114,7 +1565,24 @@ local function RegisterBuiltins()
     title = "WoW Token",
     defaultSize = "half",
     sizes = { half = true, wide = true },
-    render = function(self, parent, width)
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("WoW Token")
+      local price = self:TokenPrice()
+      if tip.AddLine then
+        if price then
+          local text = self:FormatTokenMoney(price, { format = "letters", separators = true })
+          tip:AddLine(text)
+          tip:AddLine("The price the client last published.")
+        else
+          tip:AddLine("The client has not published a token price.")
+        end
+      end
+    end,
+    render = function(self, parent, width, height)
+      if self.dashboardEdit then
+        return self:PaintMoneyFormatSettings(parent, width, "token")
+      end
       local w = self.widgets
       local opts = self:WidgetOpts("token")
       local format = opts.format or "letters"
@@ -1153,7 +1621,8 @@ local function RegisterBuiltins()
           else
             change:SetTextColor(dr, dg, db, 1)
           end
-          y = PaintSparkline(parent, history, width, y - 14, self.colors, chart)
+          local remain = math.max(24, (height or 80) + (y - 14) - 10)
+          y = self:PaintSparkline(parent, history, width, y - 14, self.colors, chart, remain)
         else
           local hint = w.text(parent, width - 24, 10)
           hint:SetPoint("TOPLEFT", 12, y)
@@ -1162,44 +1631,6 @@ local function RegisterBuiltins()
           y = y - 18
         end
       end
-      if not self.dashboardEdit then
-        return (-y) + 8
-      end
-      y = y - 6
-      local function toggle(label, on, x, click)
-        local btn = w.button(parent, label, 78, 20, 10)
-        btn:SetPoint("TOPLEFT", x, y)
-        if on then w.highlight(btn) else w.paint(btn, "panel") end
-        btn:SetScript("OnMouseUp", click)
-        return btn
-      end
-      toggle("Coin icons", format == "coins", 12, function()
-        self:SetWidgetOpt("token", "format", "coins")
-        self:ShowPage("DASHBOARD")
-      end)
-      toggle("Letters", format == "letters", 94, function()
-        self:SetWidgetOpt("token", "format", "letters")
-        self:ShowPage("DASHBOARD")
-      end)
-      y = y - 24
-      toggle("Color", colorOn, 12, function()
-        self:SetWidgetOpt("token", "color", not colorOn)
-        self:ShowPage("DASHBOARD")
-      end)
-      toggle("Separators", sepOn, 94, function()
-        self:SetWidgetOpt("token", "separators", not sepOn)
-        self:ShowPage("DASHBOARD")
-      end)
-      y = y - 24
-      toggle("Bars", chart ~= "line", 12, function()
-        self:SetWidgetOpt("token", "chart", "bars")
-        self:ShowPage("DASHBOARD")
-      end)
-      toggle("Line", chart == "line", 94, function()
-        self:SetWidgetOpt("token", "chart", "line")
-        self:ShowPage("DASHBOARD")
-      end)
-      y = y - 24
       return (-y) + 8
     end,
   })
@@ -1209,11 +1640,20 @@ local function RegisterBuiltins()
     title = "Gold",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      local recs = self.GetGoldRecommendations and self:GetGoldRecommendations() or {}
+      tip:SetText((recs[1] and recs[1].title) or "Gold")
+      if tip.AddLine and recs[1] and recs[1].why then tip:AddLine(recs[1].why, 1, 1, 1, true) end
+    end,
     available = function(self)
       local _, _, ready = self:ResolveGoldSource()
       return ready and self.db.goals.GOLD
     end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintEditIdle(parent, width)
+      end
       local w = self.widgets
       local recs = self.GetGoldRecommendations and self:GetGoldRecommendations() or {}
       local line = w.text(parent, width - 20, 11)
@@ -1237,10 +1677,19 @@ local function RegisterBuiltins()
     title = "Rares",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      local recs = self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {}
+      tip:SetText((recs[1] and recs[1].title) or "Rares")
+      if tip.AddLine and recs[1] and recs[1].why then tip:AddLine(recs[1].why, 1, 1, 1, true) end
+    end,
     available = function()
       return HandyNotes and type(HandyNotes.plugins) == "table"
     end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintEditIdle(parent, width)
+      end
       local w = self.widgets
       local recs = self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {}
       local line = w.text(parent, width - 20, 11)
@@ -1263,7 +1712,21 @@ local function RegisterBuiltins()
     title = "Warband",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Warband")
+      if tip.AddLine then
+        local totals = self:GetWarbandTotals()
+        tip:AddLine(string.format("%d characters. %d vaults with slots.",
+          totals.characters, totals.vaultsWithSlots))
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "warband", "Buttons on this tile.", {
+          { "open", "Open", true },
+        })
+      end
       local w = self.widgets
       local totals = self:GetWarbandTotals()
       local line = w.text(parent, width - 20, 11)
@@ -1274,9 +1737,11 @@ local function RegisterBuiltins()
       meta:SetPoint("TOPLEFT", 12, -28)
       meta:SetTextColor(unpack(self.colors.muted))
       meta:SetText(string.format("%d unspent knowledge across the warband.", totals.unspentKnowledge))
-      local go = w.button(parent, "Open", 70, 22, 10)
-      go:SetPoint("TOPRIGHT", -10, -10)
-      go:SetScript("OnMouseUp", function() self:ShowPage("WARBAND") end)
+      if self:WidgetOptOn("warband", "open", true) then
+        local go = w.button(parent, "Open", 70, 22, 10)
+        go:SetPoint("TOPRIGHT", -10, -10)
+        go:SetScript("OnMouseUp", function() self:ShowPage("WARBAND") end)
+      end
       return 52
     end,
   })
@@ -1286,7 +1751,25 @@ local function RegisterBuiltins()
     title = "Weekly reset",
     defaultSize = "half",
     sizes = { half = true, wide = true },
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Weekly reset")
+      local seconds = C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset
+        and C_DateAndTime.GetSecondsUntilWeeklyReset()
+      if tip.AddLine then
+        if type(seconds) == "number" then
+          local days = math.floor(seconds / 86400)
+          local hours = math.floor((seconds % 86400) / 3600)
+          tip:AddLine(string.format("%dd %dh remaining.", days, hours))
+        else
+          tip:AddLine("The client has not sent a reset time.")
+        end
+      end
+    end,
     render = function(self, parent, width)
+      if self.dashboardEdit then
+        return self:PaintEditIdle(parent, width)
+      end
       local w = self.widgets
       local seconds = C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset
         and C_DateAndTime.GetSecondsUntilWeeklyReset()

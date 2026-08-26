@@ -329,6 +329,38 @@ function LS:CurrentExpansionProfessions()
   return #out > 0 and out or all
 end
 
+function LS:PrimaryProfessions()
+  if not GetProfessions or not GetProfessionInfo then return {} end
+  local prof1, prof2 = GetProfessions()
+  local out = {}
+  for _, index in ipairs({ prof1, prof2 }) do
+    if index then
+      local name, icon, _, _, _, _, parentID, _, _, _, currentName = GetProfessionInfo(index)
+      if parentID then
+        local match
+        for _, prof in ipairs(self.professions or {}) do
+          if prof.parentID == parentID and prof.isCurrent then
+            match = prof
+            break
+          end
+        end
+        if not match then
+          for _, prof in ipairs(self.professions or {}) do
+            if prof.parentID == parentID then match = prof break end
+          end
+        end
+        table.insert(out, {
+          name = currentName or name,
+          icon = icon,
+          skillLineID = match and match.skillLineID or parentID,
+          parentID = parentID,
+        })
+      end
+    end
+  end
+  return out
+end
+
 function LS:VisibleProfessions()
   if not (self.db and self.db.currentExpansionOnly) then
     return self.professions
@@ -521,6 +553,26 @@ end
 -- only runs from OnMouseUp.
 function LS:OpenProfessionWindow(prof, spec)
   if not prof then return end
+  local frame = _G.ProfessionsFrame or _G.TradeSkillFrame
+  if frame and frame.IsShown and frame:IsShown() then
+    local live
+    if C_TradeSkillUI and C_TradeSkillUI.GetBaseProfessionInfo then
+      local ok, info = pcall(C_TradeSkillUI.GetBaseProfessionInfo)
+      if ok and type(info) == "table" then
+        live = tonumber(info.professionID) or tonumber(info.parentProfessionID)
+      end
+    end
+    local want = tonumber(prof.skillLineID) or tonumber(prof.parentID)
+    if not live or live == want or live == tonumber(prof.parentID) or live == tonumber(prof.skillLineID) then
+      if LS.HideClientFrame then LS:HideClientFrame(frame) end
+      return true
+    end
+  end
+  if C_AddOns and C_AddOns.LoadAddOn then
+    pcall(C_AddOns.LoadAddOn, "Blizzard_Professions")
+  elseif LoadAddOn then
+    pcall(LoadAddOn, "Blizzard_Professions")
+  end
   if ProfessionsFrame_LoadUI then pcall(ProfessionsFrame_LoadUI) end
   local opened
   if C_TradeSkillUI and C_TradeSkillUI.OpenTradeSkill then
@@ -531,18 +583,26 @@ function LS:OpenProfessionWindow(prof, spec)
       opened = ok and result
     end
   end
+  local function front()
+    local frame = _G.ProfessionsFrame or _G.TradeSkillFrame
+    if frame and LS.FrontClientFrame then LS:FrontClientFrame(frame) end
+  end
+  front()
   if spec then
     local function goSpec()
       local frame = _G.ProfessionsFrame
       if frame and frame.specializationsTabID and frame.SetTab then
         pcall(frame.SetTab, frame, frame.specializationsTabID, true)
       end
+      front()
     end
     if C_Timer and C_Timer.After then
       C_Timer.After(0.2, goSpec)
     else
       goSpec()
     end
+  elseif C_Timer and C_Timer.After then
+    C_Timer.After(0, front)
   end
   return opened
 end

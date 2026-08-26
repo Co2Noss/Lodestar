@@ -1,3 +1,87 @@
+# 1.5.0
+
+- Edit dashboard shows **settings only** on a tile — live Honor, gold, house
+  favor, dungeon icons, and the rest stay off until Done editing. PvP lists
+  every bracket (including Blitz) so the Honor line cannot clip them. Tiles
+  that needed options now have them (Overview totals, Jump shortcuts,
+  profession icons/Open, Great Vault and Warband buttons, Tracked Progress,
+  currency track list, token/warband-gold format, item-level slots/flags/bags,
+  housing Dashboard/Teleport, calendar weeks, guild emblem, journey bars,
+  Mythic+ score/dungeons). Weekly reset, gold farms, and rares say they have
+  nothing extra to set.
+- Housing **Teleport** calls `C_Housing.TeleportHome` from the click itself.
+  Wrapping that protected API in `pcall` tainted the hardware event and the
+  client blocked it (`ADDON_ACTION_FORBIDDEN`).
+- Item Level flags this expansion's enchants and sockets from the item link:
+  helm (enchant and socket), shoulder (enchant), wrist (socket only), back
+  (neither). Rings take both; a gemmed ring is not flagged for sockets.
+- Click a dashboard tile that opens a client window again to close it:
+  character, currencies, calendar, guild, Mythic+, Great Vault, Housing
+  Dashboard, Journeys, and the profession window.
+- Scrolling the dashboard (including in edit mode) stays put when the page
+  redraws instead of jumping back to the top.
+- Lodestar sits on HIGH so the client's calendar, Mythic+ Dungeons, Great Vault,
+  Housing Dashboard, and profession window can raise in front instead of opening
+  behind the window.
+- The Professions tile shows icons for your two primaries; click one to open
+  that profession in front of Lodestar. Open still goes to Lodestar's profession
+  page.
+- Edit dashboard reuses the same canvas instead of stacking a second copy of
+  the tiles on top of the last redraw.
+- The Guild tile centers the emblem under the guild name.
+- Delver's Journey, Preyhunter's Journey, and Housing paint a bar toward the
+  next rank or house level from the client.
+- A full dashboard canvas grows down (to 36 rows) instead of ignoring Add.
+  If it cannot grow, the new tile uses the leftover hole, or chat says the
+  canvas is full. Edit mode lists each addable tile's size in cells.
+- Dashboard tiles clip instead of wrapping over themselves when the window is
+  shrunk. Next stacks Details / Done / Ignore under the card copy; Currencies keep
+  the name on the left and the amount on the right.
+- Click the **Mythic+** tile (or a dungeon on it) to open the client's Mythic+
+  Dungeons tab, the same way Great Vault opens the chest.
+- The **tip tour** walks to the feature and highlights it instead of sitting on its own
+  page. Skip hides the rest; Next is the next tip.
+- Settings → **Changelog** lists the last five versions.
+- Settings → Optional Addons lists every addon Lodestar talks to as **Loaded** (green) or **Not loaded** (grey).
+- Letter gold on WoW Token and the gold tile colours gold, silver, and copper separately.
+- Settings → Goals includes **Housing**. A missing house, unfinished neighborhood
+  initiatives, and weekly housing quests already in the log (Housewarming and the
+  like) rank from `C_Housing` / `C_NeighborhoodInitiative` / the quest log while
+  that goal is on. Lodestar does not invent plots or housing quest IDs. A **Housing**
+  dashboard tile shows house level and favor the client reports, opens the client's
+  Housing Dashboard, and teleports with `C_Housing.TeleportHome` when a house GUID
+  exists.
+- Settings → Goals includes **PvP**. Weekly Conquest ranks from
+  `C_WeeklyRewards.GetConquestWeeklyProgress` while that goal is on and the week is
+  unfinished. Honor and rated scores live on a dashboard tile, not as invented queues.
+- Gold prices, waypoints, and HandyNotes notes moved from Goals onto
+  **Settings → Optional Addons**.
+- Dashboard tiles: **Mythic+** (season score plus this season's dungeon keys from the
+  client's mythic rating, coloured by Raider.IO when that addon is loaded), **Warband
+  Gold** (characters Lodestar has seen, or TSM's account log when TSM is loaded),
+  **Currencies** (this expansion by default; edit mode picks what to track; names use
+  the client's rarity colour), **PvP** (honor plus seasonal ratings), and **Item Level**
+  (equipped average and best-in-bags from the client, rarity-coloured; each slot
+  shows its item level, a red border when that piece is missing an enchant, and a
+  yellow caution when the client reports an empty gem slot. Missing flags are listed
+  beside the gear so two on one piece never overlap). **Calendar** (this week and next
+  from `C_Calendar`, including guild events and invites; click opens the calendar),
+  **Guild** (logo plus online / total; click opens Communities), **Delver's Journey**
+  and **Preyhunter's Journey** (this season's rank from the client; click opens
+  Journeys). WoW Token and
+  gold tiles show gold, silver, and copper. Tiles fill the chrome they sit in. Hover a
+  tile for a tooltip: Mythic+ uses your player tooltip (`RaiderIO.ShowProfile` or
+  `SetUnit("player")`, refreshed on shift), currencies use `SetCurrencyByID` like the
+  currency tab.
+- Warband lists a **Track** control on each alt when Lodestar has seen more than one
+  character. Untracking leaves that snapshot in place but drops it from totals and
+  warband gold. Forget still removes it.
+- The ElvUI theme's default border is a lighter grey. ElvUI's live border is used when
+  it is actually visible; a near-black default is not.
+- Themes include **GW2 UI** and **RealUI**. Auto follows GW2 UI, RealUI / Aurora, ElvUI,
+  or EllesmereUI when loaded. Live colours come from `GW2_ADDON` and `Aurora.Color`
+  when those addons expose them.
+
 # 1.4.1
 
 - Below the expansion cap (90 in Midnight, or `GetMaxLevelForPlayerExpansion` when the

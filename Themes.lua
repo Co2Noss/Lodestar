@@ -23,13 +23,27 @@ LS.palettes = {
   },
   ELVUI = {
     bg = { .025, .025, .025, .98 }, panel = { .045, .045, .045, .98 }, card = { .065, .065, .065, .98 },
-    border = { .18, .18, .18, 1 }, accent = { .25, .75, .70, 1 }, text = { .9, .9, .9, 1 },
+    -- ElvUI's own default border is near-black. A mid grey still reads on that backdrop
+    -- without waiting for the player to set one.
+    border = { .42, .42, .42, 1 }, accent = { .25, .75, .70, 1 }, text = { .9, .9, .9, 1 },
     warn = { .9, .35, .33, 1 }, muted = { .58, .58, .58, 1 },
   },
   ELLESMERE = {
     bg = { .02, .025, .035, .98 }, panel = { .035, .045, .06, .98 }, card = { .055, .07, .09, .98 },
     border = { .12, .2, .25, 1 }, accent = { .32, .82, .72, 1 }, text = { .9, .94, .96, 1 },
     warn = { .92, .4, .4, 1 }, muted = { .56, .62, .66, 1 },
+  },
+  -- Guild Wars 2 UI: parchment gold on a warm dark brown, matching GW2_ADDON.Gw2Color.
+  GW2 = {
+    bg = { .07, .05, .03, .98 }, panel = { .11, .08, .05, .98 }, card = { .15, .11, .07, .98 },
+    border = { .45, .35, .22, 1 }, accent = { 1, .93, .73, 1 }, text = { .95, .92, .85, 1 },
+    warn = { .9, .3, .2, 1 }, muted = { .62, .55, .45, 1 },
+  },
+  -- RealUI / Aurora: cool dark panels, class-blue highlight, visible grey edges.
+  REALUI = {
+    bg = { .04, .04, .05, .98 }, panel = { .07, .07, .08, .98 }, card = { .10, .10, .11, .98 },
+    border = { .40, .40, .42, 1 }, accent = { .24, .57, 1, 1 }, text = { .9, .9, .92, 1 },
+    warn = { .8, .25, .25, 1 }, muted = { .55, .55, .58, 1 },
   },
   MINIMAL = {
     bg = { .018, .02, .024, .98 }, panel = { .028, .03, .035, .98 }, card = { .04, .043, .05, .98 },
@@ -38,7 +52,7 @@ LS.palettes = {
   },
 }
 
-LS.themeOrder = { "AUTO", "BLIZZARD", "ELVUI", "ELLESMERE", "MINIMAL" }
+LS.themeOrder = { "AUTO", "BLIZZARD", "ELVUI", "ELLESMERE", "GW2", "REALUI", "MINIMAL" }
 
 local function loaded(name)
   return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
@@ -46,6 +60,12 @@ end
 
 function LS:DetectTheme()
   if loaded("EllesmereUI") or loaded("EllesmereUIBlizzardSkin") then return "ELLESMERE" end
+  if loaded("GW2_UI") then return "GW2" end
+  -- Aurora is a library RealUI embeds. Auto only follows RealUI itself so an
+  -- ElvUI player who also has Aurora loaded is not switched to the RealUI palette.
+  if loaded("nibRealUI") or loaded("RealUI") or loaded("RealUI_Skins") then
+    return "REALUI"
+  end
   if loaded("ElvUI") then return "ELVUI" end
   return "BLIZZARD"
 end
@@ -64,6 +84,20 @@ function LS:GetElvUI()
   return engine
 end
 
+function LS:GetGW2()
+  if not loaded("GW2_UI") then return nil end
+  local gw = _G.GW2_ADDON
+  return type(gw) == "table" and gw or nil
+end
+
+function LS:GetAurora()
+  if not (loaded("Aurora") or loaded("RealUI_Skins") or loaded("nibRealUI") or loaded("RealUI")) then
+    return nil
+  end
+  local aurora = _G.Aurora
+  if type(aurora) == "table" and type(aurora.Color) == "table" then return aurora end
+end
+
 local function color(value, fallback)
   if type(value) == "table" then
     if value.r then
@@ -77,7 +111,44 @@ local function color(value, fallback)
 end
 
 local function shade(rgba, factor, alpha)
-  return { rgba[1] * factor, rgba[2] * factor, rgba[3] * factor, alpha or rgba[4] or 1 }
+  local function clamp(v)
+    if v < 0 then return 0 end
+    if v > 1 then return 1 end
+    return v
+  end
+  return {
+    clamp(rgba[1] * factor),
+    clamp(rgba[2] * factor),
+    clamp(rgba[3] * factor),
+    alpha or rgba[4] or 1,
+  }
+end
+
+local function luminance(rgba)
+  if type(rgba) ~= "table" then return 0 end
+  local r, g, b = rgba[1] or 0, rgba[2] or 0, rgba[3] or 0
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+local function parseHexColor(str)
+  if type(str) ~= "string" then return end
+  local body = str:match("|c(%x+)") or str:match("^#?(%x+)$")
+  if not body or #body < 6 then return end
+  local hex = body:sub(-6)
+  return {
+    tonumber(hex:sub(1, 2), 16) / 255,
+    tonumber(hex:sub(3, 4), 16) / 255,
+    tonumber(hex:sub(5, 6), 16) / 255,
+    1,
+  }
+end
+
+local function objectColor(value, fallback)
+  if type(value) == "table" and value.GetRGBA then
+    local ok, r, g, b, a = pcall(value.GetRGBA, value)
+    if ok and r then return { r, g, b, a or 1 } end
+  end
+  return color(value, fallback)
 end
 
 -- Builds a palette out of ElvUI's own backdrop, border, texture and font settings.
@@ -88,6 +159,11 @@ function LS:BuildElvUIPalette()
   local backdrop = color(E.media.backdropcolor, base.bg)
   local fade = color(E.media.backdropfadecolor, backdrop)
   local border = color(E.media.bordercolor, base.border)
+  -- ElvUI does not ship a visible border by default (near-black on near-black).
+  -- Keep a border the user actually set; otherwise use Lodestar's grey.
+  if luminance(border) < 0.22 then
+    border = { base.border[1], base.border[2], base.border[3], base.border[4] or 1 }
+  end
   local value = E.db and E.db.general and E.db.general.valuecolor
   local accent = color(value, base.accent)
 
@@ -105,6 +181,65 @@ function LS:BuildElvUIPalette()
     accent = accent,
     text = base.text,
     warn = base.warn,
+    muted = base.muted,
+  }
+end
+
+function LS:BuildGW2Palette()
+  local GW = self:GetGW2()
+  if not GW then return nil end
+  local base = self.palettes.GW2
+  local accent = parseHexColor(GW.Gw2Color) or color(GW.Colors and (GW.Colors.GOLD or GW.Colors.accent), base.accent)
+  local bg = color(GW.Colors and (GW.Colors.BACKGROUND or GW.Colors.bg), base.bg)
+  local border = color(GW.Colors and (GW.Colors.BORDER or GW.Colors.border), base.border)
+  if luminance(border) < 0.22 then
+    border = { base.border[1], base.border[2], base.border[3], base.border[4] or 1 }
+  end
+  local font
+  if GW.Libs and GW.Libs.LSM and GW.Libs.LSM.Fetch then
+    local ok, fetched = pcall(GW.Libs.LSM.Fetch, GW.Libs.LSM, "font", "GW2_UI")
+    if ok then font = fetched end
+  end
+  self.skin = {
+    font = font or "Interface\\AddOns\\GW2_UI\\fonts\\menomonia.ttf",
+    texture = "Interface/Buttons/WHITE8X8",
+    fontSize = 12,
+  }
+  return {
+    bg = { bg[1], bg[2], bg[3], 0.98 },
+    panel = shade(bg, 1.4, 0.95),
+    card = shade(bg, 1.8, 0.95),
+    border = border,
+    accent = accent or base.accent,
+    text = base.text,
+    warn = base.warn,
+    muted = base.muted,
+  }
+end
+
+function LS:BuildRealUIPalette()
+  local A = self:GetAurora()
+  if not A then return nil end
+  local base = self.palettes.REALUI
+  local C = A.Color
+  local bg = objectColor(C.panelBg or C.frame, base.bg)
+  local border = objectColor(C.border or C.button, base.border)
+  local accent = objectColor(C.highlight, base.accent)
+  if luminance(border) < 0.22 then
+    border = { base.border[1], base.border[2], base.border[3], base.border[4] or 1 }
+  end
+  self.skin = {
+    texture = "Interface/Buttons/WHITE8X8",
+    fontSize = 12,
+  }
+  return {
+    bg = { bg[1], bg[2], bg[3], 0.98 },
+    panel = shade(bg, 1.4, 0.95),
+    card = shade(bg, 1.8, 0.95),
+    border = border,
+    accent = accent or base.accent,
+    text = base.text,
+    warn = objectColor(C.red, base.warn),
     muted = base.muted,
   }
 end
@@ -219,6 +354,12 @@ function LS:ResolvePalette()
   if name == "ELVUI" then
     palette = self:BuildElvUIPalette()
     native = palette ~= nil
+  elseif name == "GW2" then
+    palette = self:BuildGW2Palette()
+    native = palette ~= nil
+  elseif name == "REALUI" then
+    palette = self:BuildRealUIPalette()
+    native = palette ~= nil
   elseif name == "BLIZZARD" then
     palette = self:BuildBlizzardPalette()
   end
@@ -258,7 +399,7 @@ function LS:SetTheme(name)
 end
 
 function LS:PrintThemes()
-  print("Lodestar themes: auto, blizzard, elvui, ellesmere, minimal")
+  print("Lodestar themes: auto, blizzard, elvui, ellesmere, gw2, realui, minimal")
 end
 
 local TRANSPARENT = { 0, 0, 0, 0 }

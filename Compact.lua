@@ -155,7 +155,7 @@ function LS:CreateCompact()
   self.compact = frame
   frame:SetSize(300, HEADER + ROW * 2 + PADDING)
   frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -220)
-  frame:SetFrameStrata("DIALOG")
+  frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
   frame:SetMovable(true)
   frame:SetResizable(true)

@@ -314,6 +314,12 @@ function LS:GetQuestRecommendations()
   -- An active Prey hunt is its own card. Do not also list it as a log quest.
   local prey = self.ActivePreyQuest and self:ActivePreyQuest()
   if prey then used[prey] = true end
+  -- Housing weeklies in the log belong on the Housing tab while that goal is on.
+  if self.db and self.db.goals and self.db.goals.HOUSING and self.IsHousingWeeklyQuest then
+    for _, info in ipairs(log) do
+      if self:IsHousingWeeklyQuest(info) then used[info.questID] = true end
+    end
+  end
 
   local superTracked = Safe(C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID)
   local extras = {}

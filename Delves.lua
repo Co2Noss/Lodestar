@@ -315,3 +315,163 @@ function LS:GetBountifulDelveRecommendations()
   })
   return out
 end
+
+local function SafeJourney(fn, ...)
+  if type(fn) ~= "function" then return end
+  local ok, a, b, c = pcall(fn, ...)
+  if ok then return a, b, c end
+end
+
+function LS:FrontClientFrame(frame)
+  if type(frame) ~= "table" then return end
+  -- Lodestar sits on HIGH. Client panels are often MEDIUM and would open behind
+  -- it unless they are raised to DIALOG.
+  if frame.SetFrameStrata then pcall(frame.SetFrameStrata, frame, "DIALOG") end
+  if frame.SetToplevel then pcall(frame.SetToplevel, frame, true) end
+  if frame.Raise then pcall(frame.Raise, frame) end
+end
+
+function LS:HideClientFrame(frame)
+  if type(frame) ~= "table" then return end
+  if HideUIPanel then
+    pcall(HideUIPanel, frame)
+  elseif frame.Hide then
+    frame:Hide()
+  end
+end
+
+function LS:ClientFrameShown(frame)
+  if type(frame) == "string" then frame = _G[frame] end
+  return frame and frame.IsShown and frame:IsShown() or false
+end
+
+function LS:ToggleClientFrame(addon, frameName)
+  local frame = frameName and _G[frameName]
+  if self:ClientFrameShown(frame) then
+    self:HideClientFrame(frame)
+    return true
+  end
+  return self:OpenClientFrame(addon, frameName)
+end
+
+function LS:OpenClientFrame(addon, frameName)
+  if addon then
+    if C_AddOns and C_AddOns.LoadAddOn then
+      pcall(C_AddOns.LoadAddOn, addon)
+    elseif LoadAddOn then
+      pcall(LoadAddOn, addon)
+    end
+  end
+  local frame = frameName and _G[frameName]
+  if frame then
+    if ShowUIPanel then
+      pcall(ShowUIPanel, frame)
+    elseif frame.Show then
+      frame:Show()
+    end
+    self:FrontClientFrame(frame)
+    return true
+  end
+  return false
+end
+
+-- Character pane tabs. ToggleCharacter is the public opener; a second click
+-- on the same tab closes the window instead of leaving it up.
+function LS:ToggleCharacterTab(tab)
+  local frame = _G.CharacterFrame
+  local sub = tab and _G[tab]
+  if ToggleCharacter then
+    local ok = pcall(ToggleCharacter, tab)
+    if ok then
+      if frame and frame.IsShown and frame:IsShown() then
+        self:FrontClientFrame(frame)
+      end
+      return true
+    end
+  end
+  if not frame then return false end
+  local shown = frame.IsShown and frame:IsShown()
+  local same = shown and sub and sub.IsShown and sub:IsShown()
+  if shown and (not sub or same) then
+    self:HideClientFrame(frame)
+    return true
+  end
+  if ShowUIPanel then
+    pcall(ShowUIPanel, frame)
+  elseif frame.Show then
+    frame:Show()
+  end
+  if sub and sub.Show then pcall(sub.Show, sub) end
+  self:FrontClientFrame(frame)
+  return true
+end
+
+function LS:OpenCharacter()
+  return self:ToggleCharacterTab("PaperDollFrame")
+end
+
+function LS:OpenCurrencies()
+  return self:ToggleCharacterTab("TokenFrame")
+end
+
+-- Midnight moved Delves into the Adventure Guide Journeys tab.
+function LS:OpenJourneys()
+  if self:ToggleClientFrame("Blizzard_EncounterJournal", "EncounterJournal") then
+    return true
+  end
+  if ToggleEncounterJournal then
+    pcall(ToggleEncounterJournal)
+    if self:ClientFrameShown("EncounterJournal") then
+      self:FrontClientFrame(_G.EncounterJournal)
+    end
+    return true
+  end
+  return false
+end
+
+function LS:OpenDelvesJourney()
+  if self:ClientFrameShown("DelvesDashboardFrame") then
+    self:HideClientFrame(_G.DelvesDashboardFrame)
+    return true
+  end
+  if self:OpenJourneys() then return true end
+  return self:ToggleClientFrame("Blizzard_DelvesDashboardUI", "DelvesDashboardFrame")
+end
+
+function LS:SeasonJourneyProgress(factionID)
+  factionID = tonumber(factionID)
+  if not factionID then return end
+  local info = SafeJourney(C_MajorFactions and C_MajorFactions.GetMajorFactionRenownInfo, factionID)
+  if type(info) ~= "table" then return end
+  local data = SafeJourney(C_MajorFactions and C_MajorFactions.GetMajorFactionData, factionID)
+  local current = tonumber(info.renownReputationEarned)
+  local needed = tonumber(info.renownLevelThreshold)
+  local maxed = SafeJourney(C_MajorFactions and C_MajorFactions.HasMaximumRenown, factionID) and true or false
+  local fill
+  if maxed then
+    fill = 1
+  elseif current and needed and needed > 0 then
+    fill = math.max(0, math.min(1, current / needed))
+  end
+  return {
+    factionID = factionID,
+    name = data and data.name,
+    level = tonumber(info.renownLevel),
+    current = current,
+    needed = needed,
+    maxed = maxed,
+    fill = fill,
+  }
+end
+
+function LS:DelverJourney()
+  local faction = SafeJourney(C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason)
+  local season = SafeJourney(C_DelvesUI and C_DelvesUI.GetCurrentDelvesSeasonNumber)
+  local progress = self:SeasonJourneyProgress(faction)
+  if progress then
+    progress.season = tonumber(season)
+    progress.name = progress.name or "Delver's Journey"
+    return progress
+  end
+  return { season = tonumber(season), name = "Delver's Journey" }
+end

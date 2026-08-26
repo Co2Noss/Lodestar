@@ -43,12 +43,36 @@ function methods.SetFrameLevel(self, v) self.frameLevel = v end
 function methods.GetFrameLevel(self) return self.frameLevel or 1 end
 function methods.GetName(self) return self.objName end
 function methods.EnableMouse(self, v) self.mouse = v and true or false end
+function methods.EnableMouseWheel(self, v) self.mouseWheel = v and true or false end
 function methods.EnableKeyboard(self, v) self.keyboard = v and true or false end
 function methods.SetPropagateKeyboardInput(self, v) self.propagateKeys = v and true or false end
 function methods.SetFrameStrata(self, strata) self.frameStrata = strata end
+function methods.Raise(self)
+  self.raised = true
+end
 function methods.GetFrameStrata(self) return self.frameStrata end
 function methods.SetToplevel(self, v) self.toplevel = v and true or false end
-function methods.GetVerticalScroll(self) return 0 end
+function methods.SetVerticalScroll(self, v) self.verticalScroll = tonumber(v) or 0 end
+function methods.GetVerticalScroll(self) return self.verticalScroll or 0 end
+function methods.SetScrollChild(self, child)
+  self.scrollChild = child
+  self.verticalScroll = 0
+end
+function methods.SetMinMaxValues(self, min, max)
+  self.minValue, self.maxValue = min, max
+end
+function methods.GetMinMaxValues(self)
+  return self.minValue or 0, self.maxValue or 0
+end
+function methods.SetValue(self, v)
+  self.value = v
+  if self.scripts and self.scripts.OnValueChanged then
+    self.scripts.OnValueChanged(self, v)
+  end
+end
+function methods.GetValue(self)
+  return self.value or 0
+end
 function methods.GetChildren(self) return unpack(self.children) end
 function methods.GetRegions(self) return unpack(self.regions) end
 function methods.RegisterEvent(self, e) self.events[e] = true end
@@ -61,7 +85,14 @@ function methods.SetPoint(self, ...)
   self.points = self.points or {}
   table.insert(self.points, { ... })
 end
+function methods.SetDrawLayer(self, layer, sub)
+  self.drawLayer = layer
+  self.drawSubLevel = sub or 0
+end
 function methods.ClearAllPoints(self) self.points = {} end
+function methods.SetAllPoints(self, target)
+  self.allPoints = target or true
+end
 
 -- Clear() detaches page content by reparenting to nil, so the stub has to honour that or
 -- stale widgets stay reachable and assertions read text from pages that are gone.
@@ -87,6 +118,15 @@ local function region(self, kind)
   function r.GetText(s) return s.text_value end
   function r.SetTextColor(s, ...) s.color = { ... } end
   function r.GetStringHeight(s) return 12 end
+  function r.SetJustifyH(s, v) s.justifyH = v end
+  function r.SetJustifyV(s, v) s.justifyV = v end
+  function r.SetShadowColor(s, ...) s.shadowColor = { ... } end
+  function r.SetShadowOffset(s, x, y) s.shadowOffset = { x, y } end
+  function r.SetTexture(s, v) s.texture = v end
+  function r.SetColorTexture(s, ...) s.color = { ... } end
+  function r.SetWordWrap(s, v) s.wordWrap = v and true or false end
+  function r.SetMaxLines(s, v) s.maxLines = v end
+  function r.SetNonSpaceWrap(s, v) s.nonSpaceWrap = v and true or false end
   table.insert(self.regions, r)
   return r
 end
@@ -150,10 +190,73 @@ Minimap = new("Frame", "Minimap")
 WeeklyRewardsFrame = new("Frame", "WeeklyRewardsFrame")
 WeeklyRewardsFrame.shown = false
 OpenedGreatVault = false
+HousingDashboardFrame = new("Frame", "HousingDashboardFrame")
+HousingDashboardFrame.shown = false
+OpenedHousingDashboard = false
+EncounterJournal = new("Frame", "EncounterJournal")
+EncounterJournal.shown = false
+CalendarFrame = new("Frame", "CalendarFrame")
+CalendarFrame.shown = false
+CommunitiesFrame = new("Frame", "CommunitiesFrame")
+CommunitiesFrame.shown = false
+DelvesDashboardFrame = new("Frame", "DelvesDashboardFrame")
+DelvesDashboardFrame.shown = false
+PVEFrame = new("Frame", "PVEFrame")
+PVEFrame.shown = false
+ChallengesFrame = new("Frame", "ChallengesFrame")
+ChallengesFrame.shown = false
+OpenedJourneys = false
+OpenedCalendar = false
+OpenedCommunities = false
+OpenedDelvesDashboard = false
+OpenedMythicPlus = false
+CharacterFrame = new("Frame", "CharacterFrame")
+CharacterFrame.shown = false
+PaperDollFrame = new("Frame", "PaperDollFrame")
+PaperDollFrame.shown = false
+TokenFrame = new("Frame", "TokenFrame")
+TokenFrame.shown = false
+OpenedCharacter = false
+OpenedCurrencies = false
+CharacterTab = nil
 function ShowUIPanel(frame)
   if type(frame) == "table" then
     frame.shown = true
     if frame == WeeklyRewardsFrame then OpenedGreatVault = true end
+    if frame == HousingDashboardFrame then OpenedHousingDashboard = true end
+    if frame == EncounterJournal then OpenedJourneys = true end
+    if frame == CalendarFrame then OpenedCalendar = true end
+    if frame == CommunitiesFrame then OpenedCommunities = true end
+    if frame == DelvesDashboardFrame then OpenedDelvesDashboard = true end
+    if frame == ChallengesFrame then OpenedMythicPlus = true end
+    if frame == CharacterFrame and CharacterTab == "PaperDollFrame" then OpenedCharacter = true end
+    if frame == CharacterFrame and CharacterTab == "TokenFrame" then OpenedCurrencies = true end
+  end
+end
+function HideUIPanel(frame)
+  if type(frame) == "table" then
+    frame.shown = false
+  end
+end
+function ToggleCharacter(tab)
+  local frame = CharacterFrame
+  local sub = tab and _G[tab]
+  if frame.shown and CharacterTab == tab then
+    HideUIPanel(frame)
+    if sub then sub.shown = false end
+    CharacterTab = nil
+    return
+  end
+  CharacterTab = tab
+  if PaperDollFrame then PaperDollFrame.shown = (tab == "PaperDollFrame") end
+  if TokenFrame then TokenFrame.shown = (tab == "TokenFrame") end
+  ShowUIPanel(frame)
+end
+function PVEFrame_ShowFrame(name)
+  if name == "ChallengesFrame" then
+    OpenedMythicPlus = true
+    ShowUIPanel(PVEFrame)
+    ChallengesFrame.shown = true
   end
 end
 GameTooltip = new("Frame", "GameTooltip")
@@ -180,6 +283,28 @@ end
 function GameTooltip:GetText()
   return self._tip
 end
+function GameTooltip:SetCurrencyByID(id)
+  self.currencyID = id
+  self._tip = "currency:" .. tostring(id)
+  self._lines = { self._tip }
+end
+function GameTooltip:SetUnit(unit)
+  self.unit = unit
+  self._tip = unit
+  self._lines = { unit }
+end
+function GameTooltip:SetInventoryItem(unit, slot)
+  self.inventory = { unit, slot }
+  self._tip = "item:" .. tostring(unit) .. ":" .. tostring(slot)
+  self._lines = { self._tip }
+  return true
+end
+function GameTooltip:SetHyperlink(link)
+  self.hyperlink = link
+  self._tip = link
+  self._lines = { link }
+end
+IsShiftKeyDown = function() return ShiftDown == true end
 SlashCmdList = {}
 UISpecialFrames = {}
 tinsert = table.insert
@@ -256,16 +381,67 @@ UnitName = function() return "Testchar" end
 GetRealmName = function() return "Testrealm" end
 UnitLevel = function() return 90 end
 GetMaxLevelForPlayerExpansion = function() return 90 end
+GetExpansionLevel = function() return 11 end
+EXPANSION_NAME10 = "The War Within"
+EXPANSION_NAME11 = "Midnight"
+PlayerMoney = 0
+GetMoney = function() return PlayerMoney or 0 end
+AverageItemLevel, EquippedItemLevel = 0, 0
+GetAverageItemLevel = function()
+  return AverageItemLevel or 0, EquippedItemLevel or 0, 0
+end
+EquipmentLinks, EquipmentQuality, EquipmentTexture = {}, {}, {}
+GetInventoryItemLink = function(_, slot) return EquipmentLinks[slot] end
+GetInventoryItemQuality = function(_, slot) return EquipmentQuality[slot] end
+GetInventoryItemTexture = function(_, slot) return EquipmentTexture[slot] end
+ITEM_QUALITY_COLORS = {
+  [0] = { r = 0.62, g = 0.62, b = 0.62 },
+  [1] = { r = 1, g = 1, b = 1 },
+  [2] = { r = 0.12, g = 1, b = 0 },
+  [3] = { r = 0, g = 0.44, b = 0.87 },
+  [4] = { r = 0.64, g = 0.21, b = 0.93 },
+  [5] = { r = 1, g = 0.5, b = 0 },
+}
+GetItemQualityColor = function(quality)
+  local c = ITEM_QUALITY_COLORS[quality]
+  if c then return c.r, c.g, c.b, 1 end
+  return 1, 1, 1, 1
+end
+ItemInfoByLink = {}
+ItemStats = {}
+InventoryTooltip = {}
+GetItemInfo = function(link)
+  local row = ItemInfoByLink[link]
+  if not row then return end
+  return row.name, link, row.quality, row.ilvl, 1, row.type, row.subType, 1, row.equipLoc, row.icon
+end
+GetItemStats = function(link, into)
+  local stats = ItemStats[link] or {}
+  if into then
+    for k, v in pairs(stats) do into[k] = v end
+    return into
+  end
+  return stats
+end
+HonorLevel = 0
+UnitHonorLevel = function() return HonorLevel or 0 end
+GetHonorLevel = function() return HonorLevel or 0 end
+RatedInfo = {}
+GetPersonalRatedInfo = function(index)
+  local row = RatedInfo[index]
+  if type(row) ~= "table" then return 0, 0, 0, 0, 0 end
+  return row[1] or 0, row[2] or 0, row[3] or 0, row[4] or 0, row[5] or 0
+end
 UnitClass = function() return "Mage", "MAGE" end
 GetSpecialization = function() return 1 end
 GetSpecializationInfo = function() return 62, "Arcane" end
 GetProfessions = function() return 1, 2, 3, 4, 5 end
 GetProfessionInfo = function(index)
-  if index == 1 then return "Alchemy", nil, 100, 100, nil, nil, 171, 0, nil, nil, "Alchemy" end
-  if index == 2 then return "Herbalism", nil, 100, 100, nil, nil, 182, 0, nil, nil, "Herbalism" end
-  if index == 3 then return "Archaeology", nil, 200, 800, nil, nil, 794, 0, nil, nil, "Archaeology" end
-  if index == 4 then return "Fishing", nil, 50, 100, nil, nil, 356, 0, nil, nil, "Fishing" end
-  if index == 5 then return "Cooking", nil, 80, 100, nil, nil, 185, 0, nil, nil, "Cooking" end
+  if index == 1 then return "Alchemy", 136240, 100, 100, nil, nil, 171, 0, nil, nil, "Alchemy" end
+  if index == 2 then return "Herbalism", 133939, 100, 100, nil, nil, 182, 0, nil, nil, "Herbalism" end
+  if index == 3 then return "Archaeology", 441139, 200, 800, nil, nil, 794, 0, nil, nil, "Archaeology" end
+  if index == 4 then return "Fishing", 136245, 50, 100, nil, nil, 356, 0, nil, nil, "Fishing" end
+  if index == 5 then return "Cooking", 133971, 80, 100, nil, nil, 185, 0, nil, nil, "Cooking" end
 end
 
 local addonList = {
@@ -331,10 +507,13 @@ C_TradeSkillUI = {
   end,
   OpenTradeSkill = function(id)
     table.insert(OpenedTradeSkills, id)
+    if ShowUIPanel then ShowUIPanel(ProfessionsFrame) else ProfessionsFrame.shown = true end
     return true
   end,
 }
 OpenedTradeSkills = {}
+ProfessionsFrame = new("Frame", "ProfessionsFrame")
+ProfessionsFrame.shown = false
 
 C_ProfSpecs = {
   SkillLineHasSpecialization = function(id) return id ~= 185 and id ~= 356 and id ~= 794 end,
@@ -346,9 +525,26 @@ C_ProfSpecs = {
 }
 C_Traits = { GetNodeInfo = function() return nil end }
 Currencies = {}
+CurrencyList = {}
 C_CurrencyInfo = {
   GetCurrencyInfo = function(id)
     return Currencies[id] or { quantity = 3, maxQuantity = 0 }
+  end,
+  GetCurrencyListSize = function()
+    return #CurrencyList
+  end,
+  GetCurrencyListInfo = function(i)
+    return CurrencyList[i]
+  end,
+  GetCurrencyListLink = function(i)
+    local info = CurrencyList[i]
+    local id = info and (info.currencyTypesID or info.currencyID)
+    if id then
+      return "|cffffffff|Hcurrency:" .. tostring(id) .. "|h[" .. (info.name or "") .. "]|h|r"
+    end
+  end,
+  GetCurrencyIDFromLink = function(link)
+    return tonumber(type(link) == "string" and link:match("currency:(%d+)"))
   end,
 }
 GildedStashTooltip = nil
@@ -619,6 +815,8 @@ Enum = {
   WeeklyRewardChestThresholdType = { Raid = 1, Activities = 2, World = 3 },
   UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
   CampaignState = { Invalid = 0, Complete = 1, InProgress = 2, Stalled = 3 },
+  BankType = { Character = 0, Guild = 1, Account = 2 },
+  TooltipDataLineType = { GemSocket = 3, ItemEnchantmentPermanent = 15 },
 }
 DifficultyUtil = {
   ID = { DungeonHeroic = 2, DungeonMythic = 23, DungeonChallenge = 8,
@@ -634,6 +832,11 @@ DifficultyUtil = {
   end,
 }
 
+ChallengeMaps = {}
+SeasonBestForMap = {}
+OverallDungeonScore = 0
+MythicPlusRating = { currentSeasonScore = 0, runs = {} }
+
 C_MythicPlus = {
   GetRunHistory = function()
     return {
@@ -643,19 +846,119 @@ C_MythicPlus = {
       { level = 4, completed = true, mapChallengeModeID = 2 },
     }
   end,
+  RequestMapInfo = function() end,
+  GetSeasonBestForMap = function(mapID)
+    local row = SeasonBestForMap[mapID]
+    if row == nil then return end
+    if type(row) == "number" then
+      return { level = row }, { level = 0 }
+    end
+    if type(row) == "table" and row.level then
+      return row, { level = 0 }
+    end
+    return row.intime or row[1], row.overtime or row[2]
+  end,
 }
 
 C_ChallengeMode = {
+  GetMapTable = function()
+    return ChallengeMaps
+  end,
   GetMapUIInfo = function(id)
-    if id == 403 then return "The Rookery" end
-    if id == 2 then return "Temple of the Jade Serpent" end
+    if id == 403 then return "The Rookery", nil, nil, "Interface\\Icons\\inv_misc_map" end
+    if id == 2 then return "Temple of the Jade Serpent", nil, nil, "Interface\\Icons\\inv_misc_map" end
+    return "Dungeon " .. tostring(id), nil, nil, "Interface\\Icons\\inv_misc_map"
+  end,
+  GetKeystoneLevelRarityColor = function(level)
+    level = tonumber(level) or 0
+    if level >= 10 then return { r = 0.64, g = 0.21, b = 0.93 } end
+    if level >= 5 then return { r = 0, g = 0.44, b = 0.87 } end
+    return { r = 0.12, g = 1, b = 0 }
+  end,
+  GetOverallDungeonScore = function()
+    if OverallDungeonScore and OverallDungeonScore > 0 then return OverallDungeonScore end
+    return (MythicPlusRating and MythicPlusRating.currentSeasonScore) or OverallDungeonScore or 0
+  end,
+  GetDungeonScoreRarityColor = function(score)
+    score = tonumber(score) or 0
+    if score >= 2000 then return { r = 0.64, g = 0.21, b = 0.93 } end
+    if score >= 1500 then return { r = 0, g = 0.44, b = 0.87 } end
+    return { r = 0.12, g = 1, b = 0 }
+  end,
+}
+
+C_PlayerInfo = {
+  GetPlayerMythicPlusRatingSummary = function()
+    return MythicPlusRating
+  end,
+}
+
+OwnedHouses = {}
+CurrentHouseInfo = nil
+CurrentHouseFavor = nil
+MaxHouseLevel = 10
+HouseLevelFavor = { [1] = 0, [2] = 10, [3] = 1200, [4] = 2400, [5] = 3700 }
+TeleportedHome = nil
+CurrentInitiative = nil
+InitiativeProgress = nil
+PlayerContribution = nil
+
+C_Housing = {
+  GetPlayerOwnedHouses = function()
+    return OwnedHouses
+  end,
+  GetCurrentHouseInfo = function()
+    return CurrentHouseInfo
+  end,
+  GetMaxHouseLevel = function()
+    return MaxHouseLevel
+  end,
+  GetHouseLevelFavorForLevel = function(level)
+    return HouseLevelFavor[level]
+  end,
+  GetCurrentHouseLevelFavor = function()
+    return CurrentHouseFavor
+  end,
+  TeleportHome = function(neighborhoodGUID, houseGUID, plotID)
+    TeleportedHome = { neighborhoodGUID, houseGUID, plotID }
+  end,
+}
+
+C_NeighborhoodInitiative = {
+  GetCurrentInitiative = function() return CurrentInitiative end,
+  GetInitiativeProgress = function() return InitiativeProgress end,
+  GetPlayerContribution = function() return PlayerContribution end,
+}
+
+AccountBankGold = 0
+C_Bank = {
+  FetchDepositedMoney = function(kind)
+    if kind == Enum.BankType.Account then return AccountBankGold or 0 end
+    return 0
   end,
 }
 
 C_Item = {
   GetDetailedItemLevelInfo = function(link)
-    if type(link) == "string" and link ~= "" then return 305 end
+    if type(link) ~= "string" or link == "" then return end
+    local row = ItemInfoByLink[link]
+    if row and row.ilvl then return row.ilvl end
+    return 305
   end,
+  GetItemStats = function(link, into)
+    return GetItemStats(link, into)
+  end,
+}
+
+C_TooltipInfo = {
+  GetInventoryItem = function(_, slot)
+    return InventoryTooltip[slot]
+  end,
+}
+
+C_Container = {
+  GetContainerNumSlots = function() return 0 end,
+  GetContainerItemLink = function() return nil end,
 }
 
 C_WowTokenPublic = {
@@ -672,6 +975,78 @@ C_DateAndTime = {
   GetSecondsUntilDailyReset = function()
     return 8 * 3600
   end,
+  GetCurrentCalendarTime = function()
+    return CalendarTime
+  end,
+}
+
+-- Wednesday 26 Aug 2026. Calendar weekday 1 = Sunday, so 4 = Wednesday.
+CalendarTime = { year = 2026, month = 8, monthDay = 26, weekday = 4, hour = 10, minute = 0 }
+CalendarDayEvents = {}
+CalendarGuildEvents = {}
+C_Calendar = {
+  OpenCalendar = function() CalendarRequested = true end,
+  GetNumDayEvents = function(offset, day)
+    local row = CalendarDayEvents[tostring(offset) .. ":" .. tostring(day)]
+    return row and #row or 0
+  end,
+  GetDayEvent = function(offset, day, index)
+    local row = CalendarDayEvents[tostring(offset) .. ":" .. tostring(day)]
+    return row and row[index]
+  end,
+  GetNumGuildEvents = function()
+    return #CalendarGuildEvents
+  end,
+  GetGuildEventInfo = function(i)
+    return CalendarGuildEvents[i]
+  end,
+}
+
+GuildName = nil
+GuildMemberTotal = nil
+GuildOnlineCount = nil
+GuildMembers = {}
+IsInGuild = function() return GuildName ~= nil and GuildName ~= false end
+GetGuildInfo = function()
+  if not GuildName then return end
+  return GuildName, "Officer", 1
+end
+GetNumGuildMembers = function()
+  if GuildMemberTotal then return GuildMemberTotal, GuildOnlineCount or 0 end
+  local online = 0
+  for _, row in ipairs(GuildMembers) do
+    if row.online then online = online + 1 end
+  end
+  return #GuildMembers, online
+end
+GetGuildRosterInfo = function(i)
+  local row = GuildMembers[i]
+  if not row then return end
+  return row.name, "Member", 0, 90, "Mage", "Orgrimmar", "", "", row.online, 0, "MAGE"
+end
+C_GuildInfo = { GuildRoster = function() GuildRosterRequested = true end }
+
+DelvesFaction = 9901
+PreyFaction = 9902
+C_DelvesUI = {
+  GetDelvesFactionForSeason = function() return DelvesFaction end,
+  GetCurrentDelvesSeasonNumber = function() return 1 end,
+}
+C_MajorFactions = {
+  GetMajorFactionIDs = function() return { DelvesFaction, PreyFaction } end,
+  GetMajorFactionRenownInfo = function(id)
+    if id == DelvesFaction then
+      return { renownLevel = 4, renownReputationEarned = 1200, renownLevelThreshold = 4200 }
+    end
+    if id == PreyFaction then
+      return { renownLevel = 2, renownReputationEarned = 800, renownLevelThreshold = 4000 }
+    end
+  end,
+  GetMajorFactionData = function(id)
+    if id == DelvesFaction then return { name = "Delver's Journey", factionID = id } end
+    if id == PreyFaction then return { name = "Preyhunter's Journey", factionID = id } end
+  end,
+  HasMaximumRenown = function() return false end,
 }
 
 GetCursorPosition = function() return 0, 0 end

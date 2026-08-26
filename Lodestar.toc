@@ -1,8 +1,8 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.4.1
-## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI
+## Version: 1.5.0
+## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI, RaiderIO, GW2_UI, nibRealUI, Aurora
 ## SavedVariables: LodestarDB, LodestarDebugDB
 Core.lua
 PlayerData.lua
@@ -13,6 +13,8 @@ Professions.lua
 Vault.lua
 Delves.lua
 Prey.lua
+PvP.lua
+Housing.lua
 Quests.lua
 Catalog.lua
 Mounts.lua
@@ -22,6 +24,8 @@ Scoring.lua
 Warband.lua
 Themes.lua
 Minimap.lua
+Tips.lua
 UI.lua
 Dashboard.lua
+Widgets.lua
 Compact.lua

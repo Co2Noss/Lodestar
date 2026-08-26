@@ -153,13 +153,16 @@ function LS:SaveSnapshot()
     table.insert(renown, { name = faction.name, renown = faction.renown })
   end
 
-  self.db.characters[self:CharacterKey()] = {
+  local key = self:CharacterKey()
+  local prev = self.db.characters[key]
+  self.db.characters[key] = {
     name = UnitName("player"),
     realm = GetRealmName(),
     level = p.level,
     class = p.class,
     spec = p.spec,
     lastSeen = time(),
+    gold = GetMoney and tonumber(GetMoney()) or 0,
     mounts = p.mounts and p.mounts.collected or 0,
     vault = { filled = filled, total = totalSlots, upgradable = upgradable },
     knowledge = {
@@ -170,5 +173,6 @@ function LS:SaveSnapshot()
       catchUpReady = catchUpReady,
     },
     renown = renown,
+    tracked = prev and prev.tracked,
   }
 end

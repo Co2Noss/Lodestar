@@ -42,10 +42,13 @@ Lodestar answers one question: what is the best use of your next hour in World o
 
 Lodestar works on its own. These addons unlock extra behaviour if they are loaded:
 
-- **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house.
-- **TomTom** — multiple waypoints and a closest-arrow. Settings can force TomTom, the client's map pin, or Auto (TomTom when loaded).
+- **TradeSkillMaster, Auctionator, RECrystallize** — gold prices. Without one, gold making stays quiet. Lodestar does not invent an auction house. Settings → Optional Addons picks the source. TradeSkillMaster also colours the warband gold tile with its account log when it has one.
+- **Raider.IO** — colours the Mythic+ dashboard tile from your profile. Without it, that tile still shows the client's mythic rating.
+- **TomTom** — multiple waypoints and a closest-arrow. Settings → Optional Addons can force TomTom, the client's map pin, or Auto (TomTom when loaded).
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks (trainers, vendors, chests). Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
-- **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, border, texture and font.
+- **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, texture and font. A near-black ElvUI border falls back to a lighter grey.
+- **GW2 UI** — Auto follows GW2 UI when it is loaded. The GW2 theme uses GW2 UI's gold and font when `GW2_ADDON` exposes them.
+- **RealUI** — Auto follows RealUI / Aurora when loaded. The RealUI theme reads `Aurora.Color` when Aurora is there.
 - **Great Vault Key Info** — Champion/Hero ranks on slots in the client's Great Vault window. Lodestar does not copy those season tables; Dashboard hover uses named keys and reward item levels the client already has.
 
 ## First login
@@ -60,37 +63,71 @@ and a player who never chose those defaults has no way to know what is missing.
 Existing installs are left alone. Goals you already chose count as an answer, so the welcome
 page never interrupts an upgrade.
 
+After you pick goals, a short tip tour covers the window. **Next** is the next tip. **Skip**
+hides the rest. Returning players only see tips for features added since they last played.
+Settings → Changelog has the last five versions.
+
 ## Pages
 
 The left menu is workspaces, not content categories. Collapse it to icons; hover
-an icon for the name. Professions live on Dashboard. Great Vault opens from
+an icon for the name. Professions live on Dashboard; the tile shows your two
+primary profession icons and opens that profession in front of Lodestar when you click one;
+click again to close it. Great Vault opens from
 Dashboard; Progress is the tracked list.
 
-- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, gold, or HandyNotes rares, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
+- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, gold, HandyNotes rares, Mythic+, warband gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
 - **Today's Plan** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
-- **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge.
+- **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge, weekly Conquest, neighborhood initiatives, housing weeklies already in the log.
 - **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up. Which of those to rank is still chosen in Settings.
 - **Progress** — activities you tracked, in score order. Compact mode shows the same list. Track or Untrack from Details.
 - **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
-- **Warband** — every character Lodestar has seen, with vault and knowledge status.
-- **Settings** — split into Goals, Reputation, Appearance, Compact and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
+- **Warband** — every character Lodestar has seen, with vault and knowledge status. When more than one character is saved, each alt can be tracked or untracked so it drops out of totals and warband gold without being forgotten.
+- **Settings** — split into Goals, Optional Addons, Reputation, Appearance, Compact, Layout and Changelog, so each group is a click rather than a scroll. The last tab you were on is remembered.
 
 ## Dashboard widgets
 
 Edit dashboard to add, remove, or drag tiles on a **12 × 18** canvas that exists
-only on that tab. Drag a tile to move it; drag the right edge, bottom edge, or
+only on that tab and grows down to **36** rows when you add more. While you are
+editing, a tile shows its settings rather than live Honor, gold, or house favor;
+click Done editing to see the data again. Drag a tile to move it; drag the right edge, bottom edge, or
 corner to resize it horizontally or vertically. Tiles cannot overlap; Compact up
 packs them to the top. Dragging lifts the tile, leaves a ghost in its old cell, and
 marks empty rooms with a bordered plus so you can see where it can land.
 The default layout is Overview, Jump, Professions, and Next, each starting at half
 width — the same size as WoW Token and the other addable tiles. Tiles that need another
-addon stay out of the add list until that addon is loaded: gold needs TSM, Auctionator
+addon stay out of the add list until that addon is loaded: gold farms need TSM, Auctionator
 or RECrystallize (and the Gold goal), rares need HandyNotes plus a notes pack.
+Mythic+, Warband Gold, Currencies, PvP, Item Level, Housing, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
+the client's overall dungeon score (Raider.IO colours it when loaded). Click the tile to
+open the client's Mythic+ Dungeons tab; click again to close it. Warband Gold sums
+characters Lodestar has seen, or TSM's account log when TSM is loaded. Currencies start on
+this expansion and use the client's rarity colour; edit mode toggles what to track
+(and hides live amounts until you click Done editing). Click
+the tile to open the currency tab; click again to close it. PvP
+shows honor plus seasonal ratings; edit mode lists 2v2, 3v3, Shuffle, Blitz, and RBG
+without the live Honor line so nothing is clipped.
+Item Level shows equipped average and best-in-bags, coloured by rarity. Click the tile
+to open the character panel; click again to close it. Slot icons
+show that piece's item level in its rarity colour, a red border when an enchant is
+missing, and a yellow caution when the client reports an empty gem slot. Helm and
+rings take both; shoulder takes enchants; wrist takes sockets; back takes neither.
+A gemmed ring is not flagged for sockets. Missing
+enchants and sockets are listed beside the gear so two flags on one piece never overlap.
+**Housing** shows the house name, level, and favor the client reports, with a bar
+toward the next house level, **Dashboard**
+to open the client's Housing Dashboard (click again to close it) and **Teleport** when `C_Housing.TeleportHome`
+has a house GUID.
+**Calendar** lists this week and next from the client's calendar, including guild events
+and invites; click opens the calendar, click again closes it. **Guild** shows the guild name with the emblem
+centered under it; click opens Communities, click again closes it. **Delver's Journey** and **Preyhunter's Journey** show this
+season's rank from the client with a bar toward the next rank; click opens Journeys, click again closes it.
+Tiles fill the chrome they sit in. Hover for tooltips: Mythic+ uses your player tooltip
+(shift refreshes it), currencies use the same tooltip as the currency tab.
 
 WoW Token uses `C_WowTokenPublic` — the price the client published, not an invented AH.
 A trend line only appears after Lodestar has seen more than one live price. Edit dashboard
 to change how the tile looks: **Coin icons** uses the client's gold coin, **Letters** uses
-g/s/c, **Color** tints letter amounts gold, **Separators** inserts thousands commas, and
+g/s/c (gold, silver, and copper), **Color** tints letter amounts gold, **Separators** inserts thousands commas, and
 **Bars** / **Line** switches the trend from a bar chart to a line.
 
 Other addons can pin a tile after Lodestar loads:
@@ -111,7 +148,7 @@ Lodestar:RegisterWidget({
 
 Recommendations are scored against the goals you chose on first login, which Settings can
 change at any time, then grouped by where the work happens: Great Vault, Professions,
-Mounts, Reputation, Solo content, Questing. Today's Plan, Weekly Plan, Great Vault, Professions
+Mounts, Reputation, Solo content, Questing, PvP, Housing. Today's Plan, Weekly Plan, Great Vault, Professions
 and Settings each use the same tab strip, so moving between groups is a click rather than a
 scroll. Tab order is stable; the work inside a tab is still ranked best first. The last tab
 on each page is remembered.
@@ -165,6 +202,16 @@ map and pick up quests instead of inventing a circuit.
 gear. While a hunt is active the client names it. While the Prey goal is on and the World
 Vault still needs work, Lodestar also ranks starting a hunt. Hunt locations stay on the
 client's hunt table.
+
+**PvP** is a goal. Weekly Conquest ranks while that goal is on and the client still
+reports unfinished progress this week. Honor level and seasonal ratings (Blitz, Shuffle,
+2v2, 3v3, RBG) live on the dashboard tile. Lodestar does not invent a queue.
+
+**Housing** is a goal. A missing house, unfinished neighborhood initiatives, and
+weekly housing quests already in the log (Housewarming and the like) rank while that
+goal is on. Lodestar does not invent plots or housing quest IDs. The Housing dashboard
+tile shows house level and favor the client reports, opens the client's Housing
+Dashboard, and teleports with `C_Housing.TeleportHome` when a house GUID exists.
 
 ## Professions and knowledge
 
@@ -235,7 +282,7 @@ The Gold making goal ranks gathering you have trained, cloth from humanoids, and
 farms that never expire. Herbalism, Mining and Skinning each get Midnight and Khaz Algar
 loops. Tailors get Midnight and Khaz Algar cloth; anyone can farm older cloth such as
 Frostweave and Netherweave. Prices come from **TSM**, **Auctionator** or **RECrystallize**.
-Lodestar does not invent an auction house. Settings → Goals lets you pick the source: Auto
+Lodestar does not invent an auction house. Settings → Optional Addons lets you pick the source: Auto
 uses the first of those addons that is loaded. If none is loaded, or the one you picked is
 not, Lodestar stays quiet about gold.
 
@@ -263,7 +310,11 @@ client ever stops offering that art, the theme falls back to a flat frame in the
 instead of rendering without a border.
 
 With ElvUI loaded, the ElvUI theme reads ElvUI's own backdrop colour, border colour, status
-bar texture and font. Ellesmere and Minimal are standalone palettes.
+bar texture and font. ElvUI's default border is near-black; Lodestar uses a lighter grey
+unless ElvUI's border is actually visible. With GW2 UI loaded, Auto follows it and the
+GW2 theme reads `GW2_ADDON` colours and font when that addon exposes them. With RealUI
+loaded, Auto follows RealUI / Aurora and the RealUI theme reads `Aurora.Color`. Ellesmere
+and Minimal are standalone palettes.
 
 ## Colors
 
@@ -284,7 +335,7 @@ position are saved. Escape closes the main window; compact mode stays up.
 ## Commands
 
 - `/ls` — open or close the window
-- `/ls theme auto` (also blizzard, elvui, ellesmere, minimal)
+- `/ls theme auto` (also blizzard, elvui, ellesmere, gw2, realui, minimal)
 - `/ls compact`
 - `/ls compact single`
 - `/ls debug` — disable every other addon and reload, so you can tell if an error is Lodestar

@@ -66,6 +66,18 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.db.goals.PVP and self.GetPvPRecommendations then
+    for _, pvp in ipairs(self:GetPvPRecommendations()) do
+      consider(pvp, pvp.score)
+    end
+  end
+
+  if self.db.goals.HOUSING and self.GetHousingRecommendations then
+    for _, house in ipairs(self:GetHousingRecommendations()) do
+      consider(house, house.score)
+    end
+  end
+
   if self.db.goals.SOLO and self.GetHandyNotesRecommendations then
     for _, rare in ipairs(self:GetHandyNotesRecommendations()) do
       consider(rare, rare.score)
@@ -135,19 +147,23 @@ local CATEGORY_ORDER = {
   ["Gold"] = 5,
   ["Solo content"] = 6,
   ["Questing"] = 7,
+  ["PvP"] = 8,
+  ["Housing"] = 9,
 }
 
 -- Weekly work disappears at reset. Long-term work waits. Everything else is for today.
 function LS:ActivityHorizon(activity)
   local id = (activity and activity.id) or ""
   local cat = (activity and activity.category) or ""
-  if cat == "Great Vault" or id == "delve" or id == "prey" or id:sub(1, 6) == "vault_" then
+  if cat == "Great Vault" or cat == "PvP" or id == "delve" or id == "prey"
+      or id == "pvp_conquest" or id == "housing_initiative"
+      or id:sub(1, 14) == "housing_quest_" or id:sub(1, 6) == "vault_" then
     return "WEEKLY"
   end
   if id:sub(1, 10) == "kp_weekly_" or id:sub(1, 10) == "kp_gather_" then
     return "WEEKLY"
   end
-  if cat == "Mounts" or cat == "Reputation" or cat == "Gold" then
+  if cat == "Mounts" or cat == "Reputation" or cat == "Gold" or cat == "Housing" then
     return "LONG"
   end
   if id:sub(1, 12) == "kp_treasure_" or id:sub(1, 11) == "kp_catchup_"

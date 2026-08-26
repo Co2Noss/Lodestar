@@ -26,6 +26,8 @@ local goalList = {
   { "ENDGAME", "Great Vault & endgame" },
   { "SOLO", "Solo content" },
   { "PREY", "Prey hunts" },
+  { "PVP", "PvP" },
+  { "HOUSING", "Housing" },
   { "CRAFTING", "Professions" },
   { "MOUNTS", "Mounts" },
   { "REPUTATION", "Reputation" },
@@ -215,14 +217,27 @@ function LS:ContentWidth()
 end
 
 function LS:Clear()
+  if self.EndWidgetDrag then self:EndWidgetDrag() end
   for _, child in ipairs({ self.content:GetChildren() }) do
-    if child.menu then child.menu:Hide() end
-    child:Hide()
-    child:SetParent(nil)
+    if child ~= self.bodyScroll then
+      if child.menu then child.menu:Hide() end
+      child:Hide()
+      child:SetParent(nil)
+    end
   end
   for _, region in ipairs({ self.content:GetRegions() }) do
     region:Hide()
   end
+  if self.bodyChild then
+    for _, child in ipairs({ self.bodyChild:GetChildren() }) do
+      child:Hide()
+      child:SetParent(nil)
+    end
+    for _, region in ipairs({ self.bodyChild:GetRegions() }) do
+      region:Hide()
+    end
+  end
+  if self.bodyScroll then self.bodyScroll:Hide() end
 end
 
 function LS:SaveFrameLayout()
@@ -252,9 +267,10 @@ function LS:CreateUI()
   self.frame = frame
   frame:SetSize(960, 680)
   frame:SetPoint("CENTER")
-  -- Nameplates, including Ellesmere's personal plate, live on HIGH. MEDIUM (UIParent's
-  -- default) lets them draw through the cards.
-  frame:SetFrameStrata("DIALOG")
+  -- Nameplates live on HIGH. MEDIUM lets them draw through the cards. DIALOG
+  -- covers the client's calendar, Mythic+, and vault, so HIGH sits above
+  -- nameplates and those panels can raise to DIALOG in front.
+  frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
   frame:SetMovable(true)
   frame:SetResizable(true)
@@ -543,13 +559,19 @@ function LS:TabStrip(tabs, selectedID, onChoose, y, parent, width)
     nav:SetScript("OnMouseUp", function()
       onChoose(tab[1])
     end)
+    if self.MarkCoach then self:MarkCoach("tab:" .. tab[1], nav) end
   end
   local rows = math.ceil(n / perRow)
   return chosen, rows * height + (rows - 1) * gap
 end
 
 function LS:ShowPage(page)
+  if page == "TUTORIAL" then
+    if self.ShowCurrentTip then self:ShowCurrentTip() end
+    return
+  end
   self.page = page
+  self.coachMarks = {}
   self:Clear()
   self:ApplyTheme()
   if page == "WELCOME" then
@@ -581,90 +603,145 @@ function LS:ShowPage(page)
   else
     self:Today()
   end
+  if self.coachActive and self.PresentCoach then
+    self:PresentCoach()
+  elseif self.HideCoach then
+    self:HideCoach()
+  end
 end
 
--- Scrollable body shared by every page that can overflow.
+-- Scrollable body shared by every page that can overflow. Reused so edit-mode
+-- redraws cannot stack a second canvas on top of the last one.
 function LS:Body(topOffset)
   local width = self:ContentWidth() - 18
-  local scroll = CreateFrame("ScrollFrame", nil, self.content)
-  scroll:SetPoint("TOPLEFT", 0, -(topOffset or 62))
-  scroll:SetPoint("BOTTOMRIGHT", -18, 0)
-  local child = CreateFrame("Frame", nil, scroll)
-  child:SetWidth(width)
-  child:SetHeight(1)
-  scroll:SetScrollChild(child)
+  local scroll = self.bodyScroll
+  -- Edit mode and token/currency refreshes rebuild the page. Keep the offset
+  -- when we stay on the same tab so the canvas does not jump back to the top.
+  local keep = 0
+  if scroll and self._bodyPage == self.page then
+    keep = scroll:GetVerticalScroll() or 0
+  end
+  self._bodyPage = self.page
+  if not scroll then
+    scroll = CreateFrame("ScrollFrame", nil, self.content)
+    self.bodyScroll = scroll
+    if scroll.SetClipsChildren then scroll:SetClipsChildren(true) end
+    local child = CreateFrame("Frame", nil, scroll)
+    self.bodyChild = child
+    local bar = CreateFrame("Slider", nil, scroll, "BackdropTemplate")
+    self.bodyBar = bar
+    bar:SetWidth(8)
+    bar:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+    bar:SetOrientation("VERTICAL")
+    bar:SetThumbTexture("Interface/Buttons/WHITE8X8")
+    bar:GetThumbTexture():SetSize(8, 40)
+    bar:SetValueStep(1)
+    bar:SetObeyStepOnDrag(true)
 
-  local bar = CreateFrame("Slider", nil, scroll, "BackdropTemplate")
-  bar:SetWidth(8)
-  bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
-  bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
-  bar:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
-  bar:SetBackdropColor(unpack(self.colors.panel))
-  bar:SetOrientation("VERTICAL")
-  bar:SetThumbTexture("Interface/Buttons/WHITE8X8")
-  bar:GetThumbTexture():SetSize(8, 40)
-  bar:GetThumbTexture():SetColorTexture(unpack(self.colors.accent))
-  bar:SetValueStep(1)
-  bar:SetObeyStepOnDrag(true)
-
-  local function sync(value)
-    local maxScroll = math.max(0, child:GetHeight() - scroll:GetHeight())
-    bar:SetMinMaxValues(0, maxScroll)
-    if maxScroll <= 0 then
-      bar:Hide()
-      scroll:SetVerticalScroll(0)
-      return
+    local function sync(value)
+      local maxScroll = math.max(0, child:GetHeight() - scroll:GetHeight())
+      local minV, maxV = 0, 0
+      if bar.GetMinMaxValues then
+        minV, maxV = bar:GetMinMaxValues()
+      end
+      if minV ~= 0 or maxV ~= maxScroll then
+        bar._syncing = true
+        bar:SetMinMaxValues(0, maxScroll)
+        bar._syncing = nil
+      end
+      if maxScroll <= 0 then
+        bar:Hide()
+        scroll:SetVerticalScroll(0)
+        return
+      end
+      bar:Show()
+      value = math.min(maxScroll, math.max(0, value or scroll:GetVerticalScroll()))
+      scroll:SetVerticalScroll(value)
+      bar._syncing = true
+      bar:SetValue(value)
+      bar._syncing = nil
     end
-    bar:Show()
-    value = math.min(maxScroll, math.max(0, value or scroll:GetVerticalScroll()))
-    bar:SetValue(value)
-    scroll:SetVerticalScroll(value)
+    self._bodySync = sync
+
+    bar:SetScript("OnValueChanged", function(_, value)
+      if bar._syncing then return end
+      scroll:SetVerticalScroll(value)
+    end)
+    scroll:EnableMouse(true)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(_, delta) sync(scroll:GetVerticalScroll() - delta * 44) end)
+    scroll:SetScript("OnSizeChanged", function() sync(scroll:GetVerticalScroll()) end)
+    child:EnableMouseWheel(true)
+    child:SetScript("OnMouseWheel", function(_, delta) sync(scroll:GetVerticalScroll() - delta * 44) end)
+    scroll:SetScrollChild(child)
   end
 
-  bar:SetScript("OnValueChanged", function(_, value) scroll:SetVerticalScroll(value) end)
-  scroll:EnableMouse(true)
-  scroll:EnableMouseWheel(true)
-  scroll:SetScript("OnMouseWheel", function(_, delta) sync(scroll:GetVerticalScroll() - delta * 44) end)
-  scroll:SetScript("OnSizeChanged", function() sync(scroll:GetVerticalScroll()) end)
+  scroll:SetParent(self.content)
+  scroll:ClearAllPoints()
+  scroll:SetPoint("TOPLEFT", 0, -(topOffset or 62))
+  scroll:SetPoint("BOTTOMRIGHT", -18, 0)
+  scroll:Show()
+  if self.content.SetClipsChildren then self.content:SetClipsChildren(true) end
 
+  local child = self.bodyChild
+  child:SetWidth(width)
+  -- Leave the last height in place until finish. Collapsing to 1px (or calling
+  -- SetScrollChild again) zeroes max scroll and snaps the view to the top.
+  for _, kid in ipairs({ child:GetChildren() }) do
+    kid:Hide()
+    kid:SetParent(nil)
+  end
+  for _, region in ipairs({ child:GetRegions() }) do
+    region:Hide()
+  end
+
+  local bar = self.bodyBar
+  bar:ClearAllPoints()
+  bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
+  bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
+  if self.colors then
+    bar:SetBackdropColor(unpack(self.colors.panel))
+    bar:GetThumbTexture():SetColorTexture(unpack(self.colors.accent))
+  end
   child.finish = function(_, height)
     child:SetHeight(math.max(1, height))
-    C_Timer.After(0, function() sync(0) end)
+    local restore = keep
+    C_Timer.After(0, function()
+      if LS._bodySync then LS._bodySync(restore) end
+    end)
   end
   child.width = width
   return child
 end
 
+local function FitLine(fs, width, lines)
+  if not fs then return end
+  lines = lines or 1
+  if fs.SetWidth then fs:SetWidth(math.max(40, width)) end
+  if fs.SetWordWrap then fs:SetWordWrap(lines > 1) end
+  if fs.SetMaxLines then fs:SetMaxLines(lines) end
+  if fs.SetNonSpaceWrap then fs:SetNonSpaceWrap(false) end
+end
+
+function LS:FitText(fs, width, lines)
+  FitLine(fs, width, lines)
+end
+
 local CARD_HEIGHT = 104
 local CARD_GAP = 10
+local ACTION_W, ACTION_H = 74, 26
 
 function LS:ActivityCard(parent, activity, y, width)
   local card = panel(parent)
-  card:SetSize(width, CARD_HEIGHT)
   card:SetPoint("TOPLEFT", 0, y)
   paint(card)
   card:EnableMouse(true)
+  if card.SetClipsChildren then card:SetClipsChildren(true) end
 
   local tracked = self.db.tracked[activity.id]
   if tracked then
     card:SetBackdropBorderColor(unpack(self.colors.accent))
   end
-
-  local title = text(card, width - 190, 14)
-  title:SetPoint("TOPLEFT", 16, -14)
-  title:SetTextColor(unpack(self.colors.accent))
-  title:SetText((activity.priority and (activity.priority .. "  •  ") or "") .. activity.title)
-
-  local why = text(card, width - 190, 11)
-  why:SetPoint("TOPLEFT", 16, -40)
-  why:SetText(activity.why or "")
-
-  local label, tone = self:Urgency(activity)
-  local meta = text(card, width - 190, 10)
-  meta:SetPoint("BOTTOMLEFT", 16, 12)
-  meta:SetText(string.format("%s  •  score %d%s",
-    self:Colorize(label, tone),
-    math.floor(activity.score or 0), tracked and "  •  tracked" or ""))
 
   local actions = {}
   if activity.open then
@@ -686,11 +763,49 @@ function LS:ActivityCard(parent, activity, y, width)
     self.db.dismissed[activity.id] = true
     self:ShowPage(self.page == "DETAILS" and "TODAY" or (self.page or "TODAY"))
   end })
-  local height = CARD_HEIGHT + math.max(0, #actions - 3) * 30
+
+  -- Side buttons need ~90px. Below that, stack them so title/why keep a readable column.
+  local stacked = width < 280
+  local cols = stacked and math.max(1, math.floor((width - 20) / (ACTION_W + 6))) or 1
+  local actionRows = math.ceil(#actions / cols)
+  local textW = stacked and (width - 32) or (width - ACTION_W - 28)
+  local height = stacked and (72 + actionRows * (ACTION_H + 6))
+    or (CARD_HEIGHT + math.max(0, #actions - 3) * 30)
   card:SetSize(width, height)
+
+  local title = text(card, textW, 14)
+  title:SetPoint("TOPLEFT", 16, -10)
+  title:SetTextColor(unpack(self.colors.accent))
+  title:SetText((activity.priority and (activity.priority .. "  •  ") or "") .. activity.title)
+  FitLine(title, textW, 1)
+
+  local why = text(card, textW, 11)
+  why:SetPoint("TOPLEFT", 16, -30)
+  if why.SetHeight then why:SetHeight(28) end
+  why:SetText(activity.why or "")
+  FitLine(why, textW, 2)
+
+  local label, tone = self:Urgency(activity)
+  local meta = text(card, textW, 10)
+  if stacked then
+    meta:SetPoint("TOPLEFT", 16, -60)
+  else
+    meta:SetPoint("BOTTOMLEFT", 16, 12)
+  end
+  meta:SetText(string.format("%s  •  score %d%s",
+    self:Colorize(label, tone),
+    math.floor(activity.score or 0), tracked and "  •  tracked" or ""))
+  FitLine(meta, textW, 1)
+
   for j, action in ipairs(actions) do
-    local actionButton = button(card, action[1], 74, 26)
-    actionButton:SetPoint("TOPRIGHT", -10, -14 - (j - 1) * 30)
+    local actionButton = button(card, action[1], ACTION_W, ACTION_H)
+    if stacked then
+      local col = (j - 1) % cols
+      local row = math.floor((j - 1) / cols)
+      actionButton:SetPoint("TOPLEFT", 10 + col * (ACTION_W + 6), -72 - row * (ACTION_H + 6))
+    else
+      actionButton:SetPoint("TOPRIGHT", -10, -14 - (j - 1) * 30)
+    end
     paint(actionButton, "panel")
     actionButton:SetScript("OnMouseUp", action[2])
   end
@@ -753,7 +868,12 @@ function LS:WelcomePage()
     highlight(continue)
     continue:SetScript("OnMouseUp", function()
       self.db.welcomed = true
-      self:ShowPage("TODAY")
+      if self.HasUnseenTips and self:HasUnseenTips() then
+        self.tutorialReturn = "TODAY"
+        self:ShowPage("TUTORIAL")
+      else
+        self:ShowPage("TODAY")
+      end
     end)
   else
     continue.text:SetTextColor(0.62, 0.65, 0.7, 1)
@@ -771,6 +891,108 @@ function LS:WelcomePage()
   y = y - 34
 
   body:finish(-y + 10)
+end
+
+function LS:TutorialPage()
+  if self.ShowCurrentTip then self:ShowCurrentTip() end
+end
+
+function LS:HideCoach()
+  if self.coach then self.coach:Hide() end
+  if self.coachRing then self.coachRing:Hide() end
+end
+
+function LS:EnsureCoach()
+  if self.coach then return self.coach end
+  local coach = panel(self.frame)
+  coach:SetFrameStrata("FULLSCREEN_DIALOG")
+  if coach.SetFrameLevel then coach:SetFrameLevel(200) end
+  coach:SetPoint("BOTTOMLEFT", 16, 16)
+  coach:SetPoint("BOTTOMRIGHT", -16, 16)
+  coach:SetHeight(148)
+  paint(coach, "panel")
+  if self.colors then
+    coach:SetBackdropBorderColor(unpack(self.colors.accent))
+  end
+  local width = 500
+  local progress = text(coach, width, 10)
+  progress:SetPoint("TOPLEFT", 14, -10)
+  if self.colors then progress:SetTextColor(unpack(self.colors.muted)) end
+  coach.progress = progress
+  local title = text(coach, width, 14)
+  title:SetPoint("TOPLEFT", 14, -26)
+  if self.colors then title:SetTextColor(unpack(self.colors.accent)) end
+  coach.title = title
+  local body = text(coach, width, 11)
+  body:SetPoint("TOPLEFT", 14, -48)
+  body:SetHeight(52)
+  coach.body = body
+  local skip = button(coach, "Skip", 110, 28)
+  skip:SetPoint("BOTTOMLEFT", 14, 12)
+  skip:SetScript("OnMouseUp", function()
+    if self.SkipRemainingTips then self:SkipRemainingTips() end
+    self:FinishTutorial()
+  end)
+  coach.skip = skip
+  local nextBtn = button(coach, "Next", 110, 28)
+  nextBtn:SetPoint("BOTTOMLEFT", 132, 12)
+  highlight(nextBtn)
+  nextBtn:SetScript("OnMouseUp", function()
+    local tip = self.CurrentTip and self:CurrentTip()
+    if tip then self:MarkTipSeen(tip.id) end
+    if self:HasUnseenTips() then
+      self:ShowCurrentTip()
+    else
+      self:FinishTutorial()
+    end
+  end)
+  coach.next = nextBtn
+  self.coach = coach
+  return coach
+end
+
+function LS:PresentCoach()
+  local tip = self.CurrentTip and self:CurrentTip()
+  if not tip then
+    self:HideCoach()
+    return
+  end
+  local coach = self:EnsureCoach()
+  coach:Show()
+  local total = #self.TIPS
+  local seen = 0
+  for _, row in ipairs(self.TIPS) do
+    if self.db.seenTips and self.db.seenTips[row.id] then seen = seen + 1 end
+  end
+  coach.progress:SetText(string.format("Tip %d of %d. Skip hides the rest.", seen + 1, total))
+  coach.title:SetText(tip.title)
+  coach.body:SetText(tip.body)
+  local last = not self:HasUnseenTips() or #self:UnseenTips() <= 1
+  coach.next.text:SetText(last and "Done" or "Next")
+  local mark = self.TipHighlight and self:TipHighlight(tip)
+  local target = mark and self.coachMarks and self.coachMarks[mark]
+  if target and target.SetBackdropBorderColor and self.colors then
+    target:SetBackdropBorderColor(unpack(self.colors.accent))
+  end
+  if not self.coachRing then
+    local ring = panel(self.frame)
+    ring:SetFrameStrata("FULLSCREEN_DIALOG")
+    if ring.SetFrameLevel then ring:SetFrameLevel(190) end
+    ring:EnableMouse(false)
+    self.coachRing = ring
+  end
+  if target then
+    self.coachRing:SetParent(target)
+    if self.coachRing.SetAllPoints then self.coachRing:SetAllPoints(target) end
+    paint(self.coachRing, "card")
+    if self.colors then
+      self.coachRing:SetBackdropColor(0, 0, 0, 0)
+      self.coachRing:SetBackdropBorderColor(unpack(self.colors.accent))
+    end
+    self.coachRing:Show()
+  else
+    self.coachRing:Hide()
+  end
 end
 
 function LS:CountFlags(store)
@@ -1537,6 +1759,14 @@ function LS:WarbandPage()
     return
   end
 
+  local many = #characters > 1
+  if many then
+    local note = text(body, width, 10)
+    note:SetPoint("TOPLEFT", 0, y)
+    if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+    note:SetText("Untrack an alt to leave them out of totals and warband gold.")
+    y = y - 20
+  end
   for _, character in ipairs(characters) do
     local card = panel(body)
     card:SetSize(width, 68)
@@ -1546,30 +1776,54 @@ function LS:WarbandPage()
       card:SetBackdropBorderColor(unpack(self.colors.accent))
     end
 
-    local title = text(card, width - 120, 12)
+    local controls = 0
+    if not character.isCurrent then controls = controls + 80 end
+    if many and not character.isCurrent then controls = controls + 108 end
+    local textW = math.max(160, width - 24 - controls)
+
+    local title = text(card, textW, 12)
     title:SetPoint("TOPLEFT", 12, -10)
-    title:SetTextColor(unpack(self.colors.accent))
+    title:SetTextColor(unpack(character.tracked and self.colors.accent or self.colors.muted))
     title:SetText(string.format("%s-%s%s", character.name, character.realm, character.isCurrent and "  (this character)" or ""))
 
-    local line = text(card, width - 120, 11)
+    local line = text(card, textW, 11)
     line:SetPoint("TOPLEFT", 12, -30)
     line:SetText(string.format("Level %d %s  •  Vault %d/%d, %d upgradable",
       character.level, character.spec ~= "" and character.spec or character.class,
       character.vault.filled or 0, character.vault.total or 0, character.vault.upgradable or 0))
 
-    local knowledge = text(card, width - 120, 10)
+    local knowledge = text(card, textW, 10)
     knowledge:SetPoint("TOPLEFT", 12, -48)
     knowledge:SetText(string.format("Unspent knowledge %d  •  %d weekly knowledge left  •  mounts %d",
       character.knowledge.unspent or 0, character.knowledge.weeklyPoints or 0, character.mounts or 0))
+    if not character.tracked then
+      line:SetTextColor(unpack(self.colors.muted))
+      knowledge:SetTextColor(unpack(self.colors.muted))
+    end
 
     if not character.isCurrent then
+      local key = character.key
       local forget = button(card, "Forget", 74, 24)
       forget:SetPoint("TOPRIGHT", -10, -10)
       paint(forget, "panel")
       forget:SetScript("OnMouseUp", function()
-        self:ForgetCharacter(character.key)
+        self:ForgetCharacter(key)
         self:ShowPage("WARBAND")
       end)
+      if many then
+        local wasOn = character.tracked
+        local track = button(card, (wasOn and "ON  •  " or "OFF  •  ") .. "Track", 100, 24)
+        track:SetPoint("TOPRIGHT", -90, -10)
+        if wasOn then
+          highlight(track)
+        else
+          paint(track, "panel")
+        end
+        track:SetScript("OnMouseUp", function()
+          self:SetCharacterTracked(key, not wasOn)
+          self:ShowPage("WARBAND")
+        end)
+      end
     end
     y = y - 76
   end
@@ -1650,10 +1904,12 @@ end
 
 local settingsTabs = {
   { "GOALS", "Goals", "Tell Lodestar what matters. The plan follows these goals." },
+  { "ADDONS", "Optional Addons", "Price sources, waypoints, and other addons Lodestar can use." },
   { "REPUTATION", "Reputation", "Which expansions, categories and factions to rank." },
   { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
   { "COMPACT", "Compact", "The small always-on window." },
   { "LAYOUT", "Layout", "Where the window sits, and what Lodestar has remembered." },
+  { "CHANGELOG", "Changelog", "What changed in the last five versions." },
 }
 
 function LS:SettingsTab()
@@ -1690,16 +1946,20 @@ function LS:Settings()
   end
 
   local body = self:Body(bodyOffset)
-  local width = (chosen[1] == "REPUTATION") and body.width or math.min(420, body.width)
+  local width = (chosen[1] == "REPUTATION" or chosen[1] == "CHANGELOG") and body.width or math.min(420, body.width)
   local y = 0
   if chosen[1] == "GOALS" then
     y = self:SettingsGoals(body, width, y)
+  elseif chosen[1] == "ADDONS" then
+    y = self:SettingsAddons(body, width, y)
   elseif chosen[1] == "REPUTATION" then
     y = self:SettingsReputation(body, width, y)
   elseif chosen[1] == "APPEARANCE" then
     y = self:SettingsAppearance(body, width, y)
   elseif chosen[1] == "COMPACT" then
     y = self:SettingsCompact(body, width, y)
+  elseif chosen[1] == "CHANGELOG" then
+    y = self:SettingsChangelog(body, width, y)
   else
     y = self:SettingsWindow(body, width, y)
   end
@@ -1722,13 +1982,38 @@ function LS:SettingsGoals(body, width, y)
       self:MarkGoalsChosen()
       self:ShowPage("SETTINGS")
     end)
+    if self.MarkCoach then self:MarkCoach("goal:" .. key, toggle) end
     y = y - 38
   end
 
   local goalNote = text(body, width, 10)
   goalNote:SetPoint("TOPLEFT", 0, y)
-  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty. Which reputations to rank is chosen on the Reputation tab.")
+  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty. Which reputations to rank is chosen on the Reputation tab. Price sources and waypoints live on Optional Addons.")
   y = y - 36
+  return y
+end
+
+function LS:SettingsAddons(body, width, y)
+  local detected = text(body, width, 13)
+  detected:SetPoint("TOPLEFT", 0, y)
+  detected:SetTextColor(unpack(self.colors.accent))
+  detected:SetText("Detected addons")
+  y = y - 22
+
+  local loadedColor = { 0.31, 0.82, 0.40, 1 }
+  for _, row in ipairs(self:OptionalAddonStatus()) do
+    local on = row.loaded
+    local line = text(body, width, 11)
+    line:SetPoint("TOPLEFT", 0, y)
+    line:SetText(row.name .. (on and "  ·  Loaded" or "  ·  Not loaded"))
+    if on then
+      line:SetTextColor(unpack(loadedColor))
+    elseif self.colors then
+      line:SetTextColor(unpack(self.colors.muted))
+    end
+    y = y - 18
+  end
+  y = y - 10
 
   local goldHeading = text(body, width, 13)
   goldHeading:SetPoint("TOPLEFT", 0, y)
@@ -1824,6 +2109,29 @@ function LS:SettingsGoals(body, width, y)
     hnNote:SetText("Install HandyNotes and a notes pack (Midnight, Silvermoon, and others) to rank nearby rares. HandyNotes by itself has no coordinates. Lodestar does not invent spawn data.")
   end
   y = y - 56
+  return y
+end
+
+function LS:SettingsChangelog(body, width, y)
+  local intro = text(body, width, 11)
+  intro:SetPoint("TOPLEFT", 0, y)
+  intro:SetText("The last five versions. Added, changed, and removed. The full notes are on GitHub.")
+  y = y - 36
+
+  for _, release in ipairs(self.CHANGELOG or {}) do
+    local heading = text(body, width, 13)
+    heading:SetPoint("TOPLEFT", 0, y)
+    heading:SetTextColor(unpack(self.colors.accent))
+    heading:SetText(release.version)
+    y = y - 22
+    for _, note in ipairs(release.notes or {}) do
+      local line = text(body, width, 11)
+      line:SetPoint("TOPLEFT", 0, y)
+      line:SetText("• " .. note)
+      y = y - 36
+    end
+    y = y - 8
+  end
   return y
 end
 
@@ -1939,15 +2247,27 @@ function LS:SettingsAppearance(body, width, y)
   note:SetPoint("TOPLEFT", 0, y)
   local active = self:CurrentTheme()
   if self.themeNative then
-    note:SetText("Using ElvUI's own backdrop, border, texture and font.")
+    if active == "ELVUI" then
+      note:SetText("Using ElvUI's own backdrop, texture and font. Near-black borders fall back to a lighter grey.")
+    elseif active == "GW2" then
+      note:SetText("Using GW2 UI's gold and font when the addon exposes them.")
+    elseif active == "REALUI" then
+      note:SetText("Using RealUI / Aurora colours when Aurora is loaded. Near-black borders fall back to a lighter grey.")
+    else
+      note:SetText("Using this theme's live colours.")
+    end
   elseif active == "ELVUI" then
     note:SetText("ElvUI is not loaded, so this is the standalone ElvUI-style palette.")
+  elseif active == "GW2" then
+    note:SetText("GW2 UI is not loaded, so this is the standalone GW2-style palette.")
+  elseif active == "REALUI" then
+    note:SetText("RealUI is not loaded, so this is the standalone RealUI-style palette.")
   elseif active == "BLIZZARD" and self.chrome then
     note:SetText("Blizzard's own panel art and font colours, the frame style Dragonflight introduced.")
   elseif active == "BLIZZARD" then
     note:SetText("This client offered no panel art, so Blizzard's colours are drawn on a flat frame.")
   else
-    note:SetText("Auto follows ElvUI or EllesmereUI when either is loaded.")
+    note:SetText("Auto follows GW2 UI, RealUI, ElvUI, or EllesmereUI when one of those is loaded.")
   end
   y = y - 34
 
@@ -2073,6 +2393,10 @@ end
 
 function LS:LandingPage()
   if not self.db.welcomed then return "WELCOME" end
+  if self.HasUnseenTips and self:HasUnseenTips() then
+    self.tutorialReturn = self.tutorialReturn or "DASHBOARD"
+    return "TUTORIAL"
+  end
   return self.page or "DASHBOARD"
 end
 

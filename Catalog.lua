@@ -60,6 +60,8 @@ function LS:FindActivity(id)
     self.GetBountifulDelveRecommendations and self:GetBountifulDelveRecommendations() or {},
     self.GetPreyRecommendations and self:GetPreyRecommendations() or {},
     self.GetQuestRecommendations and self:GetQuestRecommendations() or {},
+    self.GetPvPRecommendations and self:GetPvPRecommendations() or {},
+    self.GetHousingRecommendations and self:GetHousingRecommendations() or {},
   }) do
     for _, activity in ipairs(list) do
       if activity.id == id then return activity end

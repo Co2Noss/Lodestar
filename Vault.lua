@@ -598,6 +598,10 @@ function LS:HasUnclaimedVault()
 end
 
 function LS:OpenGreatVault()
+  if self.ClientFrameShown and self:ClientFrameShown("WeeklyRewardsFrame") then
+    self:HideClientFrame(_G.WeeklyRewardsFrame)
+    return
+  end
   if C_AddOns and C_AddOns.LoadAddOn then
     pcall(C_AddOns.LoadAddOn, "Blizzard_WeeklyRewards")
   elseif LoadAddOn then
@@ -610,6 +614,7 @@ function LS:OpenGreatVault()
     else
       frame:Show()
     end
+    if self.FrontClientFrame then self:FrontClientFrame(frame) end
   end
   if C_WeeklyRewards and C_WeeklyRewards.OnUIInteract then
     pcall(C_WeeklyRewards.OnUIInteract)
