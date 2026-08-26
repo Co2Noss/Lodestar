@@ -893,9 +893,15 @@ local function RegisterBuiltins()
       local w = self.widgets
       local recs = self:GetRecommendations()
       local filled, total = self:VaultSlotCounts()
+      local vaultLabel = "Vault slots filled"
+      local vaultValue = string.format("%d/%d", filled, total)
+      if self.IsEndgameLevel and not self:IsEndgameLevel() then
+        vaultLabel = "Vault at " .. self:EndgameLevel()
+        vaultValue = "—"
+      end
       local stats = {
         { #recs, "On the plan" },
-        { string.format("%d/%d", filled, total), "Vault slots filled",
+        { vaultValue, vaultLabel,
           function() self:ShowPage("VAULT") end, true },
         { self:UnspentKnowledge(), "Unspent knowledge" },
         { self:CountFlags("dismissed"), "Ignored" },
@@ -1029,6 +1035,20 @@ local function RegisterBuiltins()
     sizes = { half = true, wide = true },
     render = function(self, parent, width)
       local w = self.widgets
+      if self.IsEndgameLevel and not self:IsEndgameLevel() then
+        local cap = self:EndgameLevel()
+        parent:EnableMouse(true)
+        parent:SetScript("OnEnter", function(selfFrame) LS:ShowVaultTooltip(selfFrame) end)
+        parent:SetScript("OnLeave", function() LS:HideVaultTooltip() end)
+        local line = w.text(parent, width - 24, 11)
+        line:SetPoint("TOPLEFT", 12, -8)
+        line:SetText(string.format("Opens at level %d. Level and enjoy the game until then.", cap))
+        local hint = w.text(parent, width - 24, 10)
+        hint:SetPoint("TOPLEFT", 12, -28)
+        hint:SetTextColor(unpack(self.colors.muted))
+        hint:SetText("Train professions along the way if you want them.")
+        return 52
+      end
       local filled, total, upgradable = self:VaultSlotCounts()
       parent:EnableMouse(true)
       parent:SetScript("OnEnter", function(selfFrame) LS:ShowVaultTooltip(selfFrame) end)

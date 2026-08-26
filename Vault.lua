@@ -470,6 +470,7 @@ end
 
 function LS:GetVaultRecommendations()
   local out = {}
+  if self.IsEndgameLevel and not self:IsEndgameLevel() then return out end
   if self:HasUnclaimedVault() then
     table.insert(out, {
       id = "vault_claim_" .. self:WeeklyResetKey(),

@@ -462,6 +462,29 @@ s.exec("""
   __LS:ScanProfessions()
 """)
 check("vault recommendations still generate", s.eval("#__LS:GetVaultRecommendations()") > 0)
+s.exec("""
+  UnitLevel = function() return 50 end
+  GetMaxLevelForPlayerExpansion = function() return 90 end
+  __LS:ScanPlayer()
+""")
+check("below the cap the Great Vault stays quiet",
+      s.eval("#__LS:GetVaultRecommendations()") == 0)
+check("below the cap bountiful delves stay quiet",
+      s.eval("#__LS:GetBountifulDelveRecommendations()") == 0)
+check("below the cap leveling is recommended instead",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "level_cap" then return r.title end
+        end
+      end)()""") == "Level to 90")
+check("below the cap professions can still rank",
+      s.eval("#__LS:GetProfessionRecommendations()") > 0)
+s.exec("""
+  UnitLevel = function() return 90 end
+  GetMaxLevelForPlayerExpansion = function() return 90 end
+  __LS:ScanPlayer()
+  __LS:ScanVault()
+""")
 s.exec("C_WeeklyRewards.HasAvailableRewards = function() return true end")
 claim = s.eval("""(function()
   for _, r in ipairs(__LS:GetVaultRecommendations()) do

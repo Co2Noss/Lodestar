@@ -21,6 +21,53 @@ function LS:CharacterKey()
   return (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
 end
 
+-- Midnight's cap is 90. The client reports the live cap when it can.
+function LS:EndgameLevel()
+  local cap = GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion()
+  cap = tonumber(cap)
+  if cap and cap > 1 then return cap end
+  return 90
+end
+
+function LS:PlayerLevel()
+  local n = self.profile and tonumber(self.profile.level)
+  if n and n > 0 then return n end
+  return tonumber(UnitLevel and UnitLevel("player")) or 0
+end
+
+function LS:IsEndgameLevel()
+  local level = self:PlayerLevel()
+  return level > 0 and level >= self:EndgameLevel()
+end
+
+function LS:GetLevelingRecommendations()
+  local level = self:PlayerLevel()
+  local cap = self:EndgameLevel()
+  if level <= 0 or level >= cap then return {} end
+  local why = "Great Vault waits until then. Play what you enjoy."
+  if self.db and self.db.goals and self.db.goals.CRAFTING then
+    why = "Great Vault waits until then. Play what you enjoy, and keep professions moving while you level."
+  else
+    why = why .. " Train professions along the way if you want them."
+  end
+  return {
+    {
+      id = "level_cap",
+      title = string.format("Level to %d", cap),
+      why = why,
+      category = "Questing",
+      tags = { ENDGAME = 16, QUESTING = 8, SOLO = 4 },
+      urgency = "HIGH",
+      priority = "HIGH PRIORITY",
+      detail = {
+        current = string.format("Level %d", level),
+        potential = string.format("Level %d", cap),
+        matters = "Endgame rewards are gated on the cap. Until then the best use of time is leveling and whatever else you picked.",
+      },
+    },
+  }
+end
+
 function LS:ScanPlayer()
   local p = self.profile
   p.level = UnitLevel("player") or 0

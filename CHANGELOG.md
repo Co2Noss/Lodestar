@@ -1,3 +1,9 @@
+# 1.4.1
+
+- Below the expansion cap (90 in Midnight, or `GetMaxLevelForPlayerExpansion` when the
+  client has it) Great Vault and bountiful delves stay quiet. The plan is to level and
+  enjoy the game; professions still rank if that goal is on.
+
 # 1.4.0
 
 - Settings → Goals includes Prey hunts. Completing a hunt banks World Vault progress and

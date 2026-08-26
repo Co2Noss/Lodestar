@@ -30,6 +30,12 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.GetLevelingRecommendations then
+    for _, leveling in ipairs(self:GetLevelingRecommendations()) do
+      consider(leveling)
+    end
+  end
+
   if self.db.goals.ENDGAME then
     for _, vault in ipairs(self:GetVaultRecommendations()) do
       consider(vault, vault.score)

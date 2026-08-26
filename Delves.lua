@@ -248,6 +248,7 @@ end
 
 function LS:GetBountifulDelveRecommendations()
   local out = {}
+  if self.IsEndgameLevel and not self:IsEndgameLevel() then return out end
   if self.BountifulDelveWorthDoing and not self:BountifulDelveWorthDoing() then
     return out
   end

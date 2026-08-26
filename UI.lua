@@ -894,6 +894,11 @@ function LS:ShowVaultTooltip(owner, slot)
   if GameTooltip.ClearLines then pcall(GameTooltip.ClearLines, GameTooltip) end
   if GameTooltip.AddLine then
     GameTooltip:AddLine("Great Vault")
+    if self.IsEndgameLevel and not self:IsEndgameLevel() then
+      GameTooltip:AddLine("Opens at level " .. self:EndgameLevel() .. ". Level and enjoy the game until then.")
+      if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
+      return
+    end
     local lines
     if slot and self.VaultSlotTooltipLines then
       lines = self:VaultSlotTooltipLines(slot)
@@ -1172,6 +1177,17 @@ function LS:DetailsPage()
 end
 
 function LS:VaultPage()
+  if self.IsEndgameLevel and not self:IsEndgameLevel() then
+    local cap = self:EndgameLevel()
+    self:Heading("Great Vault", "Opens at level " .. cap)
+    local body = self:Body(70)
+    local line = text(body, body.width, 11)
+    line:SetPoint("TOPLEFT", 0, 0)
+    line:SetText("Great Vault is an endgame chest. Until then, level and enjoy the game. Train professions along the way if you want them.")
+    body:finish(50)
+    return
+  end
+
   local tabs = {}
   for _, key in ipairs({ "raid", "activities", "world" }) do
     local row = self.vault.rows[key]

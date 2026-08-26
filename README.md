@@ -128,6 +128,9 @@ have and hiding whatever does not fit.
 
 ## Great Vault accuracy
 
+Great Vault and bountiful delves stay off the plan until you are at the expansion cap
+(90 in Midnight). Until then Lodestar ranks leveling, and professions if that goal is on.
+
 Slots report a real difficulty or tier, never a raw difficulty ID. Upgrade effort is counted
 from the runs and boss kills you have actually banked this week, so "complete 4 delves at
 Tier 8 or higher" reflects what is left rather than a guess.

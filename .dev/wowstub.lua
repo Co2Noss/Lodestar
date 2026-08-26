@@ -254,7 +254,8 @@ end
 
 UnitName = function() return "Testchar" end
 GetRealmName = function() return "Testrealm" end
-UnitLevel = function() return 80 end
+UnitLevel = function() return 90 end
+GetMaxLevelForPlayerExpansion = function() return 90 end
 UnitClass = function() return "Mage", "MAGE" end
 GetSpecialization = function() return 1 end
 GetSpecializationInfo = function() return 62, "Arcane" end
