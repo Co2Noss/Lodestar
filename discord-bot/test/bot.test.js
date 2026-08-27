@@ -166,13 +166,39 @@ describe("emoji pack", () => {
 });
 
 describe("verification", () => {
-  const { accountTooNew } = require("../src/verification");
+  const {
+    accountTooNew,
+    joinPromptContent,
+    generalWelcomeContent,
+    isJoinPrompt,
+  } = require("../src/verification");
 
   it("rejects brand-new Discord accounts", () => {
     const fresh = { createdTimestamp: Date.now() };
     const old = { createdTimestamp: Date.now() - 2 * 60 * 60 * 1000 };
     assert.equal(accountTooNew(fresh), true);
     assert.equal(accountTooNew(old), false);
+  });
+
+  it("builds a join ping that is later recognized as a prompt", () => {
+    const text = joinPromptContent("<@123>");
+    assert.match(text, /I have read the rules/);
+    assert.match(text, /silence-enforced/);
+    assert.equal(
+      isJoinPrompt({ content: text, author: { id: "bot" } }, "bot"),
+      true
+    );
+    assert.equal(
+      isJoinPrompt({ content: text, author: { id: "other" } }, "bot"),
+      false
+    );
+  });
+
+  it("welcomes members in general without mentioning the honeypot", () => {
+    const text = generalWelcomeContent("<@123>");
+    assert.match(text, /Welcome <@123>/);
+    assert.match(text, /Chat here/);
+    assert.doesNotMatch(text, /silence-enforced/);
   });
 });
 

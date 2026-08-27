@@ -5,6 +5,7 @@ const config = require("./config");
 const state = require("./state");
 const { isStaff, roleByName } = require("./staff");
 const { channelSlug, findBySlug } = require("./names");
+const emojis = require("./emojis");
 
 const CHANNEL_NAME = "silence-enforced";
 
@@ -53,6 +54,135 @@ function welcomeButtons() {
   );
 }
 
+function joinPromptContent(member) {
+  return `${member}, read the pinned message, then click **I have read the rules**. Do not type in #silence-enforced.`;
+}
+
+function generalWelcomeContent(member, guild) {
+  const star = guild ? emojis.mention(guild, "lodestar") : "";
+  const questions = guild ? findBySlug(guild, "questions") : null;
+  const prefix = star ? `${star}  ` : "";
+  const ask = questions ? ` or ask in ${questions}` : "";
+  return `${prefix}Welcome ${member}. Chat here${ask}.`;
+}
+
+function isJoinPrompt(message, botId) {
+  if (!message || !message.content) return false;
+  if (botId && message.author && message.author.id !== botId) return false;
+  return message.content.includes("I have read the rules") && message.content.includes("read the pinned message");
+}
+
+const announced = new Set();
+
+function takeAnnounceSlot(userId) {
+  if (announced.has(userId)) return false;
+  announced.add(userId);
+  setTimeout(() => announced.delete(userId), 60_000).unref?.();
+  return true;
+}
+
+function rememberJoinPrompt(guildId, userId, messageId) {
+  state.patch(guildId, (g) => {
+    if (!g.joinPrompts) g.joinPrompts = {};
+    g.joinPrompts[userId] = messageId;
+  });
+}
+
+function forgetJoinPrompt(guildId, userId) {
+  state.patch(guildId, (g) => {
+    if (!g.joinPrompts) return;
+    delete g.joinPrompts[userId];
+  });
+}
+
+async function clearJoinPrompt(guild, userId) {
+  const welcome = findBySlug(guild, "welcome", (c) => c.isTextBased());
+  if (!welcome) return 0;
+  const pinnedId = state.guildState(guild.id).g.messages && state.guildState(guild.id).g.messages.welcome;
+  const stored = state.guildState(guild.id).g.joinPrompts && state.guildState(guild.id).g.joinPrompts[userId];
+  const ids = new Set();
+  if (stored) ids.add(stored);
+  try {
+    const msgs = await welcome.messages.fetch({ limit: 100 });
+    for (const msg of msgs.values()) {
+      if (pinnedId && msg.id === pinnedId) continue;
+      if (!isJoinPrompt(msg, guild.client.user.id)) continue;
+      if (msg.mentions && msg.mentions.users && msg.mentions.users.has(userId)) ids.add(msg.id);
+    }
+  } catch {
+    // missing history permission
+  }
+  let n = 0;
+  for (const id of ids) {
+    try {
+      await welcome.messages.delete(id);
+      n += 1;
+    } catch {
+      // already gone
+    }
+  }
+  forgetJoinPrompt(guild.id, userId);
+  return n;
+}
+
+async function announceInGeneral(member) {
+  const channel = findBySlug(member.guild, "general", (c) => c.isTextBased());
+  if (!channel) return false;
+  await channel.send({
+    content: generalWelcomeContent(member, member.guild),
+    allowedMentions: { users: [member.id] },
+  });
+  return true;
+}
+
+async function sendJoinPrompt(member) {
+  const welcome = findBySlug(member.guild, "welcome", (c) => c.isTextBased());
+  if (!welcome) return null;
+  const msg = await welcome.send({ content: joinPromptContent(member) });
+  rememberJoinPrompt(member.guild.id, member.id, msg.id);
+  return msg;
+}
+
+async function onBecameMember(member) {
+  await clearJoinPrompt(member.guild, member.id);
+  if (!takeAnnounceSlot(member.id)) return false;
+  try {
+    await announceInGeneral(member);
+  } catch (err) {
+    announced.delete(member.id);
+    console.error("general welcome failed:", err.message);
+    return false;
+  }
+  return true;
+}
+
+async function sweepVerifiedPrompts(guild) {
+  const welcome = findBySlug(guild, "welcome", (c) => c.isTextBased());
+  if (!welcome || !guild.client || !guild.client.user) return 0;
+  const role = roleByName(guild, "Member");
+  const pinnedId = state.guildState(guild.id).g.messages && state.guildState(guild.id).g.messages.welcome;
+  let n = 0;
+  let msgs;
+  try {
+    msgs = await welcome.messages.fetch({ limit: 100 });
+  } catch {
+    return 0;
+  }
+  for (const msg of msgs.values()) {
+    if (pinnedId && msg.id === pinnedId) continue;
+    if (!isJoinPrompt(msg, guild.client.user.id)) continue;
+    const mentioned = msg.mentions && msg.mentions.users && [...msg.mentions.users.keys()][0];
+    if (!mentioned) continue;
+    const member = await guild.members.fetch(mentioned).catch(() => null);
+    if (!member || !role || !member.roles.cache.has(role.id)) continue;
+    await msg.delete().catch(() => {});
+    forgetJoinPrompt(guild.id, mentioned);
+    n += 1;
+    await onBecameMember(member).catch(() => {});
+  }
+  return n;
+}
+
 async function applySecurity(guild, report) {
   try {
     if (guild.verificationLevel < GuildVerificationLevel.High) {
@@ -72,6 +202,7 @@ async function handleVerify(interaction) {
     return;
   }
   if (member.roles.cache.has(role.id)) {
+    await clearJoinPrompt(interaction.guild, member.id);
     await interaction.reply({ content: "You're already in. The rest of the server is unlocked.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -84,6 +215,7 @@ async function handleVerify(interaction) {
     return;
   }
   await member.roles.add(role, "Passed rules verification");
+  await onBecameMember(member);
   await interaction.reply({
     content: "You're in. #faq, #questions, and #get-help are unlocked. Do not type in #silence-enforced.",
     flags: MessageFlags.Ephemeral,
@@ -164,4 +296,10 @@ module.exports = {
   handleInteraction,
   accountTooNew,
   accountAgeMs,
+  joinPromptContent,
+  generalWelcomeContent,
+  isJoinPrompt,
+  sendJoinPrompt,
+  onBecameMember,
+  sweepVerifiedPrompts,
 };

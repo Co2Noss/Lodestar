@@ -22,7 +22,7 @@ const { roleByName } = require("./staff");
 const alpha = require("./alpha");
 const github = require("./github");
 const feeds = require("./feeds");
-const { channelSlug, findBySlug } = require("./names");
+const { channelSlug } = require("./names");
 
 if (!config.token) {
   console.error("Missing DISCORD_TOKEN. Copy discord-bot/.env.example to discord-bot/.env and paste the bot token.");
@@ -139,6 +139,12 @@ async function prepareGuild(guild) {
       console.error(`Emoji upload failed in ${guild.name}:`, err);
     }
   }
+  try {
+    const cleaned = await verification.sweepVerifiedPrompts(guild);
+    if (cleaned) console.log(`Cleared ${cleaned} welcome ping(s) for members in ${guild.name}`);
+  } catch (err) {
+    console.error(`Welcome sweep failed in ${guild.name}:`, err.message);
+  }
 }
 
 function bind(client) {
@@ -171,23 +177,34 @@ function bind(client) {
 
   client.on("guildMemberAdd", async (member) => {
     const botRole = roleByName(member.guild, "Bot");
-    if (member.user.bot && botRole && !member.roles.cache.has(botRole.id)) {
-      await member.roles.add(botRole, "Bot role").catch(() => {});
+    if (member.user.bot) {
+      if (botRole && !member.roles.cache.has(botRole.id)) {
+        await member.roles.add(botRole, "Bot role").catch(() => {});
+      }
       return;
     }
     if (config.developerUserIds.includes(member.id)) {
       const roles = ["Developer", "Moderator", "Support", "Member"].map((n) => roleByName(member.guild, n)).filter(Boolean);
       if (roles.length) await member.roles.add(roles, "Lodestar staff").catch(() => {});
     }
-    const welcome = findBySlug(member.guild, "welcome", (c) => c.isTextBased());
-    if (!welcome) return;
+    const memberRole = roleByName(member.guild, "Member");
+    if (memberRole && member.roles.cache.has(memberRole.id)) {
+      await verification.onBecameMember(member).catch((err) => console.error("welcome failed:", err.message));
+      return;
+    }
     try {
-      await welcome.send({
-        content: `${member}, read the pinned message, then click **I have read the rules**. Do not type in #silence-enforced.`,
-      });
+      await verification.sendJoinPrompt(member);
     } catch {
       // missing send permission
     }
+  });
+
+  client.on("guildMemberUpdate", async (oldMember, newMember) => {
+    if (newMember.user.bot) return;
+    const role = roleByName(newMember.guild, "Member");
+    if (!role) return;
+    if (oldMember.roles.cache.has(role.id) || !newMember.roles.cache.has(role.id)) return;
+    await verification.onBecameMember(newMember).catch((err) => console.error("welcome failed:", err.message));
   });
 
   client.on("messageCreate", async (message) => {
