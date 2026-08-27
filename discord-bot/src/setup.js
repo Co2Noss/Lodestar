@@ -1,0 +1,419 @@
+"use strict";
+
+const {
+  ChannelType,
+  PermissionFlagsBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+} = require("discord.js");
+const config = require("./config");
+const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
+const state = require("./state");
+
+const P = PermissionFlagsBits;
+
+const STAFF_ALLOW = [
+  P.ViewChannel,
+  P.SendMessages,
+  P.EmbedLinks,
+  P.AttachFiles,
+  P.ReadMessageHistory,
+  P.AddReactions,
+  P.ManageMessages,
+  P.ManageThreads,
+  P.CreatePublicThreads,
+  P.CreatePrivateThreads,
+  P.SendMessagesInThreads,
+];
+
+function everyoneRead(guild) {
+  return [
+    {
+      id: guild.roles.everyone.id,
+      allow: [P.ViewChannel, P.ReadMessageHistory, P.AddReactions],
+      deny: [P.SendMessages, P.CreatePublicThreads, P.SendMessagesInThreads],
+    },
+  ];
+}
+
+function everyoneChat(guild) {
+  return [
+    {
+      id: guild.roles.everyone.id,
+      allow: [
+        P.ViewChannel,
+        P.SendMessages,
+        P.ReadMessageHistory,
+        P.AddReactions,
+        P.EmbedLinks,
+        P.AttachFiles,
+        P.CreatePublicThreads,
+        P.SendMessagesInThreads,
+      ],
+    },
+  ];
+}
+
+function hiddenStaff(guild, roles) {
+  return [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+    { id: roles.support.id, allow: STAFF_ALLOW },
+    { id: roles.moderator.id, allow: STAFF_ALLOW },
+  ];
+}
+
+function hiddenTickets(guild, roles) {
+  return [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+    { id: roles.support.id, allow: STAFF_ALLOW },
+    { id: roles.moderator.id, allow: STAFF_ALLOW },
+  ];
+}
+
+const ROLE_SPECS = [
+  {
+    key: "support",
+    name: "Support",
+    color: config.accent,
+    hoist: true,
+    mentionable: true,
+    permissions: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.ManageMessages, P.ManageThreads],
+  },
+  {
+    key: "moderator",
+    name: "Moderator",
+    color: 0x5865f2,
+    hoist: true,
+    mentionable: false,
+    permissions: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.ManageMessages, P.ManageThreads, P.ModerateMembers],
+  },
+];
+
+const CATEGORY_SPECS = [
+  { key: "info", name: "Info" },
+  { key: "support", name: "Support" },
+  { key: "tickets", name: "Tickets", hidden: true },
+  { key: "community", name: "Community" },
+  { key: "development", name: "Development" },
+  { key: "staff", name: "Staff", hidden: true },
+];
+
+function channelSpecs(guild, roles) {
+  const announceType = guild.features.includes("COMMUNITY")
+    ? ChannelType.GuildAnnouncement
+    : ChannelType.GuildText;
+  return [
+    { key: "welcome", name: "welcome", parent: "info", type: ChannelType.GuildText, topic: "Start here.", overwrites: everyoneRead(guild) },
+    { key: "rules", name: "rules", parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
+    { key: "announcements", name: "announcements", parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: everyoneRead(guild) },
+    { key: "releases", name: "releases", parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: everyoneRead(guild) },
+    { key: "links", name: "links", parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: everyoneRead(guild) },
+    { key: "get-help", name: "get-help", parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: everyoneRead(guild) },
+    { key: "faq", name: "faq", parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: everyoneRead(guild) },
+    {
+      key: "questions",
+      name: "questions",
+      parent: "support",
+      type: ChannelType.GuildForum,
+      topic: "One question per post. Search first. Include class/spec and theme.",
+      overwrites: everyoneChat(guild),
+      availableTags: [
+        { name: "Install" },
+        { name: "Dashboard" },
+        { name: "Professions" },
+        { name: "Great Vault" },
+        { name: "Gold" },
+        { name: "Theme" },
+        { name: "Optional addons" },
+        { name: "Other" },
+      ],
+    },
+    { key: "general", name: "general", parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: everyoneChat(guild) },
+    { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: everyoneChat(guild) },
+    { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: everyoneChat(guild) },
+    { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: everyoneRead(guild) },
+    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues and pull requests.", overwrites: everyoneRead(guild) },
+    { key: "staff", name: "staff", parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
+    { key: "ticket-logs", name: "ticket-logs", parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
+  ];
+}
+
+function findRole(guild, name) {
+  return guild.roles.cache.find((r) => r.name === name) || null;
+}
+
+function findChannel(guild, name) {
+  return guild.channels.cache.find((c) => c.name === name) || null;
+}
+
+async function ensureRole(guild, spec, report) {
+  let role = findRole(guild, spec.name);
+  if (!role) {
+    role = await guild.roles.create({
+      name: spec.name,
+      color: spec.color,
+      hoist: spec.hoist,
+      mentionable: spec.mentionable,
+      permissions: spec.permissions,
+      reason: "Lodestar Support /setup",
+    });
+    report.push(`created role @${spec.name}`);
+  } else {
+    report.push(`reused role @${spec.name}`);
+  }
+  return role;
+}
+
+async function ensureCategory(guild, spec, roles, report) {
+  let channel = findChannel(guild, spec.name);
+  if (channel && channel.type !== ChannelType.GuildCategory) {
+    report.push(`skipped category ${spec.name}: a non-category channel already uses that name`);
+    return channel;
+  }
+  const overwrites = spec.hidden ? hiddenStaff(guild, roles) : [];
+  if (!channel) {
+    channel = await guild.channels.create({
+      name: spec.name,
+      type: ChannelType.GuildCategory,
+      permissionOverwrites: overwrites,
+      reason: "Lodestar Support /setup",
+    });
+    report.push(`created category ${spec.name}`);
+  } else {
+    if (spec.hidden) await channel.permissionOverwrites.set(overwrites);
+    report.push(`reused category ${spec.name}`);
+  }
+  return channel;
+}
+
+async function ensureChannel(guild, spec, categories, roles, report) {
+  const parent = categories[spec.parent];
+  let channel = findChannel(guild, spec.name);
+  const extras = {};
+  if (spec.availableTags) extras.availableTags = spec.availableTags;
+  if (spec.topic) extras.topic = spec.topic;
+
+  if (!channel) {
+    channel = await guild.channels.create({
+      name: spec.name,
+      type: spec.type,
+      parent: parent ? parent.id : undefined,
+      permissionOverwrites: spec.overwrites,
+      reason: "Lodestar Support /setup",
+      ...extras,
+    });
+    report.push(`created #${spec.name}`);
+    return channel;
+  }
+
+  const patch = {};
+  if (parent && channel.parentId !== parent.id) patch.parent = parent.id;
+  if (spec.topic && channel.topic !== spec.topic && channel.isTextBased()) patch.topic = spec.topic;
+  if (Object.keys(patch).length) {
+    await channel.edit(patch);
+    report.push(`moved #${spec.name}`);
+  } else {
+    report.push(`reused #${spec.name}`);
+  }
+  if (spec.overwrites && channel.permissionOverwrites) {
+    try {
+      await channel.permissionOverwrites.set(spec.overwrites);
+    } catch (err) {
+      report.push(`could not set permissions on #${spec.name}: ${err.message}`);
+    }
+  }
+  return channel;
+}
+
+function welcomeEmbed() {
+  return new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle("Lodestar Guide")
+    .setDescription(
+      [
+        "**Find what matters. Ignore the rest.**",
+        "",
+        "Lodestar is a decision engine for World of Warcraft. This server is for install help, questions, and bugs.",
+        "",
+        "1. Read <#RULES>",
+        "2. Check <#FAQ> or `/faq`",
+        "3. Public questions go in <#QUESTIONS>",
+        "4. Private tickets start in <#GETHELP>",
+      ].join("\n")
+    )
+    .addFields(
+      { name: "Download", value: `[CurseForge](${config.links.curseforge}) · [GitHub](${config.links.github})` },
+      { name: "Docs", value: `[Wiki](${config.links.wiki}) · [Issues](${config.links.issues})` }
+    );
+}
+
+function rulesEmbed() {
+  return new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle("Rules")
+    .setDescription(
+      [
+        "1. Be decent. This is a support server, not a raid.",
+        "2. Search #faq, `/faq`, and the [wiki](https://github.com/Co2Noss/Lodestar/wiki) before asking.",
+        "3. Bugs need class/spec, theme (Blizzard, ElvUI, or other), Lodestar version, and expected versus actual. `/ls debug` first if you are not sure which addon errored.",
+        "4. No piracy, account trading, or NSFW.",
+        "5. Staff may close idle tickets. Re-open one if you still need help.",
+      ].join("\n")
+    );
+}
+
+function ticketPanel() {
+  const embed = new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle("Get help")
+    .setDescription(
+      [
+        "Open a **private ticket** with Support. Include class/spec, the theme you use, and what you expected versus what happened.",
+        "",
+        "If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it.",
+        "",
+        "Questions the whole server can answer belong in the questions forum.",
+      ].join("\n")
+    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("ticket_open").setLabel("Open a ticket").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setLabel("GitHub issues").setStyle(ButtonStyle.Link).setURL(config.links.issues),
+    new ButtonBuilder().setLabel("Wiki").setStyle(ButtonStyle.Link).setURL(config.links.wiki)
+  );
+  return { embeds: [embed], components: [row] };
+}
+
+function faqPanel() {
+  const embed = new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle("FAQ")
+    .setDescription("Pick a topic, or type `/faq` anywhere. These answers come from how Lodestar actually works — it does not invent data the client does not have.");
+  const options = FAQS.slice(0, 25).map((f) => ({
+    label: f.title.slice(0, 100),
+    value: f.id,
+  }));
+  const row = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder().setCustomId("faq_pick").setPlaceholder("Choose a topic").addOptions(options)
+  );
+  return { embeds: [embed], components: [row] };
+}
+
+async function replaceBotMessage(channel, key, payload, guildId) {
+  if (!channel || !channel.isTextBased()) return;
+  const saved = state.guildState(guildId).g.messages[key];
+  if (saved) {
+    try {
+      const existing = await channel.messages.fetch(saved);
+      await existing.edit(payload);
+      return existing;
+    } catch {
+      // posted message is gone; send a new one
+    }
+  }
+  const sent = await channel.send(payload);
+  try {
+    await sent.pin();
+  } catch {
+    // pin cap or missing permission
+  }
+  state.patch(guildId, (g) => {
+    g.messages[key] = sent.id;
+  });
+  return sent;
+}
+
+function mention(channel) {
+  return channel ? `<#${channel.id}>` : "(missing)";
+}
+
+async function applySetup(guild) {
+  const report = [];
+  const roles = {};
+  for (const spec of ROLE_SPECS) {
+    try {
+      roles[spec.key] = await ensureRole(guild, spec, report);
+    } catch (err) {
+      report.push(`failed role @${spec.name}: ${err.message}`);
+    }
+  }
+  if (!roles.support || !roles.moderator) {
+    throw new Error("Could not create Support and Moderator roles. Drag the bot role to the top of the role list and run /setup again.");
+  }
+
+  const categories = {};
+  for (const spec of CATEGORY_SPECS) {
+    try {
+      categories[spec.key] = await ensureCategory(guild, spec, roles, report);
+    } catch (err) {
+      report.push(`failed category ${spec.name}: ${err.message}`);
+    }
+  }
+
+  const channels = {};
+  for (const spec of channelSpecs(guild, roles)) {
+    try {
+      channels[spec.key] = await ensureChannel(guild, spec, categories, roles, report);
+    } catch (err) {
+      const fallback = spec.type === ChannelType.GuildAnnouncement || spec.type === ChannelType.GuildForum;
+      if (fallback) {
+        try {
+          const retry = { ...spec, type: ChannelType.GuildText };
+          delete retry.availableTags;
+          channels[spec.key] = await ensureChannel(guild, retry, categories, roles, report);
+          report.push(`created #${spec.name} as a text channel (forum/announcement fallback)`);
+        } catch (err2) {
+          report.push(`failed #${spec.name}: ${err2.message}`);
+        }
+      } else {
+        report.push(`failed #${spec.name}: ${err.message}`);
+      }
+    }
+  }
+
+  const welcome = welcomeEmbed();
+  if (channels.rules && channels.faq && channels.questions && channels["get-help"]) {
+    welcome.setDescription(
+      welcome.data.description
+        .replace("<#RULES>", mention(channels.rules))
+        .replace("<#FAQ>", mention(channels.faq))
+        .replace("<#QUESTIONS>", mention(channels.questions))
+        .replace("<#GETHELP>", mention(channels["get-help"]))
+    );
+  }
+
+  const posts = [
+    [channels.welcome, "welcome", { embeds: [welcome] }],
+    [channels.rules, "rules", { embeds: [rulesEmbed()] }],
+    [channels.links, "links", { embeds: [linksEmbed()] }],
+    [channels.faq, "faq", faqPanel()],
+    [channels["get-help"], "ticket", ticketPanel()],
+  ];
+  for (const [channel, key, payload] of posts) {
+    try {
+      await replaceBotMessage(channel, key, payload, guild.id);
+    } catch (err) {
+      report.push(`could not post ${key}: ${err.message}`);
+    }
+  }
+
+  state.patch(guild.id, (g) => {
+    g.roles = { support: roles.support.id, moderator: roles.moderator.id };
+    g.channels = Object.fromEntries(Object.entries(channels).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));
+    g.categories = Object.fromEntries(Object.entries(categories).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));
+  });
+
+  return { report, roles, channels, categories };
+}
+
+module.exports = {
+  ROLE_SPECS,
+  CATEGORY_SPECS,
+  channelSpecs,
+  applySetup,
+  ticketPanel,
+  faqPanel,
+  faqEmbed,
+};

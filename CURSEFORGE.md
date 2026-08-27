@@ -106,5 +106,5 @@ Left-click the minimap button for the full window. Right-click for compact mode.
 
 ## Feedback
 
-File issues on [GitHub](https://github.com/Co2Noss/Lodestar/issues) or talk to us on [Discord](https://discord.gg/a7hrHavcwq). Include your class/spec, the theme you use (Blizzard, ElvUI, or other), and what you expected versus what happened. If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it.
+Questions and install help: [Discord](https://discord.gg/a7hrHavcwq) (`/faq`, or open a ticket). File reproducible bugs on [GitHub](https://github.com/Co2Noss/Lodestar/issues). Include your class/spec, the theme you use (Blizzard, ElvUI, or other), and what you expected versus what happened. If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it.
 ```
