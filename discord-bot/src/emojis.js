@@ -17,7 +17,7 @@ const PACK = [
   "bag",
 ];
 
-const PACK_VERSION = 2;
+const PACK_VERSION = 3;
 
 function mention(guild, name) {
   if (!guild || !guild.emojis) return "";
@@ -62,6 +62,7 @@ async function ensureEmojis(guild, report) {
       g.emojiPackVersion = PACK_VERSION;
     });
   }
+  return { replaced: replace };
 }
 
 module.exports = { PACK, mention, pack, ensureEmojis };

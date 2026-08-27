@@ -111,8 +111,13 @@ async function prepareGuild(guild) {
   } else {
     const report = [];
     try {
-      await emojis.ensureEmojis(guild, report);
+      const result = await emojis.ensureEmojis(guild, report);
       for (const line of report) console.log(`  ${line}`);
+      if (result && result.replaced) {
+        console.log(`Refreshing posts in ${guild.name} after emoji pack replace`);
+        const { report: setupReport } = await applySetup(guild);
+        for (const line of setupReport) console.log(`  ${line}`);
+      }
     } catch (err) {
       console.error(`Emoji upload failed in ${guild.name}:`, err);
     }

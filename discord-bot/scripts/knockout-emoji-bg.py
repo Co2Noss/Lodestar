@@ -89,8 +89,7 @@ def apply(im):
     for y in range(h):
         for x in range(w):
             if mask[y][x]:
-                r, g, b, _ = px[x, y]
-                px[x, y] = (r, g, b, 0)
+                px[x, y] = (0, 0, 0, 0)
                 continue
             r, g, b, a = px[x, y]
             mx, mn = max(r, g, b), min(r, g, b)
@@ -107,7 +106,11 @@ def apply(im):
             if mx >= 190 and (mx - mn) <= 32:
                 fade = int(255 * max(0.0, (230 - mx) / 50))
                 a = max(0, min(a, fade))
-            px[x, y] = unblend_white(r, g, b, a)
+            r, g, b, a = unblend_white(r, g, b, a)
+            if a == 0:
+                px[x, y] = (0, 0, 0, 0)
+            else:
+                px[x, y] = (r, g, b, a)
     return im
 
 
