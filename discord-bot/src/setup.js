@@ -348,7 +348,7 @@ function channelSpecs(guild, roles) {
       aliases: ["github-issues", "github-actions", "github", "issues"],
       parent: "development",
       type: ChannelType.GuildText,
-      topic: "GitHub issues and pull requests. The bot posts them here.",
+      topic: "GitHub issues. The bot posts new and updated issues here, not pull requests.",
       overwrites: membersRead(guild, roles),
       webhook: true,
       webhookKey: "github-issues",

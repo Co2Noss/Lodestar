@@ -12,7 +12,7 @@ Discord bot for the [Lodestar Guide](https://discord.gg/a7hrHavcwq) server. It b
 - Automod deletes invite ads, mass mentions, and message spam, then warns. Repeat strikes time the user out. Logged in `#mod-log`.
 - **Verification** — `#welcome` button **I have read the rules** grants **Member** and removes **Unverified**, which hides `#welcome` and `#silence-enforced`. The join ping in `#welcome` is deleted, and a welcome is posted in `#general`. Unverified people only see welcome, rules, and the honeypot; `#rules` stays visible after they pass. Discord verification level is High (10 minutes in the server). Accounts younger than 1 hour cannot verify.
 - **`#silence-enforced`** — honeypot. Any message is a softban (ban + unban, which kicks and wipes a day of messages). Kick count is on the pinned panel.
-- **GitHub feeds** — the bot keeps Discord webhooks named **Lodestar GitHub** (compass icon) in `#git-commits`, `#github-releases`, and `#github-issues`, then posts new activity from `Co2Noss/Lodestar` about once a minute. First poll only sets a watermark so old history is not dumped.
+- **GitHub feeds** — the bot keeps Discord webhooks named **Lodestar GitHub** (compass icon) in `#git-commits`, `#github-releases`, and `#github-issues`, then posts new activity from `Co2Noss/Lodestar` about once a minute. `#github-issues` is issues only (opened or updated), not pull requests. First poll only sets a watermark so old history is not dumped.
 - **`/help`** — short map of the server.
 
 Roles: **Unverified**, **Member**, **Developer**, **Moderator**, **Support**, **Bot**. New joins get Unverified until they pass the rules. Co2Noss is assigned Developer, Moderator, and Support. Bots get Bot.

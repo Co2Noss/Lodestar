@@ -294,7 +294,7 @@ describe("github credit", () => {
 });
 
 describe("github feeds", () => {
-  const { formatCommit, formatRelease, formatIssue, resolveHookRecord } = require("../src/feeds");
+  const { formatCommit, formatRelease, formatIssue, isPullRequest, resolveHookRecord } = require("../src/feeds");
 
   it("formats a commit, release, and issue", () => {
     const commit = formatCommit({
@@ -322,6 +322,19 @@ describe("github feeds", () => {
       updated_at: "2026-08-01T00:00:00Z",
     });
     assert.ok(issue.embeds[0].data.title.includes("#12"));
+    assert.match(issue.embeds[0].data.author.name, /issue/);
+    assert.doesNotMatch(issue.embeds[0].data.author.name, /pull request/);
+  });
+
+  it("treats GitHub pull requests as not issues", () => {
+    assert.equal(isPullRequest({ number: 1 }), false);
+    assert.equal(isPullRequest({ number: 2, pull_request: { url: "https://api.github.com/repos/x/y/pulls/2" } }), true);
+    const items = [
+      { number: 1, updated_at: "2026-08-01T00:00:00Z" },
+      { number: 2, pull_request: {}, updated_at: "2026-08-01T01:00:00Z" },
+    ];
+    const issues = items.filter((i) => !isPullRequest(i));
+    assert.deepEqual(issues.map((i) => i.number), [1]);
   });
 
   it("reads issue webhooks stored under github or github-issues", () => {

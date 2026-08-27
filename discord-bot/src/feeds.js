@@ -16,7 +16,7 @@ const WEBHOOK_ICON = path.join(__dirname, "..", "emojis", "lodestar.png");
 const FEEDS = [
   { key: "git-commits", slug: "git-commits", label: "commits" },
   { key: "github-releases", slug: "github-releases", label: "releases" },
-  { key: "github-issues", slug: "github-issues", label: "issues and pull requests" },
+  { key: "github-issues", slug: "github-issues", label: "issues" },
 ];
 
 const HOOK_KEYS = {
@@ -69,18 +69,18 @@ function formatRelease(release) {
   return { embeds: [embed] };
 }
 
+function isPullRequest(item) {
+  return Boolean(item && item.pull_request);
+}
+
 function formatIssue(item) {
-  const isPr = Boolean(item.pull_request);
-  const kind = isPr ? "pull request" : "issue";
   const url = item.html_url || repoUrl();
-  const status = item.state === "closed" ? "closed" : "opened";
-  const merged = isPr && item.pull_request && item.pull_request.merged_at;
-  const verb = merged ? "merged" : status;
+  const verb = item.state === "closed" ? "closed" : "opened";
   return {
     embeds: [
       new EmbedBuilder()
-        .setColor(isPr ? 0xa371f7 : 0x3fb950)
-        .setAuthor({ name: `${repoName()} · ${kind} ${verb}`, url: repoUrl() })
+        .setColor(0x3fb950)
+        .setAuthor({ name: `${repoName()} · issue ${verb}`, url: repoUrl() })
         .setTitle(`#${item.number} ${item.title}`.slice(0, 250))
         .setURL(url)
         .setFooter({ text: (item.user && item.user.login) || "GitHub" })
@@ -254,21 +254,22 @@ async function pollReleases(guild) {
 }
 
 async function pollIssues(guild) {
-  const issues = await githubJson(`/repos/${repoName()}/issues?state=all&sort=updated&direction=desc&per_page=15`);
-  if (!Array.isArray(issues) || !issues.length) return 0;
+  const items = await githubJson(`/repos/${repoName()}/issues?state=all&sort=updated&direction=desc&per_page=15`);
+  if (!Array.isArray(items) || !items.length) return 0;
   const feeds = feedState(guild.id);
   if (!feeds.lastIssueAt) {
     state.patch(guild.id, (g) => {
-      g.feeds.lastIssueAt = issues[0].updated_at;
+      g.feeds.lastIssueAt = items[0].updated_at;
     });
     return 0;
   }
   const last = Date.parse(feeds.lastIssueAt);
-  const fresh = issues.filter((i) => Date.parse(i.updated_at) > last).reverse();
+  const newer = items.filter((i) => Date.parse(i.updated_at) > last);
+  const fresh = newer.filter((i) => !isPullRequest(i)).reverse();
   for (const item of fresh) await post(guild, "github-issues", formatIssue(item));
-  if (fresh.length) {
+  if (newer.length) {
     state.patch(guild.id, (g) => {
-      g.feeds.lastIssueAt = issues[0].updated_at;
+      g.feeds.lastIssueAt = items[0].updated_at;
     });
   }
   return fresh.length;
@@ -338,6 +339,7 @@ module.exports = {
   formatCommit,
   formatRelease,
   formatIssue,
+  isPullRequest,
   resolveHookRecord,
   ensureChannelWebhook,
   ensureGuildWebhooks,
