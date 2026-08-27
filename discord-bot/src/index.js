@@ -89,7 +89,11 @@ function helpEmbed(guild) {
     )
     .addFields(
       { name: "Download", value: `[CurseForge](${config.links.curseforge})` },
-      { name: "Bugs", value: `[GitHub issues](${config.links.issues})` }
+      { name: "Bugs", value: `[GitHub issues](${config.links.issues})` },
+      {
+        name: "Support the project",
+        value: `[Ko-fi](${config.links.kofi}) · [GitHub Sponsors](${config.links.sponsors}) · [PayPal](${config.links.paypal})`,
+      }
     );
 }
 
@@ -116,6 +120,7 @@ async function prepareGuild(guild) {
     !guild.roles.cache.some((r) => r.name === "Contributor") ||
     !guild.roles.cache.some((r) => r.name === "Unverified") ||
     !hasChannelSlug(guild, "github-releases") ||
+    !hasChannelSlug(guild, "support-us") ||
     !guild.channels.cache.some((c) => c.name === "👋welcome") ||
     !guild.emojis.cache.some((e) => e.name === "lodestar");
   if (needsSetup) {

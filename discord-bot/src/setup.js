@@ -297,7 +297,8 @@ function channelSpecs(guild, roles) {
     { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild, roles) },
     { key: "announcements", name: "📣announcements", aliases: ["announcements"], parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
     { key: "releases", name: "📦releases", aliases: ["releases"], parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
-    { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
+    { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki.", overwrites: membersRead(guild, roles) },
+    { key: "support-us", name: "💛support-us", aliases: ["support-us", "donate", "supportus"], parent: "info", type: ChannelType.GuildText, topic: "Donate, open a pull request, or help people here.", overwrites: membersRead(guild, roles) },
     { key: "get-help", name: "🎫get-help", aliases: ["get-help"], parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
     { key: "faq", name: "❓faq", aliases: ["faq"], parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: membersRead(guild, roles) },
     {
@@ -522,6 +523,31 @@ function rulesEmbed(guild) {
     );
 }
 
+function supportUsPanel(guild) {
+  const embed = new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle(withEmoji(guild, "gold", "Support Lodestar"))
+    .setDescription(
+      [
+        "Lodestar stays small on purpose. If it helps your week, here is how you can help back.",
+        "",
+        "**Donate** — coffee money keeps the nights going.",
+        `[Ko-fi](${config.links.kofi}) · [GitHub Sponsors](${config.links.sponsors}) · [PayPal](${config.links.paypal})`,
+        "",
+        `**Code** — a [pull request](${config.links.pulls}) is the highest-signal help. \`/github link\` ties that work to **Contributor**.`,
+        "",
+        "**Community** — answer a question in the questions forum, keep tickets clear, and be decent in general. That is the server.",
+      ].join("\n")
+    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel("Ko-fi").setStyle(ButtonStyle.Link).setURL(config.links.kofi),
+    new ButtonBuilder().setLabel("GitHub Sponsors").setStyle(ButtonStyle.Link).setURL(config.links.sponsors),
+    new ButtonBuilder().setLabel("PayPal").setStyle(ButtonStyle.Link).setURL(config.links.paypal),
+    new ButtonBuilder().setLabel("Pull requests").setStyle(ButtonStyle.Link).setURL(config.links.pulls)
+  );
+  return { embeds: [embed], components: [row] };
+}
+
 function ticketPanel(guild) {
   const embed = new EmbedBuilder()
     .setColor(config.color)
@@ -721,6 +747,7 @@ async function applySetup(guild) {
     [channels.rules, "rules", { embeds: [rulesEmbed(guild)] }],
     [channels["silence-enforced"], "honeypot", verification.honeypotPanel(kicks)],
     [channels.links, "links", { embeds: [linksEmbed()] }],
+    [channels["support-us"], "support-us", supportUsPanel(guild)],
     [channels.faq, "faq", faqPanel(guild)],
     [channels["get-help"], "ticket", ticketPanel(guild)],
     [channels["alpha-news"], "alpha", alpha.panel(guild)],
@@ -764,6 +791,7 @@ module.exports = {
   welcomeOverwrites,
   honeypotOverwrites,
   ticketPanel,
+  supportUsPanel,
   faqPanel,
   faqEmbed,
 };

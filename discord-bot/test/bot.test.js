@@ -98,6 +98,10 @@ describe("server layout", () => {
     assert.ok(names.includes("🗣️alpha-chat"));
     assert.ok(names.includes("📋alpha-feedback"));
     assert.ok(names.includes("👋welcome"));
+    assert.ok(names.includes("💛support-us"));
+    const supportUs = channels.find((c) => c.key === "support-us");
+    assert.ok(supportUs);
+    assert.equal(supportUs.parent, "info");
     const alphaChat = channels.find((c) => c.key === "alpha-chat");
     const everyone = alphaChat.overwrites.find((o) => o.id === "everyone");
     assert.ok(everyone);
@@ -112,6 +116,22 @@ describe("server layout", () => {
     assert.equal(issues.webhookKey, "github-issues");
     assert.ok(channels.find((c) => c.key === "git-commits").webhook);
     assert.ok(channels.find((c) => c.key === "github-releases").webhook);
+  });
+
+  it("pins donate and contribute links in support-us", () => {
+    const { supportUsPanel } = require("../src/setup");
+    const panel = supportUsPanel({ emojis: { cache: { find: () => null } } });
+    const text = panel.embeds[0].data.description;
+    assert.match(text, /ko-fi\.com\/co2noss/i);
+    assert.match(text, /github\.com\/sponsors\/Co2Noss/);
+    assert.match(text, /paypal\.me\/Co2Noss/i);
+    assert.match(text, /pull request/i);
+    assert.match(text, /Community/);
+    const urls = panel.components[0].components.map((b) => b.data.url);
+    assert.ok(urls.includes("https://ko-fi.com/co2noss"));
+    assert.ok(urls.includes("https://github.com/sponsors/Co2Noss"));
+    assert.ok(urls.includes("https://paypal.me/Co2Noss"));
+    assert.ok(urls.includes("https://github.com/Co2Noss/Lodestar/pulls"));
   });
 
   it("hides Tickets, Staff, and Alpha from @everyone", () => {

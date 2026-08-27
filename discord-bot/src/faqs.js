@@ -249,7 +249,11 @@ function linksEmbed() {
       { name: "GitHub", value: links.github },
       { name: "Wiki", value: links.wiki },
       { name: "Issues", value: links.issues },
-      { name: "Discord", value: config.invite }
+      { name: "Discord", value: config.invite },
+      {
+        name: "Support the project",
+        value: `[Ko-fi](${links.kofi}) · [GitHub Sponsors](${links.sponsors}) · [PayPal](${links.paypal})`,
+      }
     );
 }
 
