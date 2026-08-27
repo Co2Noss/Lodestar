@@ -97,6 +97,9 @@ describe("server layout", () => {
     assert.ok(issues.aliases.includes("github-actions"));
     assert.equal(issues.name, "🐛github-issues");
     assert.ok(issues.webhook);
+    assert.equal(issues.webhookKey, "github-issues");
+    assert.ok(channels.find((c) => c.key === "git-commits").webhook);
+    assert.ok(channels.find((c) => c.key === "github-releases").webhook);
   });
 
   it("hides Tickets, Staff, and Alpha from @everyone", () => {
@@ -197,5 +200,45 @@ describe("github credit", () => {
     assert.equal(feedSlug("github-actions"), "github-actions");
     assert.equal(feedSlug("🛠️ Staff"), "staff");
     assert.equal(feedSlug("👋welcome"), "welcome");
+  });
+});
+
+describe("github feeds", () => {
+  const { formatCommit, formatRelease, formatIssue, resolveHookRecord } = require("../src/feeds");
+
+  it("formats a commit, release, and issue", () => {
+    const commit = formatCommit({
+      sha: "abcdef123456",
+      html_url: "https://github.com/Co2Noss/Lodestar/commit/abcdef123456",
+      author: { login: "Co2Noss" },
+      commit: { message: "Fix vault row\n\nmore", author: { date: "2026-08-01T00:00:00Z" } },
+    });
+    assert.ok(commit.embeds[0].data.description.includes("`abcdef1`"));
+    const release = formatRelease({
+      name: "1.5.31",
+      tag_name: "v1.5.31",
+      html_url: "https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.31",
+      body: "Bugfixes",
+      author: { login: "Co2Noss" },
+      published_at: "2026-08-01T00:00:00Z",
+    });
+    assert.equal(release.embeds[0].data.title, "1.5.31");
+    const issue = formatIssue({
+      number: 12,
+      title: "Gold plan empty",
+      html_url: "https://github.com/Co2Noss/Lodestar/issues/12",
+      state: "open",
+      user: { login: "someone" },
+      updated_at: "2026-08-01T00:00:00Z",
+    });
+    assert.ok(issue.embeds[0].data.title.includes("#12"));
+  });
+
+  it("reads issue webhooks stored under github or github-issues", () => {
+    const storedAsGithub = { github: { id: "1", token: "t" } };
+    const storedAsIssues = { "github-issues": { id: "2", token: "u" } };
+    assert.equal(resolveHookRecord(storedAsGithub, "github-issues").id, "1");
+    assert.equal(resolveHookRecord(storedAsIssues, "github-issues").id, "2");
+    assert.equal(resolveHookRecord({}, "git-commits"), null);
   });
 });

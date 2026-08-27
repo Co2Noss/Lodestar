@@ -374,4 +374,5 @@ module.exports = {
   setLink,
   loginFor,
   feedSlug,
+  githubJson,
 };

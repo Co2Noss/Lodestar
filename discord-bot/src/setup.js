@@ -9,8 +9,6 @@ const {
   ButtonStyle,
   StringSelectMenuBuilder,
 } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
 const config = require("./config");
 const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
 const state = require("./state");
@@ -18,6 +16,7 @@ const verification = require("./verification");
 const emojis = require("./emojis");
 const alpha = require("./alpha");
 const github = require("./github");
+const feeds = require("./feeds");
 const { channelSlug } = require("./names");
 
 const P = PermissionFlagsBits;
@@ -296,7 +295,7 @@ function channelSpecs(guild, roles) {
       aliases: ["git-commits", "commits"],
       parent: "development",
       type: ChannelType.GuildText,
-      topic: "GitHub commits. Point a GitHub webhook here.",
+      topic: "GitHub commits. The bot posts new commits here.",
       overwrites: membersRead(guild, roles),
       webhook: true,
     },
@@ -306,7 +305,7 @@ function channelSpecs(guild, roles) {
       aliases: ["github-releases"],
       parent: "development",
       type: ChannelType.GuildText,
-      topic: "GitHub releases. Point a GitHub webhook here.",
+      topic: "GitHub releases. The bot posts new tags here.",
       overwrites: membersRead(guild, roles),
       webhook: true,
     },
@@ -316,9 +315,10 @@ function channelSpecs(guild, roles) {
       aliases: ["github-issues", "github-actions", "github", "issues"],
       parent: "development",
       type: ChannelType.GuildText,
-      topic: "GitHub issues and pull requests. Point a GitHub webhook here.",
+      topic: "GitHub issues and pull requests. The bot posts them here.",
       overwrites: membersRead(guild, roles),
       webhook: true,
+      webhookKey: "github-issues",
     },
     { key: "alpha-news", name: "🧪alpha-news", aliases: ["alpha-news"], parent: "alpha", type: ChannelType.GuildText, topic: "What to test. Staff posts here.", overwrites: alphaRead(guild, roles) },
     { key: "alpha-chat", name: "🗣️alpha-chat", aliases: ["alpha-chat"], parent: "alpha", type: ChannelType.GuildText, topic: "Talk while you test unreleased builds.", overwrites: alphaChat(guild, roles) },
@@ -440,38 +440,6 @@ async function ensureChannel(guild, spec, categories, roles, report) {
     }
   }
   return channel;
-}
-
-const WEBHOOK_ICON = path.join(__dirname, "..", "emojis", "lodestar.png");
-
-async function ensureFeedWebhook(channel, report) {
-  if (!channel || !channel.fetchWebhooks) return;
-  let avatar;
-  try {
-    avatar = fs.readFileSync(WEBHOOK_ICON);
-  } catch (err) {
-    report.push(`could not read webhook icon: ${err.message}`);
-    return;
-  }
-  try {
-    const hooks = await channel.fetchWebhooks();
-    const existing =
-      hooks.find((h) => h.owner && channel.client.user && h.owner.id === channel.client.user.id) ||
-      hooks.find((h) => /github|lodestar/i.test(h.name || ""));
-    if (existing) {
-      await existing.edit({ name: "Lodestar GitHub", avatar });
-      report.push(`set webhook icon in #${channel.name}`);
-      return;
-    }
-    await channel.createWebhook({
-      name: "Lodestar GitHub",
-      avatar,
-      reason: "GitHub feed with Lodestar icon",
-    });
-    report.push(`created webhook in #${channel.name}`);
-  } catch (err) {
-    report.push(`could not set webhook in #${channel.name}: ${err.message}`);
-  }
 }
 
 function withEmoji(guild, name, text) {
@@ -665,7 +633,7 @@ async function applySetup(guild) {
 
   for (const spec of channelSpecs(guild, roles)) {
     if (spec.webhook && channels[spec.key]) {
-      await ensureFeedWebhook(channels[spec.key], report);
+      await feeds.ensureChannelWebhook(channels[spec.key], spec.webhookKey || spec.key, report);
     }
   }
 

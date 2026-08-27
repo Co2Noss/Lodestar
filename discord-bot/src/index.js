@@ -21,6 +21,7 @@ const { maybeAssist } = require("./assist");
 const { roleByName } = require("./staff");
 const alpha = require("./alpha");
 const github = require("./github");
+const feeds = require("./feeds");
 const { channelSlug, findBySlug } = require("./names");
 
 if (!config.token) {
@@ -157,6 +158,7 @@ function bind(client) {
         console.error(`GitHub sync failed in ${guild.name}:`, err);
       }
     }
+    feeds.start(client);
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
         github.syncGuild(guild).catch((err) => console.error("GitHub sync failed:", err));
