@@ -513,6 +513,11 @@ async function applySetup(guild) {
   }
 
   await emojis.ensureEmojis(guild, report);
+  try {
+    await guild.emojis.fetch();
+  } catch {
+    // cache from create/delete is usually enough
+  }
 
   const welcome = welcomeEmbed(guild);
   if (channels.rules && channels.faq && channels.questions && channels["get-help"]) {
