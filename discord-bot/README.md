@@ -14,7 +14,9 @@ Discord bot for the [Lodestar Guide](https://discord.gg/a7hrHavcwq) server. It b
 - **`#silence-enforced`** — honeypot. Any message is a softban (ban + unban, which kicks and wipes a day of messages). Kick count is on the pinned panel.
 - **`/help`** — short map of the server.
 
-Roles: **Developer**, **Moderator**, **Support**, **Bot**. Co2Noss is assigned Developer, Moderator, and Support. Bots get Bot.
+Roles: **Member**, **Developer**, **Moderator**, **Support**, **Bot**. Co2Noss is assigned Developer, Moderator, and Support. Bots get Bot.
+
+Custom emojis live in `emojis/` and upload on bot start: `:lodestar:` (the compass), plus WoW-style `:gold:` `:vault:` `:profession:` `:quest:` `:pvp:` `:flask:` `:bag:`. They are original icons, not Blizzard art.
 
 First login also runs setup if `#get-help` is missing, so inviting the bot with Administrator is enough.
 

@@ -105,6 +105,21 @@ describe("moderation", () => {
   });
 });
 
+describe("emoji pack", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const { PACK } = require("../src/emojis");
+
+  it("ships a png for every named emoji", () => {
+    assert.ok(PACK.includes("lodestar"));
+    for (const name of PACK) {
+      const file = path.join(__dirname, "..", "emojis", `${name}.png`);
+      assert.ok(fs.existsSync(file), file);
+      assert.ok(fs.statSync(file).size < 256 * 1024);
+    }
+  });
+});
+
 describe("verification", () => {
   const { accountTooNew } = require("../src/verification");
 

@@ -13,6 +13,7 @@ const config = require("./config");
 const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
 const state = require("./state");
 const verification = require("./verification");
+const emojis = require("./emojis");
 
 const P = PermissionFlagsBits;
 
@@ -311,17 +312,22 @@ async function ensureChannel(guild, spec, categories, roles, report) {
   return channel;
 }
 
-function welcomeEmbed() {
+function withEmoji(guild, name, text) {
+  const em = emojis.mention(guild, name);
+  return em ? `${em}  ${text}` : text;
+}
+
+function welcomeEmbed(guild) {
   return new EmbedBuilder()
     .setColor(config.color)
-    .setTitle("Lodestar Guide")
+    .setTitle(withEmoji(guild, "lodestar", "Lodestar Guide"))
     .setDescription(
       [
         "**Find what matters. Ignore the rest.**",
         "",
         "Lodestar is a decision engine for World of Warcraft. This server is for install help, questions, and bugs.",
         "",
-        "1. Read <#RULES>",
+        `1. Read <#RULES>`,
         "2. Click **I have read the rules** below. That unlocks the rest of the server.",
         "3. Check <#FAQ> or `/faq`",
         "4. Public questions go in <#QUESTIONS>",
@@ -336,10 +342,10 @@ function welcomeEmbed() {
     );
 }
 
-function rulesEmbed() {
+function rulesEmbed(guild) {
   return new EmbedBuilder()
     .setColor(config.color)
-    .setTitle("Rules")
+    .setTitle(withEmoji(guild, "quest", "Rules"))
     .setDescription(
       [
         "1. Be decent. This is a support server, not a raid.",
@@ -353,10 +359,10 @@ function rulesEmbed() {
     );
 }
 
-function ticketPanel() {
+function ticketPanel(guild) {
   const embed = new EmbedBuilder()
     .setColor(config.color)
-    .setTitle("Get help")
+    .setTitle(withEmoji(guild, "bag", "Get help"))
     .setDescription(
       [
         "Open a **private ticket** with Support. Include class/spec, the theme you use, and what you expected versus what happened.",
@@ -374,10 +380,10 @@ function ticketPanel() {
   return { embeds: [embed], components: [row] };
 }
 
-function faqPanel() {
+function faqPanel(guild) {
   const embed = new EmbedBuilder()
     .setColor(config.color)
-    .setTitle("FAQ")
+    .setTitle(withEmoji(guild, "lodestar", "FAQ"))
     .setDescription("Pick a topic, or type `/faq` anywhere. These answers come from how Lodestar actually works — it does not invent data the client does not have.");
   const options = FAQS.slice(0, 25).map((f) => ({
     label: f.title.slice(0, 100),
@@ -506,7 +512,9 @@ async function applySetup(guild) {
     }
   }
 
-  const welcome = welcomeEmbed();
+  await emojis.ensureEmojis(guild, report);
+
+  const welcome = welcomeEmbed(guild);
   if (channels.rules && channels.faq && channels.questions && channels["get-help"]) {
     welcome.setDescription(
       welcome.data.description
@@ -520,11 +528,11 @@ async function applySetup(guild) {
   const kicks = (state.guildState(guild.id).g.honeypotKicks || 0);
   const posts = [
     [channels.welcome, "welcome", { embeds: [welcome], components: [verification.welcomeButtons()] }],
-    [channels.rules, "rules", { embeds: [rulesEmbed()] }],
+    [channels.rules, "rules", { embeds: [rulesEmbed(guild)] }],
     [channels["silence-enforced"], "honeypot", verification.honeypotPanel(kicks)],
     [channels.links, "links", { embeds: [linksEmbed()] }],
-    [channels.faq, "faq", faqPanel()],
-    [channels["get-help"], "ticket", ticketPanel()],
+    [channels.faq, "faq", faqPanel(guild)],
+    [channels["get-help"], "ticket", ticketPanel(guild)],
   ];
   for (const [channel, key, payload] of posts) {
     try {

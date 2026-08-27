@@ -13,6 +13,7 @@ const {
 const config = require("./config");
 const { FAQS, findFaq, faqChoices, faqEmbed, linksEmbed } = require("./faqs");
 const { applySetup } = require("./setup");
+const emojis = require("./emojis");
 const tickets = require("./tickets");
 const moderation = require("./moderation");
 const verification = require("./verification");
@@ -60,10 +61,11 @@ function makeClient(privileged) {
   return new Client({ intents, partials: [Partials.Channel] });
 }
 
-function helpEmbed() {
+function helpEmbed(guild) {
+  const star = emojis.mention(guild, "lodestar");
   return new EmbedBuilder()
     .setColor(config.color)
-    .setTitle("Lodestar support")
+    .setTitle(star ? `${star}  Lodestar support` : "Lodestar support")
     .setDescription(
       [
         "**Find what matters. Ignore the rest.**",
@@ -104,6 +106,14 @@ async function prepareGuild(guild) {
       for (const line of report) console.log(`  ${line}`);
     } catch (err) {
       console.error(`Setup failed in ${guild.name}:`, err);
+    }
+  } else {
+    const report = [];
+    try {
+      await emojis.ensureEmojis(guild, report);
+      for (const line of report) console.log(`  ${line}`);
+    } catch (err) {
+      console.error(`Emoji upload failed in ${guild.name}:`, err);
     }
   }
 }
@@ -220,7 +230,7 @@ async function handleInteraction(interaction) {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "help") {
-    await interaction.reply({ embeds: [helpEmbed(), linksEmbed()], flags: MessageFlags.Ephemeral });
+    await interaction.reply({ embeds: [helpEmbed(interaction.guild), linksEmbed()], flags: MessageFlags.Ephemeral });
     return;
   }
 
