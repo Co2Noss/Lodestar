@@ -10,6 +10,8 @@ Discord bot for the [Lodestar Guide](https://discord.gg/a7hrHavcwq) server. It b
 - **`/close`** — closes a ticket and files a transcript in `#ticket-logs`.
 - **`/mod`** — warn, timeout, kick, ban, unban, purge, warnings. Right-click a user for **Timeout 10m** or **Warn**; right-click a message for **Delete and warn**.
 - Automod deletes invite ads, mass mentions, and message spam, then warns. Repeat strikes time the user out. Logged in `#mod-log`.
+- **Verification** — `#welcome` button **I have read the rules** grants **Member**. Unverified people only see welcome, rules, and the honeypot. Discord verification level is High (10 minutes in the server). Accounts younger than 1 hour cannot verify.
+- **`#silence-enforced`** — honeypot. Any message is a softban (ban + unban, which kicks and wipes a day of messages). Kick count is on the pinned panel.
 - **`/help`** — short map of the server.
 
 Roles: **Developer**, **Moderator**, **Support**, **Bot**. Co2Noss is assigned Developer, Moderator, and Support. Bots get Bot.

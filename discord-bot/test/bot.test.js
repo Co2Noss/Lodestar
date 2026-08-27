@@ -49,6 +49,7 @@ describe("server layout", () => {
   it("uses unique role, category, and channel names", () => {
     const roleNames = ROLE_SPECS.map((r) => r.name);
     assert.equal(new Set(roleNames).size, roleNames.length);
+    assert.ok(roleNames.includes("Member"));
     assert.ok(roleNames.includes("Developer"));
     assert.ok(roleNames.includes("Bot"));
     assert.ok(roleNames.includes("Moderator"));
@@ -56,7 +57,7 @@ describe("server layout", () => {
     const catNames = CATEGORY_SPECS.map((c) => c.name);
     assert.equal(new Set(catNames).size, catNames.length);
     const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
-    const fakeRoles = { support: { id: "s" }, moderator: { id: "m" }, developer: { id: "d" }, bot: { id: "b" } };
+    const fakeRoles = { support: { id: "s" }, moderator: { id: "m" }, developer: { id: "d" }, bot: { id: "b" }, member: { id: "mem" } };
     const channels = channelSpecs(fakeGuild, fakeRoles);
     const names = channels.map((c) => c.name);
     assert.equal(new Set(names).size, names.length);
@@ -64,6 +65,7 @@ describe("server layout", () => {
     assert.ok(names.includes("get-help"));
     assert.ok(names.includes("faq"));
     assert.ok(names.includes("mod-log"));
+    assert.ok(names.includes("silence-enforced"));
   });
 
   it("hides Tickets and Staff from @everyone", () => {
@@ -100,5 +102,16 @@ describe("moderation", () => {
     let hit = null;
     for (let i = 0; i < 6; i++) hit = spamOffense("u2", `msg ${i}`, now + i);
     assert.equal(hit, "message spam");
+  });
+});
+
+describe("verification", () => {
+  const { accountTooNew } = require("../src/verification");
+
+  it("rejects brand-new Discord accounts", () => {
+    const fresh = { createdTimestamp: Date.now() };
+    const old = { createdTimestamp: Date.now() - 2 * 60 * 60 * 1000 };
+    assert.equal(accountTooNew(fresh), true);
+    assert.equal(accountTooNew(old), false);
   });
 });

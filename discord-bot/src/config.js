@@ -11,6 +11,7 @@ module.exports = {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean),
+  verifyMinAccountAgeMs: (Number(process.env.VERIFY_MIN_ACCOUNT_AGE_HOURS) || 1) * 60 * 60 * 1000,
   invite: "https://discord.gg/a7hrHavcwq",
   color: 0xf2b838,
   accent: 0x59d8c9,

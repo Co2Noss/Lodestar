@@ -15,6 +15,7 @@ const { FAQS, findFaq, faqChoices, faqEmbed, linksEmbed } = require("./faqs");
 const { applySetup } = require("./setup");
 const tickets = require("./tickets");
 const moderation = require("./moderation");
+const verification = require("./verification");
 const { maybeAssist } = require("./assist");
 const { roleByName } = require("./staff");
 
@@ -93,7 +94,9 @@ async function prepareGuild(guild) {
     !guild.channels.cache.some((c) => c.name === "get-help") ||
     !guild.channels.cache.some((c) => c.name === "mod-log") ||
     !guild.roles.cache.some((r) => r.name === "Developer") ||
-    !guild.roles.cache.some((r) => r.name === "Bot");
+    !guild.roles.cache.some((r) => r.name === "Bot") ||
+    !guild.roles.cache.some((r) => r.name === "Member") ||
+    !guild.channels.cache.some((c) => c.name === "silence-enforced");
   if (needsSetup) {
     try {
       console.log(`Setup in ${guild.name}`);
@@ -127,14 +130,14 @@ function bind(client) {
       return;
     }
     if (config.developerUserIds.includes(member.id)) {
-      const roles = ["Developer", "Moderator", "Support"].map((n) => roleByName(member.guild, n)).filter(Boolean);
+      const roles = ["Developer", "Moderator", "Support", "Member"].map((n) => roleByName(member.guild, n)).filter(Boolean);
       if (roles.length) await member.roles.add(roles, "Lodestar staff").catch(() => {});
     }
     const welcome = member.guild.channels.cache.find((c) => c.name === "welcome" && c.isTextBased());
     if (!welcome) return;
     try {
       await welcome.send({
-        content: `${member}, welcome to Lodestar Guide. Read the pinned message here, then #faq or /faq.`,
+        content: `${member}, read the pinned message, then click **I have read the rules**. Do not type in #silence-enforced.`,
       });
     } catch {
       // missing send permission
@@ -142,6 +145,11 @@ function bind(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    try {
+      if (await verification.maybeHoneypot(message)) return;
+    } catch (err) {
+      console.error("honeypot failed:", err);
+    }
     try {
       if (await moderation.maybeAutomod(message)) return;
     } catch (err) {
@@ -206,6 +214,7 @@ async function handleInteraction(interaction) {
     return;
   }
 
+  if (await verification.handleInteraction(interaction)) return;
   if (await moderation.handleInteraction(interaction)) return;
 
   if (!interaction.isChatInputCommand()) return;

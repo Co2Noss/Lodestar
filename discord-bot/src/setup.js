@@ -12,6 +12,7 @@ const {
 const config = require("./config");
 const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
 const state = require("./state");
+const verification = require("./verification");
 
 const P = PermissionFlagsBits;
 
@@ -39,10 +40,30 @@ function everyoneRead(guild) {
   ];
 }
 
-function everyoneChat(guild) {
-  return [
-    {
-      id: guild.roles.everyone.id,
+function membersRead(guild, roles) {
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+  ];
+  if (roles.member) {
+    overwrites.push({
+      id: roles.member.id,
+      allow: [P.ViewChannel, P.ReadMessageHistory, P.AddReactions],
+      deny: [P.SendMessages, P.CreatePublicThreads, P.SendMessagesInThreads],
+    });
+  }
+  for (const key of ["developer", "moderator", "support"]) {
+    if (roles[key]) overwrites.push({ id: roles[key].id, allow: STAFF_ALLOW });
+  }
+  return overwrites;
+}
+
+function membersChat(guild, roles) {
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+  ];
+  if (roles.member) {
+    overwrites.push({
+      id: roles.member.id,
       allow: [
         P.ViewChannel,
         P.SendMessages,
@@ -53,6 +74,20 @@ function everyoneChat(guild) {
         P.CreatePublicThreads,
         P.SendMessagesInThreads,
       ],
+    });
+  }
+  for (const key of ["developer", "moderator", "support"]) {
+    if (roles[key]) overwrites.push({ id: roles[key].id, allow: STAFF_ALLOW });
+  }
+  return overwrites;
+}
+
+function honeypotOverwrites(guild) {
+  return [
+    {
+      id: guild.roles.everyone.id,
+      allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory],
+      deny: [P.AddReactions, P.CreatePublicThreads, P.SendMessagesInThreads, P.AttachFiles, P.EmbedLinks],
     },
   ];
 }
@@ -74,6 +109,14 @@ function hiddenTickets(guild, roles) {
 }
 
 const ROLE_SPECS = [
+  {
+    key: "member",
+    name: "Member",
+    color: 0x57f287,
+    hoist: false,
+    mentionable: false,
+    permissions: [],
+  },
   {
     key: "bot",
     name: "Bot",
@@ -144,20 +187,21 @@ function channelSpecs(guild, roles) {
     ? ChannelType.GuildAnnouncement
     : ChannelType.GuildText;
   return [
-    { key: "welcome", name: "welcome", parent: "info", type: ChannelType.GuildText, topic: "Start here.", overwrites: everyoneRead(guild) },
+    { key: "welcome", name: "welcome", parent: "info", type: ChannelType.GuildText, topic: "Start here. Click the button after you read the rules.", overwrites: everyoneRead(guild) },
     { key: "rules", name: "rules", parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
-    { key: "announcements", name: "announcements", parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: everyoneRead(guild) },
-    { key: "releases", name: "releases", parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: everyoneRead(guild) },
-    { key: "links", name: "links", parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: everyoneRead(guild) },
-    { key: "get-help", name: "get-help", parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: everyoneRead(guild) },
-    { key: "faq", name: "faq", parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: everyoneRead(guild) },
+    { key: "silence-enforced", name: "silence-enforced", parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild) },
+    { key: "announcements", name: "announcements", parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
+    { key: "releases", name: "releases", parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
+    { key: "links", name: "links", parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
+    { key: "get-help", name: "get-help", parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
+    { key: "faq", name: "faq", parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: membersRead(guild, roles) },
     {
       key: "questions",
       name: "questions",
       parent: "support",
       type: ChannelType.GuildForum,
       topic: "One question per post. Search first. Include class/spec and theme.",
-      overwrites: everyoneChat(guild),
+      overwrites: membersChat(guild, roles),
       availableTags: [
         { name: "Install" },
         { name: "Dashboard" },
@@ -169,11 +213,11 @@ function channelSpecs(guild, roles) {
         { name: "Other" },
       ],
     },
-    { key: "general", name: "general", parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: everyoneChat(guild) },
-    { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: everyoneChat(guild) },
-    { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: everyoneChat(guild) },
-    { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: everyoneRead(guild) },
-    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues and pull requests.", overwrites: everyoneRead(guild) },
+    { key: "general", name: "general", parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: membersChat(guild, roles) },
+    { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: membersChat(guild, roles) },
+    { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: membersChat(guild, roles) },
+    { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: membersRead(guild, roles) },
+    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues and pull requests.", overwrites: membersRead(guild, roles) },
     { key: "staff", name: "staff", parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
     { key: "mod-log", name: "mod-log", parent: "staff", type: ChannelType.GuildText, topic: "Warns, timeouts, kicks, bans, automod.", overwrites: hiddenStaff(guild, roles) },
     { key: "ticket-logs", name: "ticket-logs", parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
@@ -278,9 +322,12 @@ function welcomeEmbed() {
         "Lodestar is a decision engine for World of Warcraft. This server is for install help, questions, and bugs.",
         "",
         "1. Read <#RULES>",
-        "2. Check <#FAQ> or `/faq`",
-        "3. Public questions go in <#QUESTIONS>",
-        "4. Private tickets start in <#GETHELP>",
+        "2. Click **I have read the rules** below. That unlocks the rest of the server.",
+        "3. Check <#FAQ> or `/faq`",
+        "4. Public questions go in <#QUESTIONS>",
+        "5. Private tickets start in <#GETHELP>",
+        "",
+        "Do not type in #silence-enforced. That channel is bait for spam bots.",
       ].join("\n")
     )
     .addFields(
@@ -301,6 +348,7 @@ function rulesEmbed() {
         "4. No piracy, account trading, or NSFW. No invite ads.",
         "5. Staff may close idle tickets. Re-open one if you still need help.",
         "6. The bot removes spam, invite ads, and mass mentions. Co2Noss is developer, moderator, and support — `/mod` is there when a person needs a warn, timeout, kick, or ban.",
+        "7. Click **I have read the rules** in #welcome to unlock the server. Do not type in #silence-enforced — that is a honeypot. Messages there are a softban.",
       ].join("\n")
     );
 }
@@ -370,6 +418,11 @@ function mention(channel) {
 }
 
 async function assignPeople(guild, roles, report) {
+  try {
+    await guild.members.fetch();
+  } catch {
+    // member intent missing; still try cache
+  }
   const staffWanted = [roles.developer, roles.moderator, roles.support].filter(Boolean);
   for (const id of config.developerUserIds) {
     const member = await guild.members.fetch(id).catch(() => null);
@@ -386,12 +439,18 @@ async function assignPeople(guild, roles, report) {
       report.push(`could not assign staff roles to ${member.user.tag}: ${err.message}`);
     }
   }
-  if (!roles.bot) return;
-  try {
-    await guild.members.fetch();
-  } catch {
-    // member intent missing; still try cache
+  for (const member of guild.members.cache.values()) {
+    if (member.user.bot) continue;
+    if (roles.member && !member.roles.cache.has(roles.member.id)) {
+      try {
+        await member.roles.add(roles.member, "Existing member during verification rollout");
+        report.push(`gave @Member to ${member.user.tag}`);
+      } catch (err) {
+        report.push(`could not give @Member to ${member.user.tag}: ${err.message}`);
+      }
+    }
   }
+  if (!roles.bot) return;
   for (const member of guild.members.cache.values()) {
     if (!member.user.bot || member.roles.cache.has(roles.bot.id)) continue;
     try {
@@ -413,8 +472,8 @@ async function applySetup(guild) {
       report.push(`failed role @${spec.name}: ${err.message}`);
     }
   }
-  if (!roles.support || !roles.moderator || !roles.developer || !roles.bot) {
-    throw new Error("Could not create Developer, Moderator, Support, and Bot roles. Drag the Lodestar Support bot role to the top of the role list and run /setup again.");
+  if (!roles.support || !roles.moderator || !roles.developer || !roles.bot || !roles.member) {
+    throw new Error("Could not create Member, Developer, Moderator, Support, and Bot roles. Drag the Lodestar Support bot role to the top of the role list and run /setup again.");
   }
 
   const categories = {};
@@ -458,9 +517,11 @@ async function applySetup(guild) {
     );
   }
 
+  const kicks = (state.guildState(guild.id).g.honeypotKicks || 0);
   const posts = [
-    [channels.welcome, "welcome", { embeds: [welcome] }],
+    [channels.welcome, "welcome", { embeds: [welcome], components: [verification.welcomeButtons()] }],
     [channels.rules, "rules", { embeds: [rulesEmbed()] }],
+    [channels["silence-enforced"], "honeypot", verification.honeypotPanel(kicks)],
     [channels.links, "links", { embeds: [linksEmbed()] }],
     [channels.faq, "faq", faqPanel()],
     [channels["get-help"], "ticket", ticketPanel()],
@@ -475,6 +536,7 @@ async function applySetup(guild) {
 
   state.patch(guild.id, (g) => {
     g.roles = {
+      member: roles.member.id,
       developer: roles.developer.id,
       moderator: roles.moderator.id,
       support: roles.support.id,
@@ -485,6 +547,7 @@ async function applySetup(guild) {
   });
 
   await assignPeople(guild, roles, report);
+  await verification.applySecurity(guild, report);
 
   return { report, roles, channels, categories };
 }

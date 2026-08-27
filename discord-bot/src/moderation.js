@@ -404,6 +404,7 @@ function automodStrikeMs(count) {
 async function maybeAutomod(message) {
   if (!message.guild || message.author.bot) return false;
   if (isStaff(message.member)) return false;
+  if (message.channel && message.channel.name === "silence-enforced") return false;
   const parentName = message.channel.parent && message.channel.parent.name;
   if (parentName === "Staff" || parentName === "Tickets") return false;
 
