@@ -636,7 +636,7 @@ function LS:ShowPage(page)
       "Cards you hid from the plan. Restore one to put it back, or clear them in Settings.")
   elseif page == "COMPLETED" then
     self:FlaggedPage("completed", "Completed tasks",
-      "Cards you marked done. Undo one if it should rank again.")
+      "Finished work, including things Lodestar noticed automatically. Undo one if it should rank again.")
   elseif page == "VAULT" then
     self:VaultPage()
   elseif page == "PROFESSIONS" then
@@ -811,7 +811,11 @@ function LS:ActivityCard(parent, activity, y, width)
     end })
   end
   table.insert(actions, { "Done", function()
-    self.db.completed[activity.id] = true
+    if self.MarkCompleted then
+      self:MarkCompleted(activity.id, activity)
+    else
+      self.db.completed[activity.id] = true
+    end
     self:ShowPage(self.page == "DETAILS" and "TODAY" or (self.page or "TODAY"))
   end })
   table.insert(actions, { "Ignore", function()
@@ -1245,7 +1249,8 @@ function LS:FlaggedPage(store, title, why)
     if on then table.insert(ids, id) end
   end
   table.sort(ids, function(a, b)
-    local aa, bb = self:FindActivity(a), self:FindActivity(b)
+    local aa = store == "completed" and self.CompletedActivity and self:CompletedActivity(a) or self:FindActivity(a)
+    local bb = store == "completed" and self.CompletedActivity and self:CompletedActivity(b) or self:FindActivity(b)
     local left = (aa and aa.title) or self:ActivityLabel(a)
     local right = (bb and bb.title) or self:ActivityLabel(b)
     return left < right
@@ -1264,7 +1269,8 @@ function LS:FlaggedPage(store, title, why)
   end
 
   for _, id in ipairs(ids) do
-    local activity = self:FindActivity(id)
+    local activity = store == "completed" and self.CompletedActivity and self:CompletedActivity(id) or self:FindActivity(id)
+    local auto = store == "completed" and self.db.completedAuto and self.db.completedAuto[id]
     local card = panel(body)
     card:SetSize(width, 68)
     card:SetPoint("TOPLEFT", 0, y)
@@ -1275,12 +1281,17 @@ function LS:FlaggedPage(store, title, why)
     heading:SetText((activity and activity.title) or self:ActivityLabel(id))
     local line = text(card, width - 120, 11)
     line:SetPoint("TOPLEFT", 12, -34)
-    line:SetText((activity and activity.why) or "That activity is no longer being generated.")
+    local fallback = auto and "Lodestar noticed this was finished." or "That activity is no longer being generated."
+    line:SetText((activity and activity.why) or fallback)
     local action = button(card, store == "dismissed" and "Restore" or "Undo", 74, 26)
     action:SetPoint("TOPRIGHT", -10, -14)
     paint(action, "panel")
     action:SetScript("OnMouseUp", function()
-      self.db[store][id] = nil
+      if store == "completed" and self.UnmarkCompleted then
+        self:UnmarkCompleted(id)
+      else
+        self.db[store][id] = nil
+      end
       self:ShowPage(self.page)
     end)
     y = y - 76
@@ -2186,6 +2197,23 @@ function LS:SettingsAddons(body, width, y)
   else
     hnNote:SetText("Install HandyNotes and a notes pack (Midnight, Silvermoon, and others) to rank nearby rares. HandyNotes by itself has no coordinates. Lodestar does not invent spawn data.")
   end
+  y = y - 40
+
+  local colHeading = text(body, width, 13)
+  colHeading:SetPoint("TOPLEFT", 0, y)
+  colHeading:SetTextColor(unpack(self.colors.accent))
+  colHeading:SetText("Collections")
+  y = y - 24
+
+  local colNote = text(body, width, 10)
+  colNote:SetPoint("TOPLEFT", 0, y)
+  if not (self.db.goals.MOUNTS or self.db.goals.QUESTING or self.db.goals.ENDGAME) then
+    colNote:SetText("Mounts, questing, or endgame goals must be on for collection tracking to rank. All The Things uses the client's content tracking and quest watches. Can I Mog It can flag learnable appearances in your bags.")
+  elseif self:HasATT() then
+    colNote:SetText("All The Things is loaded. Lodestar ranks mounts, appearances, achievements, and watched quests you track in ATT. Can I Mog It adds a bag appearance nudge when that addon is loaded.")
+  else
+    colNote:SetText("Install All The Things to rank mounts, appearances, achievements, and watched quests you track there. Install Can I Mog It to nudge learnable appearances already in your bags.")
+  end
   y = y - 56
   return y
 end
@@ -2348,6 +2376,8 @@ function LS:SettingsAppearance(body, width, y)
       note:SetText("Using ElvUI's own backdrop, texture and font. Near-black borders fall back to a lighter grey.")
     elseif active == "GW2" then
       note:SetText("Using GW2 UI's gold and font when the addon exposes them.")
+    elseif active == "W2UI" then
+      note:SetText("Using W2UI's live theme tokens when the addon exposes them.")
     elseif active == "REALUI" then
       note:SetText("Using RealUI / Aurora colours when Aurora is loaded. Near-black borders fall back to a lighter grey.")
     else
@@ -2357,6 +2387,8 @@ function LS:SettingsAppearance(body, width, y)
     note:SetText("ElvUI is not loaded, so this is the standalone ElvUI-style palette.")
   elseif active == "GW2" then
     note:SetText("GW2 UI is not loaded, so this is the standalone GW2-style palette.")
+  elseif active == "W2UI" then
+    note:SetText("W2UI is not loaded, so this is the standalone W2UI-style palette.")
   elseif active == "REALUI" then
     note:SetText("RealUI is not loaded, so this is the standalone RealUI-style palette.")
   elseif active == "BLIZZARD" and self.chrome then
@@ -2364,7 +2396,7 @@ function LS:SettingsAppearance(body, width, y)
   elseif active == "BLIZZARD" then
     note:SetText("This client offered no panel art, so Blizzard's colours are drawn on a flat frame.")
   else
-    note:SetText("Auto follows GW2 UI, RealUI, ElvUI, or EllesmereUI when one of those is loaded.")
+    note:SetText("Auto follows W2UI, GW2 UI, RealUI, ElvUI, or EllesmereUI when one of those is loaded.")
   end
   y = y - 34
 
@@ -2497,8 +2529,12 @@ function LS:SettingsWindow(body, width, y)
   local clear = button(body, "Clear ignored and completed", width, 32)
   clear:SetPoint("TOPLEFT", 0, y)
   clear:SetScript("OnMouseUp", function()
-    self.db.dismissed = {}
-    self.db.completed = {}
+    if self.ClearCompletedFlags then
+      self:ClearCompletedFlags()
+    else
+      self.db.dismissed = {}
+      self.db.completed = {}
+    end
     self:ShowPage("SETTINGS")
   end)
   y = y - 44

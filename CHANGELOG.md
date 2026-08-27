@@ -1,7 +1,18 @@
 # Unreleased
 
+# 1.5.6
+
 - README, CurseForge, and the wiki carry Ko-fi and GitHub Sponsors next
   to PayPal. Those links stay off the in-game UI.
+- Settings → Appearance has a **W2UI** theme. Auto follows W2UI when it is
+  loaded and reads that addon's live theme tokens.
+- **All The Things** and **Can I Mog It** optional integrations. With ATT
+  loaded, Lodestar ranks mounts, appearances, achievements, and watched quests
+  you track there. Can I Mog It nudges learnable appearances already in your bags.
+- Completed tasks fill in automatically when Lodestar can tell the work is
+  done, such as a profession hitting its skill cap, even if you never marked
+  it done or had it on Today. Skill caps name the expansion, such as Khaz
+  Algar Enchanting, so duplicate-looking rows do not pile up.
 
 # 1.5.5
 

@@ -45,6 +45,12 @@ LS.palettes = {
     border = { .40, .40, .42, 1 }, accent = { .24, .57, 1, 1 }, text = { .9, .9, .92, 1 },
     warn = { .8, .25, .25, 1 }, muted = { .55, .55, .58, 1 },
   },
+  -- W2UI: deep charcoal panels, gold active tabs, cool grey muted text.
+  W2UI = {
+    bg = { .04, .05, .07, .98 }, panel = { .08, .10, .14, .96 }, card = { .10, .12, .17, .95 },
+    border = { .20, .24, .31, 1 }, accent = { 1, .68, .22, 1 }, text = { .93, .95, .98, 1 },
+    warn = { .82, .24, .24, 1 }, muted = { .57, .63, .73, 1 },
+  },
   MINIMAL = {
     bg = { .018, .02, .024, .98 }, panel = { .028, .03, .035, .98 }, card = { .04, .043, .05, .98 },
     border = { .12, .13, .15, 1 }, accent = { .55, .65, .75, 1 }, text = { .9, .9, .92, 1 },
@@ -52,7 +58,7 @@ LS.palettes = {
   },
 }
 
-LS.themeOrder = { "AUTO", "BLIZZARD", "ELVUI", "ELLESMERE", "GW2", "REALUI", "MINIMAL" }
+LS.themeOrder = { "AUTO", "BLIZZARD", "ELVUI", "ELLESMERE", "GW2", "W2UI", "REALUI", "MINIMAL" }
 
 local function loaded(name)
   return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name)
@@ -60,6 +66,7 @@ end
 
 function LS:DetectTheme()
   if loaded("EllesmereUI") or loaded("EllesmereUIBlizzardSkin") then return "ELLESMERE" end
+  if loaded("W2UI") then return "W2UI" end
   if loaded("GW2_UI") then return "GW2" end
   -- Aurora is a library RealUI embeds. Auto only follows RealUI itself so an
   -- ElvUI player who also has Aurora loaded is not switched to the RealUI palette.
@@ -88,6 +95,12 @@ function LS:GetGW2()
   if not loaded("GW2_UI") then return nil end
   local gw = _G.GW2_ADDON
   return type(gw) == "table" and gw or nil
+end
+
+function LS:GetW2UI()
+  if not loaded("W2UI") then return nil end
+  local w2 = _G.W2UI
+  return type(w2) == "table" and w2 or nil
 end
 
 function LS:GetAurora()
@@ -214,6 +227,35 @@ function LS:BuildGW2Palette()
     text = base.text,
     warn = base.warn,
     muted = base.muted,
+  }
+end
+
+function LS:BuildW2UIPalette()
+  local W2 = self:GetW2UI()
+  if not W2 or type(W2.GetThemeToken) ~= "function" then return nil end
+  local base = self.palettes.W2UI
+  local function token(key, fallback)
+    return color(W2:GetThemeToken(key), fallback)
+  end
+  local bg = token("background", base.bg)
+  local panel = token("backgroundAlt", base.panel)
+  local border = token("border", base.border)
+  if luminance(border) < 0.22 then
+    border = { base.border[1], base.border[2], base.border[3], base.border[4] or 1 }
+  end
+  self.skin = {
+    texture = "Interface/Buttons/WHITE8X8",
+    fontSize = 12,
+  }
+  return {
+    bg = { bg[1], bg[2], bg[3], 0.98 },
+    panel = { panel[1], panel[2], panel[3], 0.95 },
+    card = shade(panel, 1.25, 0.95),
+    border = border,
+    accent = token("textAccent", base.accent),
+    text = token("text", base.text),
+    warn = token("danger", base.warn),
+    muted = token("muted", base.muted),
   }
 end
 
@@ -357,6 +399,9 @@ function LS:ResolvePalette()
   elseif name == "GW2" then
     palette = self:BuildGW2Palette()
     native = palette ~= nil
+  elseif name == "W2UI" then
+    palette = self:BuildW2UIPalette()
+    native = palette ~= nil
   elseif name == "REALUI" then
     palette = self:BuildRealUIPalette()
     native = palette ~= nil
@@ -399,7 +444,7 @@ function LS:SetTheme(name)
 end
 
 function LS:PrintThemes()
-  print("Lodestar themes: auto, blizzard, elvui, ellesmere, gw2, realui, minimal")
+  print("Lodestar themes: auto, blizzard, elvui, ellesmere, gw2, w2ui, realui, minimal")
 end
 
 local TRANSPARENT = { 0, 0, 0, 0 }

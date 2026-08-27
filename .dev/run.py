@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
+    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
     "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -365,12 +365,13 @@ s.exec("__LS:ScanReputations()")
 s.click("Optional Addons")
 check("Optional Addons is remembered", s.eval("__LS:SettingsTab()[1]") == "ADDONS")
 addons = s.texts()
-check("Optional Addons has gold prices, waypoints, and HandyNotes",
-      "Gold prices" in addons and "Waypoints" in addons and "HandyNotes" in addons, addons)
+check("Optional Addons has gold prices, waypoints, HandyNotes, and Collections",
+      "Gold prices" in addons and "Waypoints" in addons and "HandyNotes" in addons and "Collections" in addons, addons)
 check("Optional Addons lists every addon Lodestar talks to",
       all(name in addons for name in
           ["TradeSkillMaster", "Auctionator", "RECrystallize", "TomTom",
-           "HandyNotes", "Raider.IO", "ElvUI", "GW2 UI", "RealUI", "Great Vault Key Info"]),
+           "HandyNotes", "All The Things", "Can I Mog It",
+           "Raider.IO", "ElvUI", "GW2 UI", "W2UI", "RealUI", "Great Vault Key Info"]),
       addons)
 check("unloaded addons read as not loaded",
       "TradeSkillMaster  ·  Not loaded" in addons and "TomTom  ·  Not loaded" in addons, addons)
@@ -389,7 +390,7 @@ log = s.texts()
 check("Changelog is not a Settings tab",
       "Optional Addons" not in log, log)
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.5", "1.5.4", "1.5.31", "1.5.3", "1.5.21"]), log)
+      all(name in log for name in ["1.5.6", "1.5.5", "1.5.4", "1.5.31", "1.5.3"]), log)
 gap = s.eval("""(function()
   local ys, seen = {}, {}
   local function visit(frame, depth)
@@ -575,7 +576,7 @@ check("the sidebar no longer carries a theme readout",
 quiet.exec("__LS:PrintThemes()")
 check("asking for the theme list still answers",
       "Lodestar themes" in quiet.printed()
-      and "gw2" in quiet.printed() and "realui" in quiet.printed())
+      and "gw2" in quiet.printed() and "w2ui" in quiet.printed() and "realui" in quiet.printed())
 
 print()
 print("-- ElvUI near-black border --")
@@ -608,7 +609,53 @@ check("a border ElvUI actually set is kept",
       abs(elv.eval("__LS.colors.border[1]") - 0.55) < 0.02)
 
 print()
-print("-- GW2 UI and RealUI themes --")
+print("-- GW2 UI, W2UI, and RealUI themes --")
+w2 = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+w2.fire("ADDON_LOADED", "Lodestar")
+w2.fire("PLAYER_LOGIN")
+w2.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "W2UI" end
+  W2UI = {
+    GetThemeToken = function(_, key)
+      local tokens = {
+        background = {0.04, 0.05, 0.07, 0.94},
+        backgroundAlt = {0.08, 0.1, 0.14, 0.96},
+        border = {0.20, 0.24, 0.31, 1},
+        text = {0.93, 0.95, 0.98, 1},
+        textAccent = {1, 0.68, 0.22, 1},
+        muted = {0.57, 0.63, 0.73, 1},
+        danger = {0.82, 0.24, 0.24, 1},
+      }
+      return tokens[key]
+    end,
+  }
+  __LS:SetTheme("AUTO")
+""")
+w2.timers()
+check("Auto picks W2UI when it is loaded",
+      w2.eval("__LS:CurrentTheme()") == "W2UI")
+check("W2UI's textAccent becomes the accent",
+      abs(w2.eval("__LS.colors.accent[1]") - 1) < 0.02
+      and abs(w2.eval("__LS.colors.accent[2]") - 0.68) < 0.02)
+w2_standalone = Session(saved="{ goals = { ENDGAME = true }, welcomed = true, theme = 'W2UI' }")
+w2_standalone.fire("ADDON_LOADED", "Lodestar")
+w2_standalone.fire("PLAYER_LOGIN")
+w2_standalone.timers()
+check("the standalone W2UI palette keeps its gold accent",
+      abs(w2_standalone.eval("__LS.colors.accent[1]") - 1) < 0.02
+      and abs(w2_standalone.eval("__LS.colors.accent[2]") - 0.68) < 0.02)
+w2_gw2 = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
+w2_gw2.fire("ADDON_LOADED", "Lodestar")
+w2_gw2.fire("PLAYER_LOGIN")
+w2_gw2.exec("""
+  C_AddOns.IsAddOnLoaded = function(name) return name == "W2UI" or name == "GW2_UI" end
+  W2UI = { GetThemeToken = function() return {1, 0.68, 0.22, 1} end }
+  GW2_ADDON = { Gw2Color = "|cffffedba", Colors = {} }
+  __LS:SetTheme("AUTO")
+""")
+w2_gw2.timers()
+check("Auto prefers W2UI over GW2 UI when both are loaded",
+      w2_gw2.eval("__LS:CurrentTheme()") == "W2UI")
 gw = Session(saved="{ goals = { ENDGAME = true }, welcomed = true }")
 gw.fire("ADDON_LOADED", "Lodestar")
 gw.fire("PLAYER_LOGIN")
@@ -666,6 +713,96 @@ nrib.exec("""
 nrib.timers()
 check("Auto picks RealUI when nibRealUI is loaded",
       nrib.eval("__LS:CurrentTheme()") == "REALUI")
+
+print()
+print("-- All The Things and Can I Mog It --")
+att = Session(saved="{ goals = { ENDGAME = true, MOUNTS = true, QUESTING = true }, welcomed = true }")
+att.fire("ADDON_LOADED", "Lodestar")
+att.fire("PLAYER_LOGIN")
+att.exec("""
+  TrackedContent[1] = { 999 }
+  TrackedContent[0] = { 12345 }
+  TrackedContent[2] = { 9001 }
+  QuestWatches = { 5001 }
+  ATTC = {
+    SearchForObject = function(_, field, id)
+      if field == "mountID" and id == 999 then
+        return { text = "Swift Zephyrian", mountID = 999, collectible = true }
+      end
+      if field == "sourceID" and id == 12345 then
+        return { text = "Cool Helm", sourceID = 12345, collectible = true }
+      end
+      if field == "achievementID" and id == 9001 then
+        return { text = "Glory", achievementID = 9001, collectible = true }
+      end
+      if field == "questID" and id == 5001 then
+        return { text = "Track Me", questID = 5001, collectible = true }
+      end
+    end,
+    IsComplete = function() return false end,
+  }
+  function GetAchievementInfo(id)
+    if id == 9001 then return "Glory", nil, false end
+  end
+  CollectedMounts = {}
+  SavedInstances = {}
+  function C_MountJournal.GetMountInfoByID(id)
+    if id == 999 then
+      local collected = CollectedMounts[id] == true
+      return "Swift Zephyrian", 999, nil, nil, nil, nil, nil, nil, nil, false, collected
+    end
+  end
+  function C_MountJournal.GetMountIDs() return { 999 } end
+""")
+att.timers()
+att_recs = att.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetCollectionRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "|")
+end)()""")
+check("ATT ranks a tracked mount",
+      "Track Swift Zephyrian" in att_recs, att_recs)
+check("ATT ranks a tracked appearance",
+      "Track Cool Helm" in att_recs, att_recs)
+check("ATT ranks a tracked achievement",
+      "Track Glory" in att_recs, att_recs)
+check("ATT ranks a watched quest",
+      "Track Track Me" in att_recs, att_recs)
+att.exec("CollectedMounts[999] = true; __LS:ScanMounts(); __LS.db.goals.QUESTING = false")
+att.timers()
+mount_only = att.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetATTRecommendations()) do table.insert(out, r.id) end
+  return table.concat(out, "|")
+end)()""")
+check("a collected tracked mount stays quiet",
+      "att_mount_999" not in mount_only, mount_only)
+
+cimi = Session(saved="{ goals = { MOUNTS = true }, welcomed = true }")
+cimi.fire("ADDON_LOADED", "Lodestar")
+cimi.fire("PLAYER_LOGIN")
+cimi.exec("""
+  CanIMogIt = {
+    IsTransmogable = function() return true end,
+    CharacterCanLearnTransmog = function() return true end,
+    PlayerKnowsTransmog = function() return false end,
+  }
+  BagContents = { [0] = { [1] = { hyperlink = "|cff9d9d9d|Hitem:1|h[Helm]|h|r" } } }
+""")
+cimi.timers()
+check("Can I Mog It nudges learnable bag appearances",
+      cimi.eval("""(function()
+  for _, r in ipairs(__LS:GetCanIMogItRecommendations()) do
+    if r.id == "cimi_bag_transmog" then return r.title end
+  end
+end)()""") == "Learn 1 appearance from your bags")
+
+quiet_col = Session(saved="{ goals = { MOUNTS = true, QUESTING = true } }")
+quiet_col.fire("ADDON_LOADED", "Lodestar")
+quiet_col.fire("PLAYER_LOGIN")
+quiet_col.timers()
+check("collection recs stay quiet without ATT or Can I Mog It",
+      quiet_col.eval("#__LS:GetCollectionRecommendations()") == 0)
 
 # --- debug isolation ----------------------------------------------------
 print()
@@ -1420,6 +1557,36 @@ levels = s.eval("""(function()
 end)()""")
 check("an unmaxed secondary profession is recommended for leveling",
       "Fishing" in levels and "Cooking" in levels and "Archaeology" in levels, levels)
+s.exec("__LS:SyncAutoCompleted()")
+check("a capped primary profession is auto-completed even when it was never on Today",
+      s.eval("__LS.db.completed['prof_level_2871']") is True
+      and s.eval("__LS.db.completedAuto['prof_level_2871']") is True)
+check("a capped profession keeps a readable completed snapshot",
+      "Alchemy" in s.eval("__LS.db.completedSnapshot['prof_level_2871'].title or ''"))
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if p.skillLineID == 2823 then p.name = "Khaz Algar Herbalism" end
+  end
+  __LS:SyncAutoCompleted()
+""")
+check("profession skill caps use the full expansion name",
+      "Khaz Algar Herbalism" in s.eval("__LS:CompletedActivity('prof_level_2823').title or ''"))
+check("an uncapped secondary profession is not auto-completed",
+      s.eval("__LS.db.completed['prof_level_356']") is None)
+s.exec("__LS:UnmarkCompleted('prof_level_2871')")
+s.exec("__LS:SyncAutoCompleted()")
+check("undo blocks auto-completing the same task again while the requirement stays met",
+      s.eval("__LS.db.completed['prof_level_2871']") is None
+      and s.eval("__LS.db.completedBlock['prof_level_2871']") is True)
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if p.skillLineID == 356 then p.skill = 100 end
+  end
+  __LS.db.completedBlock['prof_level_356'] = nil
+  __LS:SyncAutoCompleted()
+""")
+check("newly capped fishing auto-completes",
+      s.eval("__LS.db.completed['prof_level_356']") is True)
 s.exec("""
   for _, p in ipairs(__LS.professions) do
     if not p.secondary then

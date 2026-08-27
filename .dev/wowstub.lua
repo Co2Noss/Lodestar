@@ -677,6 +677,8 @@ C_UIWidgetManager = {
 }
 QuestLog = {}
 QuestTagInfo = {}
+QuestWatches = {}
+WorldQuestWatches = {}
 SuperTrackedQuestID = nil
 ActivePreyQuestID = nil
 C_QuestLog = {
@@ -723,6 +725,24 @@ C_QuestLog = {
   end,
   GetQuestTagInfo = function(id)
     return QuestTagInfo[id]
+  end,
+  IsQuestFlaggedCompleted = function(id)
+    for _, q in ipairs(QuestLog) do
+      if q.questID == id then return q.completed == true end
+    end
+    return false
+  end,
+  GetNumQuestWatches = function()
+    return #QuestWatches
+  end,
+  GetQuestIDForQuestWatchIndex = function(index)
+    return QuestWatches[index]
+  end,
+  GetNumWorldQuestWatches = function()
+    return #WorldQuestWatches
+  end,
+  GetQuestIDForWorldQuestWatchIndex = function(index)
+    return WorldQuestWatches[index]
   end,
 }
 
@@ -772,6 +792,24 @@ MAP_INFO = {
 }
 UserWaypoint = nil
 SuperTrackedUserWaypoint = false
+TrackedContent = { [0] = {}, [1] = {}, [2] = {} }
+C_ContentTracking = {
+  GetTrackedIDs = function(trackType)
+    return TrackedContent[trackType] or {}
+  end,
+  IsTracking = function(trackType, id)
+    for _, tracked in ipairs(TrackedContent[trackType] or {}) do
+      if tracked == id then return true end
+    end
+    return false
+  end,
+  GetBestMapForTrackable = function(trackType, trackID)
+    return 631
+  end,
+  GetNextWaypointForTrackable = function(trackType, trackID, mapID)
+    return { mapID = mapID or 631, x = 0.5, y = 0.5 }
+  end,
+}
 OpenedWorldMaps = {}
 TomTomWaypoints = {}
 DelvePOIs = {}

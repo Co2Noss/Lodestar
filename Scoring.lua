@@ -67,6 +67,12 @@ function LS:GetRecommendations()
     end
   end
 
+  if self.GetCollectionRecommendations then
+    for _, item in ipairs(self:GetCollectionRecommendations()) do
+      consider(item, item.score)
+    end
+  end
+
   if self.db.goals.REPUTATION and self.GetReputationRecommendations then
     for _, rep in ipairs(self:GetReputationRecommendations()) do
       consider(rep, rep.score)

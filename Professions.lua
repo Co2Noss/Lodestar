@@ -387,6 +387,11 @@ function LS:PrimaryProfessions()
   return out
 end
 
+function LS:ProfessionActivityName(prof)
+  if type(prof) ~= "table" then return "Profession" end
+  return prof.name or prof.baseName or "Profession"
+end
+
 function LS:ProfessionInFocus(prof)
   if not prof then return false end
   if prof.secondary then return true end
@@ -569,19 +574,19 @@ function LS:GetProfessionRecommendations()
       local secondary = prof.secondary and not prof.tracked
       table.insert(out, {
         id = "prof_level_" .. prof.skillLineID,
-        title = string.format("Level %s (%d / %d)", prof.baseName or prof.name, prof.skill, prof.maxSkill),
+        title = string.format("Level %s (%d / %d)", self:ProfessionActivityName(prof), prof.skill, prof.maxSkill),
         minutes = math.max(15, math.min(60, left)),
         score = secondary and 20 or 18,
         why = secondary
           and string.format("%s is a secondary profession. Skill is the progress that matters, and this character is not at the cap yet.",
-            prof.baseName or prof.name)
+            self:ProfessionActivityName(prof))
           or string.format("%s is not at the skill cap. First crafts and trainer recipes in the profession window are the leveling path.",
-            prof.baseName or prof.name),
+            self:ProfessionActivityName(prof)),
         category = "Professions",
         tags = { CRAFTING = 7 },
         urgency = "MEDIUM",
         detail = {
-          source = prof.baseName or prof.name,
+          source = self:ProfessionActivityName(prof),
           current = string.format("%d / %d", prof.skill, prof.maxSkill),
           potential = "Cap",
         },

@@ -52,6 +52,9 @@ Lodestar works on its own. These addons unlock extra behaviour if they are loade
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks (trainers, vendors, chests). Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, texture and font. A near-black ElvUI border falls back to a lighter grey.
 - **GW2 UI** — Auto follows GW2 UI when it is loaded. The GW2 theme uses GW2 UI's gold and font when `GW2_ADDON` exposes them.
+- **W2UI** — Auto follows W2UI when it is loaded. The W2UI theme reads that addon's live theme tokens.
+- **All The Things** — With ATT loaded, Lodestar ranks mounts, appearances, achievements, and watched quests you track there.
+- **Can I Mog It** — When loaded, Lodestar nudges learnable appearances already in your bags.
 - **RealUI** — Auto follows RealUI / Aurora when loaded. The RealUI theme reads `Aurora.Color` when Aurora is there.
 - **Great Vault Key Info** — Champion/Hero ranks on slots in the client's Great Vault window. Lodestar does not copy those season tables; Dashboard hover uses named keys and reward item levels the client already has.
 
@@ -336,7 +339,8 @@ instead of rendering without a border.
 
 With ElvUI loaded, the ElvUI theme reads ElvUI's own backdrop colour, border colour, status
 bar texture and font. ElvUI's default border is near-black; Lodestar uses a lighter grey
-unless ElvUI's border is actually visible. With GW2 UI loaded, Auto follows it and the
+unless ElvUI's border is actually visible. With W2UI loaded, Auto follows it and the
+W2UI theme reads that addon's live theme tokens. With GW2 UI loaded, Auto follows it and the
 GW2 theme reads `GW2_ADDON` colours and font when that addon exposes them. With RealUI
 loaded, Auto follows RealUI / Aurora and the RealUI theme reads `Aurora.Color`. Ellesmere
 and Minimal are standalone palettes.
@@ -363,7 +367,7 @@ position are saved. Escape closes the main window; compact mode stays up.
 ## Commands
 
 - `/ls` or `/lodestar` — open or close the window
-- `/ls theme auto` (also blizzard, elvui, ellesmere, gw2, realui, minimal)
+- `/ls theme auto` (also blizzard, elvui, ellesmere, gw2, w2ui, realui, minimal)
 - `/ls compact`
 - `/ls compact single`
 - `/ls debug` — disable every other addon and reload, so you can tell if an error is Lodestar

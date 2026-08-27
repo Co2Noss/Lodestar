@@ -84,6 +84,15 @@ LS.TIPS = {
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.6",
+    notes = {
+      "W2UI theme. Auto follows W2UI when it is loaded.",
+      "All The Things ranks tracked mounts, appearances, achievements, and watched quests.",
+      "Can I Mog It nudges learnable appearances already in your bags.",
+      "Completed tasks fill in when Lodestar can tell the work is done, with expansion-specific profession names.",
+    },
+  },
+  {
     version = "1.5.5",
     notes = {
       "Changelog is its own left-menu page, under Settings and above FAQ.",
@@ -120,13 +129,6 @@ LS.CHANGELOG = {
       "Dashboard Readiness uses this expansion's food, flask, augment rune, and weapon oil from bags. Click a slot to use it.",
       "Mythic+ dungeon icons teleport when that dungeon's Keystone Hero spell is in your spellbook.",
       "Battle Pets is a goal. Locked slots, an empty team, and pet battle quests already in the log rank while that goal is on.",
-    },
-  },
-  {
-    version = "1.5.21",
-    notes = {
-      "The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each character. The farm-location tile is gone.",
-      "The Gold trend sits under the amount instead of drawing through the coins.",
     },
   },
 }
@@ -210,7 +212,7 @@ LS.HELP = {
   },
   {
     title = "Commands",
-    body = "/ls or /lodestar — open or close the window\n/ls compact — toggle compact mode\n/ls compact single — toggle single-recommendation compact mode\n/ls theme auto — follow GW2 UI, RealUI, ElvUI, or Ellesmere when loaded\n/ls debug — disable every other addon and reload\n/ls debug off — restore those addons (this character only)\n/ls reset — wipe saved settings and reload",
+    body = "/ls or /lodestar — open or close the window\n/ls compact — toggle compact mode\n/ls compact single — toggle single-recommendation compact mode\n/ls theme auto — follow W2UI, GW2 UI, RealUI, ElvUI, or Ellesmere when loaded\n/ls debug — disable every other addon and reload\n/ls debug off — restore those addons (this character only)\n/ls reset — wipe saved settings and reload",
   },
   {
     title = "The window",
@@ -258,12 +260,18 @@ LS.OPTIONAL_ADDONS = {
     ready = function(self) return self.HasTomTom and self:HasTomTom() end },
   { name = "HandyNotes", addon = "HandyNotes",
     ready = function(self) return self.HasHandyNotes and self:HasHandyNotes() end },
+  { name = "All The Things", addon = "AllTheThings",
+    ready = function(self) return self.GetATT and self:GetATT() and true end },
+  { name = "Can I Mog It", addon = "CanIMogIt",
+    ready = function(self) return self.HasCanIMogIt and self:HasCanIMogIt() end },
   { name = "Raider.IO", addon = "RaiderIO",
     ready = function() return RaiderIO and true end },
   { name = "ElvUI", addon = "ElvUI",
     ready = function(self) return self.GetElvUI and self:GetElvUI() and true end },
   { name = "GW2 UI", addon = "GW2_UI",
     ready = function(self) return self.GetGW2 and self:GetGW2() and true end },
+  { name = "W2UI", addon = "W2UI",
+    ready = function(self) return self.GetW2UI and self:GetW2UI() and true end },
   { name = "RealUI", addon = "nibRealUI",
     ready = function(self)
       if self.GetAurora and self:GetAurora() then return true end

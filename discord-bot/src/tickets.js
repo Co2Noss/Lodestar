@@ -47,7 +47,7 @@ function ticketModal() {
     ["summary", "Short summary", "Great Vault missing from Today", TextInputStyle.Short, 5, 100],
     ["details", "What happened", "What you expected versus what happened. Paste errors if you have them.", TextInputStyle.Paragraph, 10, 1000],
     ["spec", "Class / spec", "e.g. Brewmaster Monk", TextInputStyle.Short, 2, 80],
-    ["theme", "Theme", "Blizzard, ElvUI, GW2, RealUI, Ellesmere, Minimal", TextInputStyle.Short, 2, 40],
+    ["theme", "Theme", "Blizzard, ElvUI, W2UI, GW2, RealUI, Ellesmere, Minimal", TextInputStyle.Short, 2, 40],
     ["version", "Lodestar version", "e.g. 1.5.31 — from the CurseForge client or /ls", TextInputStyle.Short, 1, 20],
   ];
   for (const [id, label, placeholder, style, min, max] of fields) {

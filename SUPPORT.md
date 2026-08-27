@@ -10,7 +10,7 @@ Lodestar answers what is worth doing next in World of Warcraft. This page is how
 - Public questions go in the questions forum.
 - Private tickets: the **Open a ticket** button in `#get-help`, or `/ticket`.
 
-Include **class/spec**, the **theme** you use (Blizzard, ElvUI, GW2, RealUI, or other), **Lodestar version**, and what you expected versus what happened.
+Include **class/spec**, the **theme** you use (Blizzard, ElvUI, W2UI, GW2, RealUI, or other), **Lodestar version**, and what you expected versus what happened.
 
 If you are not sure Lodestar is the addon erroring, `/ls debug` disables every other addon and reloads. `/ls debug off` restores them. Isolation is per character and will not run in combat.
 

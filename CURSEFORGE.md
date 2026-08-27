@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.5.5](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.5)
+**Latest release:** [v1.5.6](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.6)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 **Ko-fi:** [ko-fi.com/co2noss](https://ko-fi.com/co2noss)
@@ -38,6 +38,7 @@ Lodestar works on its own. Optional addons unlock extra behaviour if they are lo
 - **HandyNotes** plus a notes pack — nearby **rares** those packs mark. [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) by itself has no coordinates; packs such as [Midnight](https://www.curseforge.com/wow/addons/handynotes-midnight) and [Silvermoon](https://www.curseforge.com/wow/addons/handynotes-silvermoon) (and many others) supply the pins. Lodestar ranks rares, not treasures or other map marks. Known rewards stay hidden if the pack hid them. Without a pack, Lodestar stays quiet about rares.
 - **ElvUI** — the ElvUI theme reads ElvUI's live backdrop, texture, and font. A near-black ElvUI border falls back to a lighter grey.
 - **GW2 UI** — Auto follows GW2 UI when it is loaded. The GW2 theme uses GW2 UI's gold and font when `GW2_ADDON` exposes them.
+- **W2UI** — Auto follows W2UI when it is loaded. The W2UI theme reads that addon's live theme tokens.
 - **RealUI** — Auto follows RealUI when it is loaded. The RealUI theme reads `Aurora.Color` when Aurora is there.
 - **Great Vault Key Info** — Champion/Hero ranks in the client's Great Vault window. Dashboard hover uses named keys and reward item levels the client already has.
 
@@ -76,6 +77,9 @@ A small always-on window of the activities you tracked.
 - **Blizzard** uses the modern panel art from Dragonflight and the client’s own font colors.
 - **ElvUI** reads ElvUI’s backdrop, texture, and font when ElvUI is loaded. A near-black ElvUI border falls back to a lighter grey.
 - **GW2 UI** and **RealUI** have their own palettes. Auto follows them when those addons are loaded. Live colours come from `GW2_ADDON` and `Aurora.Color` when those addons expose them.
+- **W2UI** has its own palette. Auto follows W2UI when it is loaded and reads that addon's live theme tokens.
+- **All The Things** — With ATT loaded, Lodestar ranks mounts, appearances, achievements, and watched quests you track there.
+- **Can I Mog It** — When loaded, Lodestar nudges learnable appearances already in your bags.
 - **Ellesmere** and **Minimal** are standalone palettes.
 - Every color (accent, text, background, panels, cards, borders, warnings, muted text) can be changed in Settings → Appearance. Your colors survive switching themes. The minimap button stays on the minimap unless you unlock it there.
 
@@ -90,7 +94,7 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls` or `/lodestar` | Open or close Lodestar |
 | `/ls compact` | Toggle compact mode |
 | `/ls compact single` | Toggle single-recommendation compact mode |
-| `/ls theme auto` | Follow GW2 UI, RealUI, ElvUI, or Ellesmere when loaded (`blizzard`, `elvui`, `ellesmere`, `gw2`, `realui`, `minimal` also work) |
+| `/ls theme auto` | Follow W2UI, GW2 UI, RealUI, ElvUI, or Ellesmere when loaded (`blizzard`, `elvui`, `ellesmere`, `gw2`, `w2ui`, `realui`, `minimal` also work) |
 | `/ls debug` | Disable every other addon and reload, to see if an error is Lodestar |
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
 | `/ls reset` | Wipe saved settings and reload |

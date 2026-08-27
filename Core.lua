@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.5"
+LS.version = "1.5.6"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -14,6 +14,9 @@ LS.defaults = {
   goals = { ENDGAME = false, SOLO = false, PREY = false, PVP = false, HOUSING = false, CRAFTING = false, MOUNTS = false, PETS = false, REPUTATION = false, QUESTING = false, GOLD = false },
   dismissed = {},
   completed = {},
+  completedAuto = {},
+  completedBlock = {},
+  completedSnapshot = {},
   tracked = {},
   characters = {},
   knowledge = {},
@@ -415,6 +418,7 @@ local function RefreshState()
   if LS.ScanPlayer then LS:ScanPlayer() end
   LS:ScanVault()
   if LS.ScanProfessions then LS:ScanProfessions() end
+  if LS.SyncAutoCompleted then LS:SyncAutoCompleted() end
   if LS.ScanMounts then LS:ScanMounts() end
   if LS.ScanReputations then LS:ScanReputations() end
   if LS.SaveSnapshot then LS:SaveSnapshot() end
@@ -483,6 +487,9 @@ local function ApplyJobs(jobs)
   if jobs.vault then LS:ScanVault() end
   if (jobs.professions or jobs.tradeskill) and LS.ScanProfessions then
     LS:ScanProfessions()
+  end
+  if (jobs.professions or jobs.tradeskill) and LS.SyncAutoCompleted then
+    LS:SyncAutoCompleted()
   end
   if jobs.mounts and LS.ScanMounts then LS:ScanMounts() end
   if jobs.reputation and LS.ScanReputations then LS:ScanReputations() end

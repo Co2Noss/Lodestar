@@ -63,6 +63,23 @@ function LS:ActivityLabel(id)
     local verb = mode == "up" and "Upgrade" or "Fill"
     return string.format("%s %s Vault slot %s", verb, row, index)
   end
+  local skillLineID = id:match("^prof_level_(%d+)$")
+  if skillLineID and self.ProfessionBySkillLine then
+    local prof = self:ProfessionBySkillLine(tonumber(skillLineID))
+    if prof then
+      local label = self.ProfessionActivityName and self:ProfessionActivityName(prof) or prof.name
+      return string.format("Level %s (%d / %d)", label, prof.skill, prof.maxSkill)
+    end
+    return "Profession skill cap"
+  end
+  skillLineID = id:match("^kp_%a+_(%d+)$")
+  if skillLineID and self.ProfessionBySkillLine then
+    local prof = self:ProfessionBySkillLine(tonumber(skillLineID))
+    if prof then
+      local label = self.ProfessionActivityName and self:ProfessionActivityName(prof) or prof.name
+      return label .. " knowledge"
+    end
+  end
   return "That activity"
 end
 
@@ -82,6 +99,7 @@ function LS:FindActivity(id)
     self:GetVaultRecommendations(),
     self:GetProfessionRecommendations(),
     self.GetMountRecommendations and self:GetMountRecommendations() or {},
+    self.GetCollectionRecommendations and self:GetCollectionRecommendations() or {},
     self.GetReputationRecommendations and self:GetReputationRecommendations() or {},
     self.GetGoldRecommendations and self:GetGoldRecommendations() or {},
     self.GetHandyNotesRecommendations and self:GetHandyNotesRecommendations() or {},
@@ -101,6 +119,10 @@ function LS:FindActivity(id)
   end
   local found = search(id)
   if found then return found end
+  local snap = self.db and self.db.completedSnapshot and self.db.completedSnapshot[id]
+  if type(snap) == "table" and snap.title then
+    return { id = id, title = snap.title, why = snap.why, category = snap.category }
+  end
   -- The suffix flips when a slot fills or the week resets. Keep the tracked id so
   -- Untrack still matches, but show this week's live card.
   local kind, index, mode = ParseVaultSlot(id)
