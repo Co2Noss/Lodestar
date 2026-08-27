@@ -337,6 +337,19 @@ describe("github feeds", () => {
     assert.deepEqual(issues.map((i) => i.number), [1]);
   });
 
+  it("picks GitHub releases by published time, not list order", () => {
+    const { newerReleases, latestRelease } = require("../src/feeds");
+    const releases = [
+      { id: 1, tag_name: "v1.5.31", published_at: "2026-08-27T02:33:05Z", draft: false },
+      { id: 2, tag_name: "v1.5.5", published_at: "2026-08-27T17:12:39Z", draft: false },
+      { id: 3, tag_name: "v1.5.4", published_at: "2026-08-27T13:30:37Z", draft: false },
+      { id: 4, tag_name: "draft", published_at: "2026-08-27T18:00:00Z", draft: true },
+    ];
+    assert.equal(latestRelease(releases).tag_name, "v1.5.5");
+    const afterSeed = newerReleases(releases, Date.parse("2026-08-27T17:03:48Z"));
+    assert.deepEqual(afterSeed.map((r) => r.tag_name), ["v1.5.5"]);
+  });
+
   it("reads issue webhooks stored under github or github-issues", () => {
     const storedAsGithub = { github: { id: "1", token: "t" } };
     const storedAsIssues = { "github-issues": { id: "2", token: "u" } };
