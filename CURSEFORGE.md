@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.5.31](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.31)
+**Latest release:** [v1.5.4](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.4)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -48,6 +48,8 @@ From there it builds a plan. The left menu is workspaces (Dashboard, planning, t
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Optional Addons picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status. Track or untrack alts when more than one character is saved.
 - **Settings** — Goals, Optional Addons, Reputation, Appearance, Compact, Layout, and Changelog on their own tabs.
+- **FAQ** — why something is missing, and what Lodestar is not.
+- **Help** — commands, debug isolation, and copy-to-clipboard links to Discord and GitHub.
 
 Each recommendation shows **priority** and **score**. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
 
@@ -60,8 +62,8 @@ There is no time-budget slider. Lodestar ranks everything that matches your goal
 A small always-on window of the activities you tracked.
 
 - Toggle it in Settings, with `/ls compact`, or by right-clicking the minimap button.
-- Click an entry for details. Double-click to open Progress.
-- Hides while the main window is open. Collapses to the title bar in combat.
+- Click an entry for details. Double-click to open Progress. **Main** opens the full window.
+- Stays up while the main window is open. Collapses to the title bar in combat.
 - Position and width are saved.
 
 ---
@@ -72,7 +74,7 @@ A small always-on window of the activities you tracked.
 - **ElvUI** reads ElvUI’s backdrop, texture, and font when ElvUI is loaded. A near-black ElvUI border falls back to a lighter grey.
 - **GW2 UI** and **RealUI** have their own palettes. Auto follows them when those addons are loaded. Live colours come from `GW2_ADDON` and `Aurora.Color` when those addons expose them.
 - **Ellesmere** and **Minimal** are standalone palettes.
-- Every color (accent, text, background, panels, cards, borders, warnings, muted text) can be changed in Settings → Appearance. Your colors survive switching themes.
+- Every color (accent, text, background, panels, cards, borders, warnings, muted text) can be changed in Settings → Appearance. Your colors survive switching themes. The minimap button stays on the minimap unless you unlock it there.
 
 The window is draggable and resizable. Size and position are saved.
 
@@ -82,7 +84,7 @@ The window is draggable and resizable. Size and position are saved.
 
 | Command | What it does |
 | --- | --- |
-| `/ls` | Open or close Lodestar |
+| `/ls` or `/lodestar` | Open or close Lodestar |
 | `/ls compact` | Toggle compact mode |
 | `/ls compact single` | Toggle single-recommendation compact mode |
 | `/ls theme auto` | Follow GW2 UI, RealUI, ElvUI, or Ellesmere when loaded (`blizzard`, `elvui`, `ellesmere`, `gw2`, `realui`, `minimal` also work) |

@@ -69,8 +69,8 @@ Settings → Changelog has the last five versions.
 
 ## Pages
 
-The left menu is workspaces, not content categories. Collapse it to icons; hover
-an icon for the name. Professions live on Dashboard; the tile shows your two
+The left menu is workspaces, not content categories. Collapse it to icons (a pin for
+Today's Plan, a fire for Warband, and so on); hover an icon for the name. Professions live on Dashboard; the tile shows your two
 primary profession icons and opens that profession in front of Lodestar when you click one;
 click again to close it. Great Vault opens from
 Dashboard; Progress is the tracked list.
@@ -83,6 +83,8 @@ Dashboard; Progress is the tracked list.
 - **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status. When more than one character is saved, each alt can be tracked or untracked so it drops out of totals and warband gold without being forgotten.
 - **Settings** — split into Goals, Optional Addons, Reputation, Appearance, Compact, Layout and Changelog, so each group is a click rather than a scroll. The last tab you were on is remembered.
+- **FAQ** — why something is missing, and what Lodestar is not. Goals start off, gold needs a price source, rares need HandyNotes plus a notes pack, and so on.
+- **Help** — commands, the window, debug isolation, and copy-to-clipboard links to [Discord](https://discord.gg/a7hrHavcwq) and [GitHub issues](https://github.com/Co2Noss/Lodestar/issues).
 
 ## Dashboard widgets
 
@@ -99,7 +101,7 @@ addon stay out of the add list until that addon is loaded: rares need HandyNotes
 Mythic+, Gold, Currencies, PvP, Item Level, Readiness, Housing, Battle Pets, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
 the client's overall dungeon score (Raider.IO colours it when loaded). Click the tile to
 open the client's Mythic+ Dungeons tab; click again to close it. Click a dungeon with
-its Keystone Hero teleport in your spellbook to go there. Gold sums
+its Keystone Hero teleport in your spellbook to go there; the main window closes. Gold sums
 characters Lodestar has seen, plus the warband bank when the client reports it; hover lists each character. Currencies start on
 this expansion and use the client's rarity colour; edit mode toggles what to track
 (and hides live amounts until you click Done editing). Click
@@ -304,9 +306,9 @@ A small window of the activities you tracked, ranked by score. Progress shows th
 list. Turn it on in Settings, with `/ls compact`, or by right-clicking the minimap button.
 
 - Click an entry to open its details page. Double click anywhere to open Progress.
+- **Main** (or the title) opens the full window. Compact stays up while that window is open.
 - Single recommendation mode keeps it to one row even when several items are tracked.
 - Height follows the number of rows, up to eight. Collapsing in combat leaves just the title bar.
-- It hides while the full window is open and comes back when you close it.
 - Drag to move, drag the right edge to set the width. Both are saved.
 
 Priority is High, Medium or Low. Unspent knowledge is High because spending it is free. A
@@ -337,6 +339,9 @@ survive switching themes, so a theme change never silently discards them. Rows y
 changed are marked, and "Reset colors to the theme" drops all of them at once. Colours you
 have not touched keep following the active theme.
 
+Settings → Appearance also locks the minimap button to the minimap edge (the default).
+Turn that off if you want to place the button anywhere.
+
 ## Window
 
 Drag the frame to move it. Drag the grip in the bottom-right corner to resize it. Size and
@@ -344,7 +349,7 @@ position are saved. Escape closes the main window; compact mode stays up.
 
 ## Commands
 
-- `/ls` — open or close the window
+- `/ls` or `/lodestar` — open or close the window
 - `/ls theme auto` (also blizzard, elvui, ellesmere, gw2, realui, minimal)
 - `/ls compact`
 - `/ls compact single`

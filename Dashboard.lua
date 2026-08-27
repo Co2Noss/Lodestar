@@ -1062,8 +1062,63 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
     Grip(18, 6, "BOTTOM", "BOTTOM")
     Grip(12, 12, "BOTTOMRIGHT", "BOTTOMRIGHT")
   end
-  table.insert(self.dashboardSlots, { id = entry.id, frame = chrome })
+  table.insert(self.dashboardSlots, {
+    id = entry.id,
+    frame = chrome,
+    body = body,
+    width = width - 8,
+    height = math.max(1, height - HEADER - 10),
+  })
   if self.MarkCoach then self:MarkCoach("widget:" .. entry.id, chrome) end
+end
+
+local SECURE_TILES = { raiderio = true, readiness = true }
+
+function LS:OrphanFrame(frame)
+  if not frame then return end
+  for _, child in ipairs({ frame:GetChildren() }) do
+    if child.menu then child.menu:Hide() end
+    child:Hide()
+    child:SetParent(nil)
+  end
+  if frame.GetRegions then
+    for _, region in ipairs({ frame:GetRegions() }) do
+      region:Hide()
+    end
+  end
+end
+
+function LS:RefreshWidgetSlot(slot)
+  local spec = slot and self:WidgetSpec(slot.id)
+  if not spec or not spec.render or not slot.body then return end
+  self:OrphanFrame(slot.body)
+  spec.render(self, slot.body, slot.width, slot.height)
+end
+
+-- Keep the canvas. Only the tiles that changed get new child regions.
+function LS:RefreshDashboardLive(ids)
+  if self.page ~= "DASHBOARD" then return end
+  if not (self.frame and self.frame:IsShown()) then return end
+  if self.dashboardEdit then return end
+  local slots = self.dashboardSlots
+  if not slots or #slots == 0 then return end
+  local want
+  if type(ids) == "string" then
+    want = { [ids] = true }
+  elseif type(ids) == "table" then
+    want = {}
+    for _, id in ipairs(ids) do want[id] = true end
+  end
+  local combat = InCombatLockdown and InCombatLockdown()
+  if self.HoldPlan then self:HoldPlan() end
+  for _, slot in ipairs(slots) do
+    if (not want or want[slot.id]) and slot.body then
+      if not (combat and SECURE_TILES[slot.id]) then
+        self:RefreshWidgetSlot(slot)
+      end
+    end
+  end
+  if self.ReleasePlan then self:ReleasePlan() end
 end
 
 function LS:DashboardPage()
@@ -1080,7 +1135,7 @@ function LS:DashboardPage()
     and ("Drag to move. Drag an edge or corner to resize. Widgets cannot overlap. Canvas is "
       .. CANVAS_COLS .. " × " .. self:DashboardRows() .. " cells, and grows down to "
       .. MAX_ROWS .. ".")
-    or "Where things stand, then the next action.")
+    or "Tiles you pick. Edit dashboard to add, move, or resize them.")
 
   local edit = w.button(self.content, editing and "Done editing" or "Edit dashboard", 110, 26, 11)
   edit:SetPoint("TOPRIGHT", 0, -2)
@@ -1090,8 +1145,12 @@ function LS:DashboardPage()
   end)
   if self.MarkCoach then self:MarkCoach("edit", edit) end
 
-  if not self:TokenPrice() then
-    self:RequestTokenPrice()
+  if self.DashboardHas and self:DashboardHas("token") and not self:TokenPrice() then
+    local now = (GetTime and GetTime()) or 0
+    if not self._tokenAskedAt or now - self._tokenAskedAt > 10 then
+      self._tokenAskedAt = now
+      self:RequestTokenPrice()
+    end
   end
   self:RecordTokenPrice()
   if self.dashboardDragGhost then self.dashboardDragGhost:Hide() end
@@ -1134,11 +1193,13 @@ function LS:DashboardPage()
     bound:SetText("Canvas: " .. CANVAS_COLS .. " × " .. self:DashboardRows()
       .. "  ·  grows to " .. MAX_ROWS)
   end
+  if self.HoldPlan then self:HoldPlan() end
   for _, entry in ipairs(layout) do
     if self:WidgetAvailable(self:WidgetSpec(entry.id)) then
       self:RenderWidgetChrome(canvas, entry, cellW, cellH)
     end
   end
+  if self.ReleasePlan then self:ReleasePlan() end
 
   local y = -canvasH - 10
   if editing then

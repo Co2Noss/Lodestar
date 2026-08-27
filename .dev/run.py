@@ -125,6 +125,10 @@ GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "PvP", "Housing"
 print("-- fresh install --")
 s = Session()
 check("every file loads and runs", True)
+check("/lodestar is an alias for /ls",
+      s.eval("SLASH_LODESTAR1") == "/ls"
+      and s.eval("SLASH_LODESTAR2") == "/lodestar"
+      and s.eval("type(SlashCmdList.LODESTAR)") == "function")
 s.fire("ADDON_LOADED", "Lodestar")
 
 check("no goal is assumed", not s.eval("__LS:GoalsChosen()"))
@@ -180,20 +184,28 @@ check("the sidebar is workspaces rather than content categories",
         return __LS.nav.DASHBOARD ~= nil and __LS.nav.WEEKLY ~= nil
           and __LS.nav.LONGTERM ~= nil and __LS.nav.PROGRESS ~= nil
           and __LS.nav.IGNORED ~= nil and __LS.nav.COMPLETED ~= nil
+          and __LS.nav.FAQ ~= nil and __LS.nav.HELP ~= nil
           and __LS.nav.VAULT == nil and __LS.nav.PROFESSIONS == nil
       end)()""") is True)
 check("sidebar sections are higher-level workspaces",
       "PLANNING" in page and "TRACKING" in page and "ACCOUNT" in page
       and "Today's Plan" in page and "Dashboard" in page, page)
-check("the sidebar shows the current version below Settings",
+check("the sidebar shows the current version below the account menu",
       ("v" + s.eval("__LS.version")) in page, page)
 s.exec("__LS:SetSidebarCollapsed(true)")
 s.timers()
 check("collapsing the sidebar shrinks it to icons",
       s.eval("__LS.sidebar:GetWidth()") == 52)
+check("collapsed sidebar still shows the version at the bottom",
+      ("v" + s.eval("__LS.version")) in s.texts()
+      and s.eval("__LS.sidebarVersion:IsShown()") is True, s.texts())
 check("collapsed nav shows an icon instead of the full name",
-      s.eval("__LS.nav.TODAY.text:GetText()") == "To"
-      and s.eval("__LS.nav.DASHBOARD.text:GetText()") == "Da")
+      s.eval("__LS.nav.TODAY.icon and __LS.nav.TODAY.icon.texture") is not None
+      and s.eval("__LS.nav.TODAY.text:GetText()") in ("", None)
+      and s.eval("__LS.nav.DASHBOARD.icon and __LS.nav.DASHBOARD.icon.texture") is not None
+      and s.eval("__LS.nav.WARBAND.icon and __LS.nav.WARBAND.icon.texture or ''").lower().find("spell_fire_fire") != -1
+      and s.eval("__LS.nav.FAQ.icon and __LS.nav.FAQ.icon.texture or ''").lower().find("knowledgebase") != -1
+      and s.eval("__LS.nav.HELP.icon and __LS.nav.HELP.icon.texture or ''").lower().find("inv_misc_book_09") != -1)
 s.exec("__LS.nav.TODAY.scripts.OnEnter(__LS.nav.TODAY)")
 check("hovering a collapsed nav icon names the workspace",
       s.eval("GameTooltip._tip") == "Today's Plan")
@@ -201,6 +213,8 @@ s.exec("__LS:SetSidebarCollapsed(false)")
 s.timers()
 check("expanding the sidebar restores labels",
       s.eval("__LS.nav.TODAY.text:GetText()") == "Today's Plan"
+      and s.eval("__LS.nav.FAQ.text:GetText()") == "FAQ"
+      and s.eval("__LS.nav.HELP.text:GetText()") == "Help"
       and s.eval("__LS.sidebar:GetWidth()") == 180)
 check("the welcome page is not shown again",
       s.eval("__LS:LandingPage()") == "TODAY")
@@ -241,7 +255,7 @@ old.fire("PLAYER_LOGIN")
 check("an upgrade is not interrupted by the welcome page",
       old.eval("__LS.page") != "WELCOME", old.eval("__LS.page"))
 check("an upgrade gets the normal login line",
-      "/ls to open" in old.printed(), old.printed())
+      "/ls or /lodestar to open" in old.printed(), old.printed())
 check("an upgrade does not have its window forced open",
       old.eval("__LS.frame:IsShown()") is not True)
 old.exec("__LS:Toggle()")
@@ -348,7 +362,26 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.31", "1.5.3", "1.5.21", "1.5.2", "1.5.1"]), log)
+      all(name in log for name in ["1.5.4", "1.5.31", "1.5.3", "1.5.21", "1.5.2"]), log)
+gap = s.eval("""(function()
+  local ys, seen = {}, {}
+  local function visit(frame, depth)
+    if depth > 18 or seen[frame] or frame.shown == false then return end
+    seen[frame] = true
+    for _, r in ipairs(frame.regions or {}) do
+      local t = r.text_value
+      if type(t) == "string" and t:find("•", 1, true) == 1 and r.points and r.points[1] then
+        table.insert(ys, tonumber(r.points[1][3]) or 0)
+      end
+    end
+    for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+  end
+  visit(__LS.frame, 0)
+  table.sort(ys, function(a, b) return a > b end)
+  if #ys < 2 then return 999 end
+  return math.abs(ys[1] - ys[2])
+end)()""")
+check("changelog bullets sit closer than a blank line", gap < 24, gap)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -359,6 +392,29 @@ check("Appearance offers a color for every palette key",
       settings)
 check("Appearance explains what editing a color does",
       "Click a color to change it" in settings, settings)
+check("Appearance can lock the minimap button to the minimap",
+      "Lock to the minimap" in settings
+      and "Drag slides the button around the minimap edge." in settings, settings)
+check("the minimap button is locked to the minimap by default",
+      s.eval("__LS:MinimapButtonLocked() and __LS.minimapButton.parent == Minimap") is True)
+s.exec("""
+  local p = __LS.minimapButton.points and __LS.minimapButton.points[#__LS.minimapButton.points]
+  MinimapAnchor = p and p[1]
+  MinimapRel = p and p[3]
+  MinimapX = p and tonumber(p[4]) or 0
+  MinimapY = p and tonumber(p[5]) or 0
+""")
+check("locked minimap button sits on the minimap rim",
+      s.eval("MinimapAnchor") == "CENTER" and s.eval("MinimapRel") == "CENTER")
+check("locked minimap button is not at the minimap center",
+      abs(s.eval("MinimapX")) > 1 or abs(s.eval("MinimapY")) > 1)
+s.exec("CursorX, CursorY = 200, 70; __LS:DragMinimapButton()")
+check("dragging a locked minimap button slides it around the edge",
+      abs(s.eval("__LS.db.minimap.angle")) < 1
+      or abs(s.eval("__LS.db.minimap.angle") - 360) < 1)
+s.click("Lock to the minimap")
+check("Appearance can unlock the minimap button",
+      s.eval("__LS:MinimapButtonLocked()") is not True)
 check("no reset button appears before anything is customised",
       "Reset colors to the theme" not in settings)
 
@@ -411,6 +467,67 @@ s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('SETTINGS')")
 s.timers()
 check("leaving Settings and coming back restores the last tab",
       s.eval("__LS:SettingsTab()[1]") == "LAYOUT")
+
+print()
+print("-- FAQ and Help --")
+s.click("FAQ")
+faq = s.texts()
+check("FAQ is its own workspace under Settings",
+      s.eval("__LS.page") == "FAQ")
+check("FAQ lists general questions",
+      "Why did nothing rank?" in faq
+      and "Every goal starts off" in faq
+      and "How do I open Lodestar?" in faq
+      and "What Lodestar is not" in faq, faq)
+s.click("Help")
+help = s.texts()
+check("Help is its own workspace under Settings",
+      s.eval("__LS.page") == "HELP")
+check("Help has commands and debug isolation",
+      "/ls or /lodestar" in help
+      and "/ls debug" in help
+      and "If something errors" in help, help)
+check("Help has Discord and GitHub support with icons",
+      "Discord" in help
+      and "GitHub" in help
+      and "https://discord.gg/a7hrHavcwq" in help
+      and "https://github.com/Co2Noss/Lodestar/issues" in help
+      and s.eval("""(function()
+        local found, seen = {}, {}
+        local function visit(frame, depth)
+          if depth > 16 or seen[frame] then return end
+          seen[frame] = true
+          for _, r in ipairs(frame.regions or {}) do
+            local t = r.texture
+            if type(t) == "string" then
+              local lower = t:lower()
+              if lower:find("ui-chaticon-share", 1, true) then found.discord = true end
+              if lower:find("helpicon-openticket", 1, true) then found.github = true end
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        return found.discord and found.github
+      end)()""") is True, help)
+s.click("Copy Discord invite")
+check("copying Discord puts the invite on the clipboard",
+      s.eval("Clipboard") == "https://discord.gg/a7hrHavcwq"
+      and "copied the Discord invite" in s.printed(), s.printed())
+s.click("Copy GitHub issues")
+check("copying GitHub puts the issues URL on the clipboard",
+      s.eval("Clipboard") == "https://github.com/Co2Noss/Lodestar/issues")
+s.exec("__LS:SetSidebarCollapsed(true)")
+s.timers()
+s.exec("__LS.nav.FAQ.scripts.OnEnter(__LS.nav.FAQ)")
+check("hovering the collapsed FAQ icon names it",
+      s.eval("GameTooltip._tip") == "FAQ")
+s.exec("__LS.nav.HELP.scripts.OnEnter(__LS.nav.HELP)")
+check("hovering the collapsed Help icon names it",
+      s.eval("GameTooltip._tip") == "Help")
+s.exec("__LS:SetSidebarCollapsed(false)")
+s.timers()
+s.exec("__LS:ShowPage('TODAY')")
 
 # --- no debug output ----------------------------------------------------
 print()
@@ -769,7 +886,7 @@ s.exec("""
 """)
 check("the plan still groups into categories", s.eval("#(select(1, __LS:GetCategories()))") > 0)
 for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "PROGRESS", "IGNORED", "COMPLETED",
-             "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "WELCOME", "DETAILS"]:
+             "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "FAQ", "HELP", "WELCOME", "DETAILS"]:
     s.exec(f"__LS:ShowPage('{name}')")
     s.timers()
     check(f"the {name} page renders", len(s.texts()) > 0)
@@ -887,6 +1004,9 @@ check("the Professions page highlights the Dashboard workspace",
 s.exec("__LS:ShowPage('DASHBOARD')")
 s.timers()
 check("Dashboard starts with Edit dashboard", "Edit dashboard" in s.texts(), s.texts())
+check("Dashboard names itself as tiles you pick",
+      "Tiles you pick. Edit dashboard to add, move, or resize them." in s.texts()
+      and "Where things stand, then the next action." not in s.texts(), s.texts())
 s.click("Edit dashboard")
 edit = s.texts()
 check("the dashboard canvas is a 12 by 18 grid",
@@ -2263,7 +2383,19 @@ s.timers()
 check("the suggestion leaves once the goal is on",
       "Turn on the Reputation goal" not in s.texts(), s.texts())
 
-s.exec("__LS.frame:Show(); __LS.frame.scripts.OnKeyDown(__LS.frame, 'ESCAPE')")
+s.exec("__LS.frame:Show()")
+check("the main window does not capture movement keys or chat",
+      s.eval("__LS.frame.keyboard") is not True)
+check("the main window has no key handler that would recapture the keyboard",
+      s.eval("__LS.frame.scripts.OnKeyDown") is None)
+s.exec("""
+  (function()
+    for _, name in ipairs(UISpecialFrames) do
+      local f = _G[name]
+      if f and f.Hide then f:Hide() end
+    end
+  end)()
+""")
 check("Escape closes the main window", s.eval("__LS.frame:IsShown()") is not True)
 check("the main window is registered to close on Escape",
       s.eval("""(function()
@@ -2271,6 +2403,43 @@ check("the main window is registered to close on Escape",
           if name == "LodestarFrame" then return true end
         end
       end)()""") is True)
+s.exec("""
+  __LS.frame:Show()
+  __LS:ShowPage("DASHBOARD")
+  ShowPageCalls = 0
+  do
+    local orig = __LS.ShowPage
+    function __LS:ShowPage(...)
+      ShowPageCalls = ShowPageCalls + 1
+      return orig(self, ...)
+    end
+  end
+""")
+s.fire("PLAYER_MONEY")
+check("money updates do not rebuild the window", s.eval("ShowPageCalls") == 0)
+s.fire("CURRENCY_DISPLAY_UPDATE")
+s.fire("GUILD_ROSTER_UPDATE")
+s.fire("CALENDAR_UPDATE_EVENT_LIST")
+s.fire("TRADE_SKILL_LIST_UPDATE")
+check("roster, calendar, and profession list noise does not rebuild the dashboard",
+      s.eval("ShowPageCalls") == 0)
+s.exec("ShowPageCalls = 0")
+s.fire("HOUSE_LEVEL_FAVOR_UPDATED")
+check("house favor ticks do not rebuild the window", s.eval("ShowPageCalls") == 0)
+s.exec("__LS.db.tokenHistory = {}")
+s.exec("ShowPageCalls = 0")
+s.fire("TOKEN_MARKET_PRICE_UPDATED")
+s.fire("PLAYER_HOUSE_LIST_UPDATED")
+s.fire("UPDATE_INSTANCE_INFO")
+s.fire("WEEKLY_REWARDS_UPDATE")
+s.fire("PLAYER_ENTERING_WORLD")
+check("dashboard data events do not rebuild the canvas", s.eval("ShowPageCalls") == 0)
+s.exec("""
+  local slots = 0
+  for _ in ipairs(__LS.dashboardSlots or {}) do slots = slots + 1 end
+  DashboardLiveSlots = slots
+""")
+check("dashboard tiles stay up after a live refresh", s.eval("DashboardLiveSlots") >= 4)
 
 s.exec("__LS.frame:Show(); __LS:ResetDashboardLayout(); __LS.dashboardEdit = true; __LS:ShowPage('DASHBOARD')")
 s.timers()
@@ -2391,6 +2560,9 @@ check("clicking a dungeon with Keystone Hero unlocked teleports",
       s.eval("CastSpellByNameUsed") == "Path of the Rookery")
 check("that teleport does not open the Mythic+ Dungeons tab",
       s.eval("OpenedMythicPlus") is not True)
+check("teleporting from Mythic+ closes the main window",
+      s.eval("__LS.frame:IsShown()") is not True)
+s.exec("__LS.frame:Show()")
 s.exec("CastSpellByNameUsed = nil; OpenedMythicPlus = false; PVEFrame.shown = false; ChallengesFrame.shown = false")
 s.click("Temple of the Jade Serpent")
 check("clicking a dungeon without a Keystone Hero teleport opens Mythic+ Dungeons",
@@ -2434,6 +2606,7 @@ s.exec("""
     numSlots = 1,
     slots = { { spellID = 4241, name = "Path of the Rookery" } },
   }
+  __LS.frame:Show()
   __LS:ShowPage("DASHBOARD")
 """)
 s.timers()
@@ -2475,6 +2648,7 @@ s.exec("""
   PlayerMoney = 15000000
   __LS:SaveSnapshot()
   __LS.db.characters["Alts-Testrealm"] = { gold = 50000000, name = "Alts" }
+  __LS.frame:Show()
   __LS:ShowPage("DASHBOARD")
 """)
 s.timers()
@@ -2674,6 +2848,14 @@ check("Housing tile shows the house name, level, and favor",
       and "500 / 1200 favor" in housing_tile
       and "Founder's Point" in housing_tile
       and "Teleport" in housing_tile, housing_tile)
+s.exec("ShowPageCalls = 0; OwnedHouses[1].houseName = 'Cliffside Cottage'")
+s.fire("PLAYER_HOUSE_LIST_UPDATED")
+check("housing list events do not rebuild the dashboard", s.eval("ShowPageCalls") == 0)
+housing_live = s.texts()
+check("housing tile updates in place when the house list changes",
+      "Cliffside Cottage" in housing_live and "Test House" not in housing_live,
+      housing_live)
+s.exec("OwnedHouses[1].houseName = 'Test House'")
 check("Housing paints a bar toward the next house level",
       abs(s.eval("""(function()
         local function visit(frame, depth)
@@ -3258,6 +3440,21 @@ s.exec("""
 s.timers()
 check("compact stays empty until something is tracked",
       s.eval("#__LS:CompactActivities()") == 0)
+s.exec("""
+  __LS.frame:Show()
+  __LS:UpdateCompact()
+""")
+check("compact stays up while the main window is open",
+      s.eval("__LS.compact:IsShown()") is True)
+check("compact has a Main button onto the full window",
+      s.eval("(__LS.compact.open.text:GetText())") == "Main")
+s.exec("""
+  __LS.frame:Hide()
+  __LS.compact.open.scripts.OnMouseUp(__LS.compact.open)
+""")
+check("compact Main opens the main window",
+      s.eval("__LS.frame:IsShown()") is True)
+s.exec("__LS.frame:Hide(); __LS:UpdateCompact()")
 s.exec("""
   __LS.db.tracked = { vault_world_1_up = true }
   __LS:UpdateCompact()

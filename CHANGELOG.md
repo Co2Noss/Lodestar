@@ -1,3 +1,34 @@
+# Unreleased
+
+# 1.5.4
+
+- The left menu has **FAQ** and **Help** under Settings. FAQ answers why
+  something is missing. Help has commands, debug isolation, and copy-to-
+  clipboard links to Discord and GitHub.
+- The main window does not capture the keyboard: no `OnKeyDown` handler, so
+  WASD, jump, Enter, and chat still reach the client. Escape closes it through
+  the special-frames list.
+- The collapsed left menu shows a workspace icon instead of two letters
+  (a pin for Today's Plan, a fire for Warband).
+- The collapsed left menu still shows the version at the bottom.
+- Compact stays up while the main window is open. **Main** on that bar opens
+  the full window.
+- `/lodestar` opens and closes the window the same way `/ls` does.
+- Settings → Changelog packs version notes tighter: each bullet uses its
+  text height instead of a blank line of space between every item.
+- Noisy client events (money, currencies, guild roster, calendar, profession
+  list) no longer rebuild the whole window every second. That rebuild was the
+  hitch: widgets were thrown away, Lua memory climbed past 100MB, and GC
+  paused the client.
+- With the dashboard open, token, housing, vault, and zone events no longer
+  throw the canvas away. The tiles stay; only the one that changed is
+  redrawn. Navigation, edit, and resize still rebuild.
+- Clicking a Mythic+ dungeon teleport closes the main window after the
+  spell fires. Opening Mythic+ Dungeons from a dungeon that is not unlocked
+  still leaves the window up.
+- The minimap button stays on the minimap edge when you drag it. Settings →
+  Appearance can unlock it so it can sit anywhere.
+
 # 1.5.31
 
 - Housing asks the client for house info and keeps the owned-house list,

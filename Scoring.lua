@@ -1,6 +1,19 @@
 local _, LS = ...
 
+-- Dashboard paint asks for this list more than once. Hold the result for that
+-- pass so Overview, Next, and Tracked do not each rescan every goal.
+function LS:HoldPlan()
+  self._recHold = true
+  self._recCache = nil
+end
+
+function LS:ReleasePlan()
+  self._recHold = false
+  self._recCache = nil
+end
+
 function LS:GetRecommendations()
+  if self._recHold and self._recCache then return self._recCache end
   local out = {}
 
   local function consider(activity, baseScore)
@@ -112,6 +125,7 @@ function LS:GetRecommendations()
     if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
     return a.title < b.title
   end)
+  if self._recHold then self._recCache = out end
   return out
 end
 

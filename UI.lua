@@ -3,20 +3,24 @@ local _, LS = ...
 -- Workspaces, not content categories. Dashboard is a widget layout. Professions and
 -- Great Vault open from those widgets. Progress is the tracked list.
 local workspaces = {
-  { name = "TODAY", items = { { "DASHBOARD", "Dashboard", "Da" } } },
+  { name = "TODAY", items = {
+      { "DASHBOARD", "Dashboard", "Interface\\Icons\\INV_Misc_Note_01" },
+    } },
   { name = "PLANNING", items = {
-      { "TODAY", "Today's Plan", "To" },
-      { "WEEKLY", "Weekly Plan", "We" },
-      { "LONGTERM", "Long-Term Goals", "LT" },
+      { "TODAY", "Today's Plan", "Interface\\Minimap\\Minimap-Waypoint-MapPin-Tracked" },
+      { "WEEKLY", "Weekly Plan", "Interface\\Icons\\INV_Misc_PocketWatch_01" },
+      { "LONGTERM", "Long-Term Goals", "Interface\\Icons\\INV_BannerPVP_03" },
     } },
   { name = "TRACKING", items = {
-      { "PROGRESS", "Progress", "Pr" },
-      { "IGNORED", "Ignored Tasks", "Ig" },
-      { "COMPLETED", "Completed Tasks", "Co" },
+      { "PROGRESS", "Progress", "Interface\\Icons\\Achievement_General" },
+      { "IGNORED", "Ignored Tasks", "Interface\\Buttons\\UI-GroupLoot-Pass-Up" },
+      { "COMPLETED", "Completed Tasks", "Interface\\RaidFrame\\ReadyCheck-Ready" },
     } },
   { name = "ACCOUNT", items = {
-      { "WARBAND", "Warband", "Wa" },
-      { "SETTINGS", "Settings", "Se" },
+      { "WARBAND", "Warband", "Interface\\Icons\\Spell_Fire_Fire" },
+      { "SETTINGS", "Settings", "Interface\\Icons\\INV_Misc_Gear_01" },
+      { "FAQ", "FAQ", "Interface\\HelpFrame\\HelpIcon-KnowledgeBase" },
+      { "HELP", "Help", "Interface\\Icons\\INV_Misc_Book_09" },
     } },
 }
 
@@ -128,6 +132,9 @@ local function LowerTree(frame, level, depth)
   if type(frame.EnableMouse) == "function" then
     pcall(frame.EnableMouse, frame, false)
   end
+  if type(frame.EnableKeyboard) == "function" then
+    pcall(frame.EnableKeyboard, frame, false)
+  end
   if type(frame.GetChildren) == "function" then
     local kids = { frame:GetChildren() }
     for _, child in ipairs(kids) do
@@ -219,6 +226,8 @@ end
 
 function LS:Clear()
   if self.EndWidgetDrag then self:EndWidgetDrag() end
+  self.dashboardSlots = nil
+  self.dashboardCanvas = nil
   for _, child in ipairs({ self.content:GetChildren() }) do
     if child ~= self.bodyScroll then
       if child.menu then child.menu:Hide() end
@@ -277,7 +286,9 @@ function LS:CreateUI()
   frame:SetResizable(true)
   frame:SetClampedToScreen(true)
   frame:EnableMouse(true)
-  -- ESC closes the main window the same way it closes Blizzard's. Compact stays up.
+  -- Do not set OnKeyDown. The client enables keyboard capture on any shown
+  -- frame that has that handler, so WASD, jump, Enter, and chat never reach
+  -- the world. Escape still closes through UISpecialFrames.
   if UISpecialFrames then
     local listed = false
     for _, name in ipairs(UISpecialFrames) do
@@ -285,16 +296,7 @@ function LS:CreateUI()
     end
     if not listed then table.insert(UISpecialFrames, "LodestarFrame") end
   end
-  frame:EnableKeyboard(true)
-  if frame.SetPropagateKeyboardInput then frame:SetPropagateKeyboardInput(true) end
-  frame:SetScript("OnKeyDown", function(selfFrame, key)
-    if key == "ESCAPE" then
-      if selfFrame.SetPropagateKeyboardInput then selfFrame:SetPropagateKeyboardInput(false) end
-      selfFrame:Hide()
-    elseif selfFrame.SetPropagateKeyboardInput then
-      selfFrame:SetPropagateKeyboardInput(true)
-    end
-  end)
+  if frame.EnableKeyboard then frame:EnableKeyboard(false) end
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", function(selfFrame)
     if not InCombatLockdown() then selfFrame:StartMoving() end
@@ -306,8 +308,9 @@ function LS:CreateUI()
   if frame.SetResizeBounds then
     frame:SetResizeBounds(640, 460, 1600, 1100)
   end
-  -- Compact mode hides itself while this window is open, so both states have to tell it.
-  frame:SetScript("OnShow", function()
+  -- Compact stays up while this window is open; refresh it either way.
+  frame:SetScript("OnShow", function(selfFrame)
+    if selfFrame.EnableKeyboard then selfFrame:EnableKeyboard(false) end
     if LS.UpdateCompact then LS:UpdateCompact() end
   end)
   frame:SetScript("OnHide", function()
@@ -407,6 +410,18 @@ local function Tip(owner, label)
   if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
 end
 
+local function PaintNavIcon(tex, path)
+  if not tex or type(path) ~= "string" or path == "" then return end
+  if tex.SetTexture then tex:SetTexture(path) end
+  if tex.SetTexCoord then
+    if path:find("Icons\\", 1, true) or path:find("Icons/", 1, true) then
+      tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    else
+      tex:SetTexCoord(0, 1, 0, 1)
+    end
+  end
+end
+
 local function HideTip()
   if GameTooltip and GameTooltip.Hide then pcall(GameTooltip.Hide, GameTooltip) end
 end
@@ -446,7 +461,15 @@ function LS:BuildSidebar()
 
   local version = self.sidebarVersion
   version:SetText("v" .. (self.version or ""))
-  version:SetShown(not collapsed)
+  version:Show()
+  version:ClearAllPoints()
+  version:SetPoint("BOTTOMLEFT", collapsed and 4 or 8, 10)
+  version:SetPoint("BOTTOMRIGHT", -4, 10)
+  version:SetJustifyH("LEFT")
+  if version.SetFont then
+    version:SetFont(self:ThemeFont(), collapsed and 8 or 10, "")
+  end
+  if version.SetWidth then version:SetWidth(inner) end
   if self.colors then version:SetTextColor(unpack(self.colors.muted)) end
 
   local toggle = self.sidebarToggle
@@ -468,7 +491,7 @@ function LS:BuildSidebar()
   local scroll = self.sidebarScroll
   scroll:ClearAllPoints()
   scroll:SetPoint("TOPLEFT", 8, -34)
-  scroll:SetPoint("BOTTOMRIGHT", -4, collapsed and 8 or 28)
+  scroll:SetPoint("BOTTOMRIGHT", -4, 28)
 
   local child = self.sidebarBody
   child:SetWidth(inner)
@@ -486,9 +509,31 @@ function LS:BuildSidebar()
       y = y - 18
     end
     for _, item in ipairs(group.items) do
-      local label = collapsed and (item[3] or item[2]:sub(1, 2)) or item[2]
-      local nav = button(child, label, navW, 26, 11)
+      local nav = button(child, collapsed and "" or item[2], navW, 26, 11)
       nav:SetPoint("TOPLEFT", collapsed and 0 or 4, y)
+      if nav.text then
+        if collapsed then
+          if nav.text.SetShown then nav.text:SetShown(false) end
+          nav.text:SetText("")
+        else
+          if nav.text.SetShown then nav.text:SetShown(true) end
+          nav.text:ClearAllPoints()
+          nav.text:SetPoint("LEFT", 26, 0)
+          nav.text:SetWidth(navW - 32)
+          nav.text:SetJustifyH("LEFT")
+          nav.text:SetText(item[2])
+        end
+      end
+      local art = nav:CreateTexture(nil, "ARTWORK")
+      if collapsed then
+        art:SetSize(18, 18)
+        art:SetPoint("CENTER", 0, 0)
+      else
+        art:SetSize(14, 14)
+        art:SetPoint("LEFT", 6, 0)
+      end
+      PaintNavIcon(art, item[3])
+      nav.icon = art
       nav:SetScript("OnMouseUp", function() self:ShowPage(item[1]) end)
       nav:SetScript("OnEnter", function(selfFrame)
         if LS.colors then selfFrame:SetBackdropBorderColor(unpack(LS.colors.accent)) end
@@ -599,6 +644,10 @@ function LS:ShowPage(page)
     self:WarbandPage()
   elseif page == "SETTINGS" then
     self:Settings()
+  elseif page == "FAQ" then
+    self:FAQPage()
+  elseif page == "HELP" then
+    self:HelpPage()
   elseif page == "DETAILS" then
     self:DetailsPage()
   else
@@ -2124,24 +2173,36 @@ function LS:SettingsAddons(body, width, y)
 end
 
 function LS:SettingsChangelog(body, width, y)
+  local function drop(fs, gap)
+    local h = 14
+    if fs and fs.GetStringHeight then
+      h = math.max(h, tonumber(fs:GetStringHeight()) or 0)
+    end
+    if fs and fs.SetHeight then fs:SetHeight(h) end
+    return h + (gap or 4)
+  end
+
   local intro = text(body, width, 11)
   intro:SetPoint("TOPLEFT", 0, y)
+  if intro.SetWordWrap then intro:SetWordWrap(true) end
   intro:SetText("The last five versions. Added, changed, and removed. The full notes are on GitHub.")
-  y = y - 36
+  y = y - drop(intro, 16)
 
   for _, release in ipairs(self.CHANGELOG or {}) do
     local heading = text(body, width, 13)
     heading:SetPoint("TOPLEFT", 0, y)
     heading:SetTextColor(unpack(self.colors.accent))
     heading:SetText(release.version)
-    y = y - 22
-    for _, note in ipairs(release.notes or {}) do
+    y = y - drop(heading, 6)
+    local notes = release.notes or {}
+    for i, note in ipairs(notes) do
       local line = text(body, width, 11)
       line:SetPoint("TOPLEFT", 0, y)
+      if line.SetWordWrap then line:SetWordWrap(true) end
       line:SetText("• " .. note)
-      y = y - 36
+      local last = i == #notes
+      y = y - drop(line, last and 14 or 4)
     end
-    y = y - 8
   end
   return y
 end
@@ -2282,6 +2343,31 @@ function LS:SettingsAppearance(body, width, y)
   end
   y = y - 34
 
+  local miniHeading = text(body, width, 13)
+  miniHeading:SetPoint("TOPLEFT", 0, y)
+  miniHeading:SetTextColor(unpack(self.colors.accent))
+  miniHeading:SetText("Minimap button")
+  y = y - 26
+  local locked = self.MinimapButtonLocked and self:MinimapButtonLocked()
+  local lockBtn = button(body, (locked and "ON  •  " or "OFF  •  ") .. "Lock to the minimap", width, 32)
+  lockBtn:SetPoint("TOPLEFT", 0, y)
+  if locked then
+    highlight(lockBtn)
+  else
+    lockBtn.text:SetTextColor(0.62, 0.65, 0.7, 1)
+  end
+  lockBtn:SetScript("OnMouseUp", function()
+    if self.SetMinimapButtonLock then self:SetMinimapButtonLock(not locked) end
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 40
+  local miniNote = text(body, width, 10)
+  miniNote:SetPoint("TOPLEFT", 0, y)
+  miniNote:SetText(locked
+    and "Drag slides the button around the minimap edge."
+    or "The button can be placed anywhere. Turn lock on to snap it back to the minimap.")
+  y = y - 34
+
   local colorHeading = text(body, width, 13)
   colorHeading:SetPoint("TOPLEFT", 0, y)
   colorHeading:SetTextColor(unpack(self.colors.accent))
@@ -2356,8 +2442,7 @@ function LS:SettingsCompact(body, width, y)
 
   local compactNote = text(body, width, 10)
   compactNote:SetPoint("TOPLEFT", 0, y)
-  compactNote:SetText("Shows activities you tracked, ranked by score. Single recommendation keeps one row. Click an entry for details, double click for Progress. It collapses on its own in combat.")
-  y = y - 44
+  y = y - 64
 
   local resetCompact = button(body, "Reset compact position", width, 32)
   resetCompact:SetPoint("TOPLEFT", 0, y)
@@ -2393,6 +2478,142 @@ function LS:SettingsWindow(body, width, y)
   end)
   y = y - 44
   return y
+end
+
+local function infoDrop(fs, gap)
+  local h = 14
+  if fs and fs.GetStringHeight then
+    h = math.max(h, tonumber(fs:GetStringHeight()) or 0)
+  end
+  if fs and fs.SetHeight then fs:SetHeight(h) end
+  return h + (gap or 4)
+end
+
+function LS:CopySupportLink(url, what)
+  if type(url) ~= "string" or url == "" then return end
+  local copied = CopyToClipboard and pcall(CopyToClipboard, url)
+  if copied then
+    print("|cff59d8c9Lodestar|r copied the " .. (what or "link") .. ". Paste it in a browser.")
+  else
+    print("|cff59d8c9Lodestar|r " .. url)
+  end
+end
+
+function LS:FAQPage()
+  self:Heading("FAQ", "Why something is missing, and what Lodestar is not.")
+  local body = self:Body(70)
+  local width = body.width
+  local inner = width - 24
+  local y = 0
+  for _, item in ipairs(self.FAQ or {}) do
+    local card = panel(body)
+    card:SetPoint("TOPLEFT", 0, y)
+    card:SetWidth(width)
+    paint(card)
+    local q = text(card, inner, 13)
+    q:SetPoint("TOPLEFT", 12, -10)
+    q:SetTextColor(unpack(self.colors.accent))
+    if q.SetWordWrap then q:SetWordWrap(true) end
+    q:SetText(item.q)
+    local qh = infoDrop(q, 0)
+    local a = text(card, inner, 11)
+    a:SetPoint("TOPLEFT", 12, -(16 + qh))
+    if a.SetWordWrap then a:SetWordWrap(true) end
+    a:SetText(item.a)
+    local ah = infoDrop(a, 0)
+    local height = 16 + qh + 8 + ah + 12
+    card:SetSize(width, height)
+    y = y - (height + 8)
+  end
+  body:finish(math.max(40, -y + 10))
+end
+
+function LS:HelpPage()
+  self:Heading("Help", "How to use Lodestar, and where to get support.")
+  local body = self:Body(70)
+  local width = body.width
+  local inner = width - 24
+  local y = 0
+  for _, item in ipairs(self.HELP or {}) do
+    local card = panel(body)
+    card:SetPoint("TOPLEFT", 0, y)
+    card:SetWidth(width)
+    paint(card)
+    local heading = text(card, inner, 13)
+    heading:SetPoint("TOPLEFT", 12, -10)
+    heading:SetTextColor(unpack(self.colors.accent))
+    heading:SetText(item.title)
+    local hh = infoDrop(heading, 0)
+    local line = text(card, inner, 11)
+    line:SetPoint("TOPLEFT", 12, -(16 + hh))
+    if line.SetWordWrap then line:SetWordWrap(true) end
+    line:SetText(item.body)
+    local bh = infoDrop(line, 0)
+    local height = 16 + hh + 8 + bh + 12
+    card:SetSize(width, height)
+    y = y - (height + 8)
+  end
+
+  local support = text(body, width, 13)
+  support:SetPoint("TOPLEFT", 0, y)
+  support:SetTextColor(unpack(self.colors.accent))
+  support:SetText("Support")
+  y = y - infoDrop(support, 10)
+
+  for _, row in ipairs(self.SUPPORT or {}) do
+    local link = row
+    local card = panel(body)
+    card:SetSize(width, 72)
+    card:SetPoint("TOPLEFT", 0, y)
+    paint(card)
+    card:EnableMouse(true)
+    card:SetScript("OnEnter", function(selfFrame)
+      if LS.colors then selfFrame:SetBackdropBorderColor(unpack(LS.colors.accent)) end
+      Tip(selfFrame, link.url)
+    end)
+    card:SetScript("OnLeave", function(selfFrame)
+      if LS.colors then selfFrame:SetBackdropBorderColor(unpack(LS.colors.border)) end
+      HideTip()
+    end)
+    card:SetScript("OnMouseUp", function()
+      self:CopySupportLink(link.url, link.copied or link.name)
+    end)
+
+    local badge = card:CreateTexture(nil, "ARTWORK")
+    badge:SetSize(36, 36)
+    badge:SetPoint("LEFT", 12, 0)
+    if badge.SetColorTexture then
+      local c = link.color or self.colors.accent
+      badge:SetColorTexture(c[1], c[2], c[3], 1)
+    end
+    local art = card:CreateTexture(nil, "OVERLAY")
+    art:SetSize(22, 22)
+    art:SetPoint("CENTER", badge, "CENTER", 0, 0)
+    PaintNavIcon(art, link.icon)
+    if art.SetVertexColor then art:SetVertexColor(1, 1, 1, 1) end
+
+    local title = text(card, width - 210, 13)
+    title:SetPoint("TOPLEFT", 58, -12)
+    title:SetTextColor(unpack(self.colors.accent))
+    title:SetText(link.name)
+    local why = text(card, width - 210, 11)
+    why:SetPoint("TOPLEFT", 58, -30)
+    why:SetText(link.why)
+    local url = text(card, width - 210, 10)
+    url:SetPoint("TOPLEFT", 58, -48)
+    url:SetTextColor(unpack(self.colors.muted))
+    url:SetText(link.url)
+
+    local copy = button(card, link.action, 150, 26, 11)
+    copy:SetPoint("TOPRIGHT", -10, -12)
+    paint(copy, "panel")
+    highlight(copy)
+    copy:SetScript("OnMouseUp", function()
+      self:CopySupportLink(link.url, link.copied or link.name)
+    end)
+    y = y - 80
+  end
+  body:finish(math.max(40, -y + 10))
 end
 
 function LS:Refresh()

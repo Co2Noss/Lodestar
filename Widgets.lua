@@ -1102,8 +1102,14 @@ local function RegisterExtraWidgets()
       local w = self.widgets
       height = height or 80
       if C_MythicPlus and C_MythicPlus.RequestMapInfo then
-        pcall(C_MythicPlus.RequestMapInfo)
+        local now = (GetTime and GetTime()) or 0
+        if not self._mplusMapAt or now - self._mplusMapAt > 5 then
+          self._mplusMapAt = now
+          pcall(C_MythicPlus.RequestMapInfo)
+        end
       end
+      local ports = (self:WidgetOptOn("raiderio", "teleport", true)
+        and self.MythicPlusTeleports and self:MythicPlusTeleports()) or {}
       local showScore = self:WidgetOptOn("raiderio", "score", true)
       local showMaps = self:WidgetOptOn("raiderio", "dungeons", true)
       local score, source = self:MythicPlusScore()
@@ -1201,8 +1207,7 @@ local function RegisterExtraWidgets()
           num:SetTextColor(unpack(self.colors.muted))
         end
         local dungeonID, dungeonName, dungeonLevel = mapID, name, level
-        local port = self:WidgetOptOn("raiderio", "teleport", true)
-          and self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
+        local port = self:WidgetOptOn("raiderio", "teleport", true) and ports[dungeonID]
         if port then
           local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
           PaintIconBorder(parent, art, size, a[1], a[2], a[3])
@@ -1236,10 +1241,10 @@ local function RegisterExtraWidgets()
           local live = self:WidgetOptOn("raiderio", "teleport", true)
             and self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
           if live then
-            if hit.GetAttribute and hit:GetAttribute("type") == "spell" then
-              return
+            if not (hit.GetAttribute and hit:GetAttribute("type") == "spell") then
+              if self.CastMythicPlusTeleport then self:CastMythicPlusTeleport(dungeonID) end
             end
-            if self.CastMythicPlusTeleport then self:CastMythicPlusTeleport(dungeonID) end
+            if self.frame then self.frame:Hide() end
             return
           end
           if self.OpenMythicPlus then self:OpenMythicPlus() end
@@ -1821,9 +1826,14 @@ local function RegisterExtraWidgets()
         hit:SetScript("OnMouseUp", function()
           -- Do not use the item here. Do not rebuild the tile until the click
           -- finishes; a SecureActionButton uses the bag on mouse down.
-          if self.page ~= "DASHBOARD" or not self.ShowPage then return end
+          if self.page ~= "DASHBOARD" then return end
           local refresh = function()
-            if LS.page == "DASHBOARD" and LS.ShowPage then LS:ShowPage("DASHBOARD") end
+            if LS.page ~= "DASHBOARD" then return end
+            if LS.RefreshDashboardLive then
+              LS:RefreshDashboardLive({ "readiness" })
+            elseif LS.ShowPage then
+              LS:ShowPage("DASHBOARD")
+            end
           end
           if C_Timer and C_Timer.After then
             C_Timer.After(0, refresh)

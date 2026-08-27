@@ -1,7 +1,8 @@
 local _, LS = ...
 
 -- Compact mode: a small always-on window of activities you tracked. Progress
--- shows the same list. Single-recommendation mode keeps it to one row.
+-- shows the same list. Single-recommendation mode keeps it to one row. It stays
+-- up while the main window is open; Main opens that window.
 
 local HEADER = 24
 local ROW = 46
@@ -161,6 +162,7 @@ function LS:CreateCompact()
   frame:SetResizable(true)
   frame:SetClampedToScreen(true)
   frame:EnableMouse(true)
+  if frame.EnableKeyboard then frame:EnableKeyboard(false) end
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", function(selfFrame) selfFrame:StartMoving() end)
   frame:SetScript("OnDragStop", function(selfFrame)
@@ -177,9 +179,14 @@ function LS:CreateCompact()
   logo:SetPoint("TOPLEFT", 8, -5)
   logo:SetTexture(LS.MEDIA_ICON or LS.MEDIA)
 
-  frame.title = w.text(frame, 140, 11)
+  frame.title = w.text(frame, 80, 11)
   frame.title:SetPoint("TOPLEFT", 26, -6)
   frame.title:SetText("LODESTAR")
+
+  frame.close = w.button(frame, "×", 20, 16)
+  frame.close:SetPoint("TOPRIGHT", -6, -4)
+  frame.close:SetScript("OnMouseUp", function() LS:SetCompact(false) end)
+  ForwardDrag(frame.close, frame)
 
   frame.collapse = w.button(frame, "–", 20, 16)
   frame.collapse:SetPoint("TOPRIGHT", -30, -4)
@@ -189,10 +196,29 @@ function LS:CreateCompact()
     LS.compactAutoCollapsed = false
     LS:UpdateCompact()
   end)
+  ForwardDrag(frame.collapse, frame)
 
-  frame.close = w.button(frame, "×", 20, 16)
-  frame.close:SetPoint("TOPRIGHT", -6, -4)
-  frame.close:SetScript("OnMouseUp", function() LS:SetCompact(false) end)
+  frame.open = w.button(frame, "Main", 36, 16, 10)
+  frame.open:SetPoint("TOPRIGHT", -54, -4)
+  frame.open:SetScript("OnMouseUp", function() LS:OpenFull() end)
+  frame.open:SetScript("OnEnter", function(selfFrame)
+    if not GameTooltip then return end
+    if GameTooltip.SetOwner then pcall(GameTooltip.SetOwner, GameTooltip, selfFrame, "ANCHOR_BOTTOM") end
+    if GameTooltip.SetText then GameTooltip:SetText("Open the main window") end
+    if GameTooltip.Show then pcall(GameTooltip.Show, GameTooltip) end
+  end)
+  frame.open:SetScript("OnLeave", function()
+    if GameTooltip and GameTooltip.Hide then pcall(GameTooltip.Hide, GameTooltip) end
+  end)
+  ForwardDrag(frame.open, frame)
+
+  local titleHit = CreateFrame("Button", nil, frame)
+  titleHit:SetPoint("TOPLEFT", 8, -2)
+  titleHit:SetPoint("BOTTOMRIGHT", frame.open, "BOTTOMLEFT", -4, 0)
+  titleHit:RegisterForClicks("AnyUp")
+  titleHit:SetScript("OnMouseUp", function() LS:OpenFull() end)
+  ForwardDrag(titleHit, frame)
+  frame.titleHit = titleHit
 
   -- Height follows the number of tracked rows, so only the width is draggable.
   local grip = CreateFrame("Button", nil, frame)
@@ -236,8 +262,7 @@ function LS:UpdateCompact()
   local settings = db()
   if not frame or not settings or not self.colors then return end
 
-  -- The compact window hides while the full one is open and comes back when it closes.
-  if not settings.enabled or (self.frame and self.frame:IsShown()) then
+  if not settings.enabled then
     frame:Hide()
     return
   end
@@ -252,12 +277,18 @@ function LS:UpdateCompact()
   frame.title:SetTextColor(unpack(palette.accent))
 
   local collapsed = settings.collapsed or self.compactAutoCollapsed
-  for _, control in ipairs({ frame.collapse, frame.close }) do
+  for _, control in ipairs({ frame.open, frame.collapse, frame.close }) do
     w.paint(control, "panel")
-    control.text:SetFont(self:ThemeFont(), 12, "")
+    control.text:SetFont(self:ThemeFont(), 10, "")
     control.text:SetTextColor(unpack(palette.text))
   end
-  frame.collapse.text:SetText(collapsed and "+" or "–")
+  if frame.open and frame.open.text then
+    frame.open.text:SetFont(self:ThemeFont(), 10, "")
+  end
+  if frame.collapse and frame.collapse.text then
+    frame.collapse.text:SetFont(self:ThemeFont(), 12, "")
+    frame.collapse.text:SetText(collapsed and "+" or "–")
+  end
   frame.grip.hint:SetColorTexture(unpack(palette.border))
 
   local width = frame:GetWidth()

@@ -25,7 +25,13 @@ local function new(kind, name, parent)
   }, mt)
 end
 
-function methods.SetScript(self, key, fn) self.scripts[key] = fn end
+function methods.SetScript(self, key, fn)
+  self.scripts[key] = fn
+  -- The live client turns keyboard capture on for OnKeyDown / OnKeyUp.
+  if fn and (key == "OnKeyDown" or key == "OnKeyUp") then
+    self.keyboard = true
+  end
+end
 function methods.HookScript(self, key, fn) self.scripts[key] = fn end
 function methods.GetScript(self, key) return self.scripts[key] end
 function methods.Show(self) self.shown = true end
@@ -39,6 +45,12 @@ function methods.SetSize(self, a, b) self.w, self.h = a, b end
 function methods.GetWidth(self) return self.w end
 function methods.GetHeight(self) return self.h end
 function methods.GetPoint(self) return "CENTER", nil, "CENTER", 0, 0 end
+function methods.GetCenter(self)
+  return self.centerX or ((self.w or 0) / 2), self.centerY or ((self.h or 0) / 2)
+end
+function methods.GetEffectiveScale(self) return self.effectiveScale or 1 end
+function methods.SetDontSavePosition(self, v) self.dontSavePosition = v and true or false end
+function methods.SetClampedToScreen(self, v) self.clampedToScreen = v and true or false end
 function methods.SetFrameLevel(self, v) self.frameLevel = v end
 function methods.GetFrameLevel(self) return self.frameLevel or 1 end
 function methods.GetName(self) return self.objName end
@@ -237,8 +249,14 @@ function print(...)
   table.insert(Printed, table.concat(parts, " "))
 end
 
+Clipboard = nil
+function CopyToClipboard(text)
+  Clipboard = text
+end
+
 UIParent = new("Frame", "UIParent")
 Minimap = new("Frame", "Minimap")
+Minimap:SetSize(140, 140)
 WeeklyRewardsFrame = new("Frame", "WeeklyRewardsFrame")
 WeeklyRewardsFrame.shown = false
 OpenedGreatVault = false
@@ -1306,7 +1324,8 @@ C_MajorFactions = {
   HasMaximumRenown = function() return false end,
 }
 
-GetCursorPosition = function() return 0, 0 end
+CursorX, CursorY = 0, 0
+GetCursorPosition = function() return CursorX, CursorY end
 
 function BreakUpLargeNumbers(n)
   n = math.floor(math.abs(tonumber(n) or 0))

@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.31"
+LS.version = "1.5.4"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -27,6 +27,7 @@ LS.defaults = {
   repGroups = {},
   repFactions = {},
   frame = { point = "CENTER", relative = "CENTER", x = 0, y = 0, width = 960, height = 680 },
+  minimap = { lock = true, angle = 135 },
   compact = {
     enabled = false,
     single = false,
@@ -252,6 +253,8 @@ function LS:DebugCommand(arg)
   end
 end
 
+local PaintWindow
+
 local function RefreshState()
   if not LS.db then return end
   if LS.ScanPlayer then LS:ScanPlayer() end
@@ -263,16 +266,94 @@ local function RefreshState()
   if LS.RequestTokenPrice then LS:RequestTokenPrice() end
   if LS.RecordTokenPrice then LS:RecordTokenPrice() end
   if LS.RecordAccountGold then LS:RecordAccountGold() end
-  LS:Refresh()
+  PaintWindow({ full = true })
 end
 
+local function WindowShown()
+  return LS.frame and LS.frame:IsShown()
+end
+
+-- Live dashboard updates keep the canvas. ShowPage is for navigation, edit,
+-- resize, and every page that is not the dashboard.
+local function TilesFor(jobs)
+  if jobs.full then return true end
+  local seen, out = {}, {}
+  local function add(id)
+    if id and not seen[id] then
+      seen[id] = true
+      out[#out + 1] = id
+    end
+  end
+  if jobs.vault then add("vault") end
+  if jobs.professions then add("professions") end
+  if jobs.housing then add("housing") end
+  return out
+end
+
+local function PageNeedsRebuild(jobs)
+  if jobs.full or jobs.ui then return true end
+  if jobs.vault or jobs.professions or jobs.mounts or jobs.reputation then
+    return true
+  end
+  if jobs.tradeskill and LS.page == "PROFESSIONS" then return true end
+  return false
+end
+
+PaintWindow = function(jobs)
+  jobs = jobs or { full = true }
+  if WindowShown() then
+    if LS.page == "DASHBOARD" and LS.RefreshDashboardLive then
+      local tiles = TilesFor(jobs)
+      if tiles == true then
+        LS:RefreshDashboardLive()
+      elseif #tiles > 0 then
+        LS:RefreshDashboardLive(tiles)
+      end
+    elseif PageNeedsRebuild(jobs) then
+      LS:ShowPage(LS.page or "TODAY")
+    end
+  end
+  if jobs.full or jobs.vault or jobs.professions then
+    if LS.UpdateCompact then LS:UpdateCompact() end
+  end
+end
+
+local function ApplyJobs(jobs)
+  if not LS.db or not jobs then return end
+  if jobs.full then
+    RefreshState()
+    return
+  end
+  if jobs.player and LS.ScanPlayer then LS:ScanPlayer() end
+  if jobs.vault then LS:ScanVault() end
+  if (jobs.professions or jobs.tradeskill) and LS.ScanProfessions then
+    LS:ScanProfessions()
+  end
+  if jobs.mounts and LS.ScanMounts then LS:ScanMounts() end
+  if jobs.reputation and LS.ScanReputations then LS:ScanReputations() end
+  if (jobs.snapshot or jobs.vault or jobs.professions) and LS.SaveSnapshot then
+    LS:SaveSnapshot()
+  end
+  if jobs.money and LS.RecordAccountGold then LS:RecordAccountGold() end
+  PaintWindow(jobs)
+end
+
+-- Noisy client events used to rebuild the whole window every second. That is
+-- the hitch: Clear() orphans widgets, ShowPage creates new ones, GC climbs
+-- past 100MB and pauses the client. With the dashboard open, later events
+-- still did that; those now update the tile that changed.
+local queued
 local pending
-local function RefreshSoon()
+local function RefreshSoon(job)
+  queued = queued or {}
+  queued[job or "full"] = true
   if pending then return end
   pending = true
   C_Timer.After(1, function()
     pending = nil
-    RefreshState()
+    local jobs = queued
+    queued = nil
+    ApplyJobs(jobs)
   end)
 end
 
@@ -326,8 +407,8 @@ events:SetScript("OnEvent", function(_, event, arg)
   end
   if event == "TOKEN_MARKET_PRICE_UPDATED" then
     local changed = LS.RecordTokenPrice and LS:RecordTokenPrice()
-    if changed and LS.page == "DASHBOARD" and LS.frame and LS.frame:IsShown() then
-      LS:ShowPage("DASHBOARD")
+    if changed and LS.RefreshDashboardLive then
+      LS:RefreshDashboardLive({ "token" })
     end
     return
   end
@@ -355,14 +436,42 @@ events:SetScript("OnEvent", function(_, event, arg)
     if LS.RequestHousingInfo then LS:RequestHousingInfo() end
     RefreshState()
     if LS.db.welcomed then
-      print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")
+      print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls or /lodestar to open.")
     else
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. Pick what you care about to get started.")
       LS:OpenFull("WELCOME")
     end
     LS:DebugAnnounce()
+    return
+  end
+  if event == "PLAYER_ENTERING_WORLD" then
+    RefreshSoon("full")
+  elseif event == "PLAYER_MONEY" then
+    RefreshSoon("money")
+  elseif event == "CURRENCY_DISPLAY_UPDATE" then
+    return
+  elseif event == "GUILD_ROSTER_UPDATE" or event == "CALENDAR_UPDATE_EVENT_LIST" then
+    return
+  elseif event == "TRADE_SKILL_LIST_UPDATE" then
+    RefreshSoon("tradeskill")
+  elseif event == "SKILL_LINES_CHANGED" then
+    RefreshSoon("professions")
+  elseif event == "WEEKLY_REWARDS_UPDATE" or event == "UPDATE_INSTANCE_INFO" then
+    RefreshSoon("vault")
+  elseif event == "NEW_MOUNT_ADDED" then
+    RefreshSoon("mounts")
+  elseif event == "MAJOR_FACTION_RENOWN_LEVEL_CHANGED" then
+    RefreshSoon("reputation")
+  elseif event == "QUEST_TURNED_IN" then
+    RefreshSoon("full")
+  elseif event == "PLAYER_HOUSE_LIST_UPDATED" or event == "VIEW_HOUSES_LIST_RECIEVED"
+      or event == "CURRENT_HOUSE_INFO_UPDATED" or event == "CURRENT_HOUSE_INFO_RECIEVED"
+      or event == "HOUSE_INFO_UPDATED" or event == "TRACKED_HOUSE_CHANGED" then
+    RefreshSoon("housing")
+  elseif event == "HOUSE_LEVEL_FAVOR_UPDATED" or event == "HOUSE_LEVEL_CHANGED" then
+    return
   else
-    RefreshSoon()
+    RefreshSoon("full")
   end
 end)
 

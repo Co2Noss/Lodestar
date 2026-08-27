@@ -84,6 +84,18 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.4",
+    notes = {
+      "FAQ and Help sit under Settings. Help copies Discord and GitHub support links to the clipboard.",
+      "The main window does not capture the keyboard. Escape closes it. Compact stays up while it is open.",
+      "The collapsed left menu shows workspace icons and still shows the version at the bottom.",
+      "/lodestar opens and closes the window the same way /ls does.",
+      "Noisy client events no longer rebuild the whole window. Dashboard tiles refresh in place.",
+      "Clicking a Mythic+ dungeon teleport closes the main window after the spell fires.",
+      "The minimap button stays on the minimap edge when you drag it. Settings → Appearance can unlock it.",
+    },
+  },
+  {
     version = "1.5.31",
     notes = {
       "Housing asks the client for house info so the tile does not say No house while the Housing Dashboard shows one.",
@@ -113,11 +125,113 @@ LS.CHANGELOG = {
       "Mythic+ dims the whole dungeon icon behind the key level, instead of a smaller plate that only showed up on bright art.",
     },
   },
+}
+
+-- In-game FAQ. Keep this in step with the wiki FAQ page.
+LS.FAQ = {
   {
-    version = "1.5.1",
-    notes = {
-      "Settings → Reputation no longer paints a full-page panel over the faction list, so Rank all and the factions stay readable.",
-    },
+    q = "Why did nothing rank?",
+    a = "Every goal starts off. Pick at least one on the welcome page or in Settings → Goals. A goal that is off is hidden on purpose.",
+  },
+  {
+    q = "How do I open Lodestar?",
+    a = "/ls or /lodestar opens and closes the window. Left-click the minimap button for the full window; right-click for compact mode. Escape closes the main window.",
+  },
+  {
+    q = "Where did Great Vault and Professions go in the menu?",
+    a = "They live under Dashboard. Progress is the tracked list, not the vault.",
+  },
+  {
+    q = "Why is gold quiet?",
+    a = "Prices come from TradeSkillMaster, Auctionator, or RECrystallize. Lodestar does not invent an auction house. If none of those is loaded, or the source you picked in Settings → Optional Addons is not, gold stays off the plan.",
+  },
+  {
+    q = "Why are there no rares?",
+    a = "HandyNotes by itself has no coordinates. You need a notes pack (Midnight, Silvermoon, and many others). Lodestar ranks rares that pack is currently showing, not treasures or city marks.",
+  },
+  {
+    q = "Why is PvP quiet?",
+    a = "Turn the PvP goal on. Weekly Conquest ranks only while the client still reports unfinished progress this week, and only at the expansion cap. Honor and ratings live on the dashboard tile.",
+  },
+  {
+    q = "Why is Housing quiet?",
+    a = "Turn the Housing goal on. A missing house ranks at the expansion cap when the client reports none. Neighborhood initiatives rank only while contribution is still unfinished. Housing weeklies rank only when they are already in the log. Lodestar does not invent a housing circuit.",
+  },
+  {
+    q = "Why is Battle Pets quiet?",
+    a = "Turn the Battle Pets goal on. Locked slots rank while the client says the journal or team is locked. An empty team ranks once you already own a pet. Pet battle quests rank only when they are already in the log. Lodestar does not invent a catching list.",
+  },
+  {
+    q = "Why did it ask me to check the map?",
+    a = "Questing does not invent a circuit. If the log is empty and no campaign or important work is waiting, that is the honest next step.",
+  },
+  {
+    q = "Why is the Great Vault quiet?",
+    a = "It waits until you are at the expansion cap. Until then the plan is to level and enjoy the game. Professions still rank if that goal is on.",
+  },
+  {
+    q = "Why is compact empty?",
+    a = "It only lists activities you tracked. Track from Details.",
+  },
+  {
+    q = "Can I hide work I do not have time for?",
+    a = "There is no time-budget slider. Lodestar ranks everything that matches your goals instead of hiding whatever does not fit a session length. Ignore a card if you do not want to see it.",
+  },
+  {
+    q = "Why is the minimap button locked to the minimap?",
+    a = "That is the default. Drag slides it around the edge. Settings → Appearance → Lock to the minimap turns that off so the button can sit anywhere.",
+  },
+  {
+    q = "Why are old knowledge points on the Dashboard?",
+    a = "They should not be. Dashboard and Warband unspent knowledge only count the current expansion.",
+  },
+  {
+    q = "What Lodestar is not",
+    a = "Not a replacement for your quest tracker. Not a list of everything available in the game. Profession catch-up from Patron Orders cannot be counted from the client, so Lodestar describes it instead of inventing a number.",
+  },
+}
+
+LS.HELP = {
+  {
+    title = "Getting started",
+    body = "Every goal starts off. Pick at least one on the welcome page or in Settings → Goals. A goal that is off is hidden on purpose. Dashboard is tiles you pick; Edit dashboard to add, move, or resize them.",
+  },
+  {
+    title = "Commands",
+    body = "/ls or /lodestar — open or close the window\n/ls compact — toggle compact mode\n/ls compact single — toggle single-recommendation compact mode\n/ls theme auto — follow GW2 UI, RealUI, ElvUI, or Ellesmere when loaded\n/ls debug — disable every other addon and reload\n/ls debug off — restore those addons (this character only)\n/ls reset — wipe saved settings and reload",
+  },
+  {
+    title = "The window",
+    body = "Escape closes the main window. It does not capture the keyboard, so WASD, jump, Enter, and chat still reach the client. Compact stays up while the main window is open. Left-click the minimap button for the full window; right-click for compact. The button stays on the minimap unless you unlock it in Settings → Appearance.",
+  },
+  {
+    title = "When something is missing",
+    body = "Lodestar stays quiet when a goal is off, or when the client has nothing to report. It does not invent auction prices, quest IDs, housing quests, or map coordinates. Optional addons unlock extra behaviour if they are loaded; without them those parts stay off the plan.",
+  },
+  {
+    title = "If something errors",
+    body = "/ls debug isolates Lodestar from every other addon, then reloads. If the error is gone, it was not Lodestar. When you file an issue, include your class/spec, the theme you use (Blizzard, ElvUI, or other), and what you expected versus what happened.",
+  },
+}
+
+LS.SUPPORT = {
+  {
+    name = "Discord",
+    why = "Talk with us in Lodestar Guide.",
+    url = "https://discord.gg/a7hrHavcwq",
+    action = "Copy Discord invite",
+    copied = "Discord invite",
+    icon = "Interface\\ChatFrame\\UI-ChatIcon-Share",
+    color = { 0.345, 0.396, 0.949 },
+  },
+  {
+    name = "GitHub",
+    why = "File an issue on Co2Noss/Lodestar.",
+    url = "https://github.com/Co2Noss/Lodestar/issues",
+    action = "Copy GitHub issues",
+    copied = "GitHub issues link",
+    icon = "Interface\\HelpFrame\\HelpIcon-OpenTicket",
+    color = { 0.13, 0.15, 0.18 },
   },
 }
 
