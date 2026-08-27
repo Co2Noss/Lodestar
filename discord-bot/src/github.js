@@ -214,8 +214,10 @@ async function announceCredit(guild, member, login, how) {
   }).catch(() => {});
 }
 
-async function creditLogin(guild, login, how) {
-  const member = resolveMember(guild, login);
+async function creditLogin(guild, login, how, mappedOnly) {
+  const member = mappedOnly
+    ? (guild.members.cache.get(discordIdForLogin(guild.id, login) || "") || null)
+    : resolveMember(guild, login);
   if (!member) return false;
   const added = await grantContributor(member, `Lodestar GitHub contributor ${login}`);
   if (added) await announceCredit(guild, member, login, how);
@@ -256,7 +258,7 @@ async function maybeCreditFromMessage(message) {
   const logins = parseLoginsFromText(chunks.filter(Boolean).join("\n"));
   let any = false;
   for (const login of logins) {
-    if (await creditLogin(message.guild, login, "webhook")) any = true;
+    if (await creditLogin(message.guild, login, "webhook", true)) any = true;
   }
   return any;
 }
