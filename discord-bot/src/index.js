@@ -98,7 +98,8 @@ async function prepareGuild(guild) {
     !guild.roles.cache.some((r) => r.name === "Developer") ||
     !guild.roles.cache.some((r) => r.name === "Bot") ||
     !guild.roles.cache.some((r) => r.name === "Member") ||
-    !guild.channels.cache.some((c) => c.name === "silence-enforced");
+    !guild.channels.cache.some((c) => c.name === "silence-enforced") ||
+    !guild.emojis.cache.some((e) => e.name === "lodestar");
   if (needsSetup) {
     try {
       console.log(`Setup in ${guild.name}`);
