@@ -32,6 +32,8 @@
 
 The [wiki](https://github.com/Co2Noss/Lodestar/wiki) covers install, the dashboard canvas, ranking, and how other addons register tiles.
 
+Questions and install help belong on [Discord](https://discord.gg/a7hrHavcwq) (`/faq`, or a ticket in `#get-help`). Reproducible bugs go to [GitHub issues](https://github.com/Co2Noss/Lodestar/issues). If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it. [SUPPORT.md](SUPPORT.md) is the same map in one page.
+
 ## Donate
 
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](http://paypal.me/Co2Noss)

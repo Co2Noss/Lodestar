@@ -1,0 +1,61 @@
+name: Bug
+description: Something in Lodestar is wrong after /ls debug
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions and install help belong on [Discord](https://discord.gg/a7hrHavcwq).
+        Run `/ls debug` first. If the error disappears, another addon is involved — say so, and talk to us on Discord instead.
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you saw. Paste the Lua error if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Class / spec
+      placeholder: Brewmaster Monk
+    validations:
+      required: true
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Theme
+      options:
+        - Blizzard
+        - ElvUI
+        - GW2 UI
+        - RealUI
+        - Ellesmere
+        - Minimal
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lodestar version
+      description: CurseForge file version, or the version in Lodestar.toc.
+      placeholder: 1.5.31
+    validations:
+      required: true
+  - type: dropdown
+    id: debug
+    attributes:
+      label: /ls debug
+      options:
+        - Still happens with only Lodestar enabled
+        - Gone when other addons are disabled
+        - Did not run /ls debug
+    validations:
+      required: true

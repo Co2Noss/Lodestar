@@ -1,0 +1,8 @@
+package-as: Lodestar
+
+ignore:
+  - discord-bot
+  - .dev
+  - docs
+  - .github
+  - SUPPORT.md
