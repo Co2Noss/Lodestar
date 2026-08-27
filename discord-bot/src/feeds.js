@@ -73,6 +73,27 @@ function isPullRequest(item) {
   return Boolean(item && item.pull_request);
 }
 
+function releaseTime(release) {
+  return Date.parse((release && (release.published_at || release.created_at)) || 0) || 0;
+}
+
+function publishedReleases(releases) {
+  return (Array.isArray(releases) ? releases : []).filter((r) => r && !r.draft);
+}
+
+function latestRelease(releases) {
+  const published = publishedReleases(releases);
+  if (!published.length) return null;
+  return published.reduce((best, r) => (releaseTime(r) >= releaseTime(best) ? r : best));
+}
+
+function newerReleases(releases, lastAtMs) {
+  const last = Number(lastAtMs) || 0;
+  return publishedReleases(releases)
+    .filter((r) => releaseTime(r) > last)
+    .sort((a, b) => releaseTime(a) - releaseTime(b));
+}
+
 function formatIssue(item) {
   const url = item.html_url || repoUrl();
   const verb = item.state === "closed" ? "closed" : "opened";
@@ -221,33 +242,47 @@ async function pollCommits(guild) {
 }
 
 async function pollReleases(guild) {
-  const releases = await githubJson(`/repos/${repoName()}/releases?per_page=5`);
+  const releases = await githubJson(`/repos/${repoName()}/releases?per_page=15`);
+  const published = publishedReleases(releases);
   const feeds = feedState(guild.id);
-  if (!Array.isArray(releases) || !releases.length) {
-    if (feeds.lastReleaseId == null) {
+  const latest = latestRelease(published);
+
+  if (!published.length) {
+    if (feeds.lastReleaseAt == null && (feeds.lastReleaseId == null || feeds.lastReleaseId === 0)) {
       state.patch(guild.id, (g) => {
+        g.feeds.lastReleaseAt = 0;
         g.feeds.lastReleaseId = 0;
       });
     }
     return 0;
   }
-  // null = never polled. 0 = polled when the repo had no releases; the next one should post.
-  if (feeds.lastReleaseId == null) {
+
+  let lastAt = feeds.lastReleaseAt == null ? null : Date.parse(feeds.lastReleaseAt) || 0;
+  if (lastAt == null && feeds.lastReleaseId) {
+    // Old watermark was GitHub's list order (not publish time), so v1.5.5 was missed.
+    const marked = published.find((r) => r.id === feeds.lastReleaseId);
+    const markedAt = marked ? releaseTime(marked) : 0;
+    const issueAt = feeds.lastIssueAt ? Date.parse(feeds.lastIssueAt) : 0;
+    lastAt = Math.max(markedAt, issueAt);
     state.patch(guild.id, (g) => {
-      g.feeds.lastReleaseId = releases[0].id;
+      g.feeds.lastReleaseAt = new Date(lastAt).toISOString();
+    });
+  }
+
+  if (lastAt == null) {
+    state.patch(guild.id, (g) => {
+      g.feeds.lastReleaseAt = latest.published_at || latest.created_at;
+      g.feeds.lastReleaseId = latest.id;
     });
     return 0;
   }
-  const fresh = [];
-  for (const r of releases) {
-    if (r.id === feeds.lastReleaseId) break;
-    fresh.push(r);
-  }
-  fresh.reverse();
+
+  const fresh = newerReleases(published, lastAt);
   for (const r of fresh) await post(guild, "github-releases", formatRelease(r));
-  if (fresh.length) {
+  if (fresh.length || feeds.lastReleaseId !== latest.id) {
     state.patch(guild.id, (g) => {
-      g.feeds.lastReleaseId = releases[0].id;
+      g.feeds.lastReleaseAt = latest.published_at || latest.created_at;
+      g.feeds.lastReleaseId = latest.id;
     });
   }
   return fresh.length;
@@ -340,6 +375,8 @@ module.exports = {
   formatRelease,
   formatIssue,
   isPullRequest,
+  newerReleases,
+  latestRelease,
   resolveHookRecord,
   ensureChannelWebhook,
   ensureGuildWebhooks,
