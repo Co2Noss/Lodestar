@@ -4,6 +4,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 const config = require("./config");
 const state = require("./state");
 const { isStaff, roleByName } = require("./staff");
+const { channelSlug, findBySlug } = require("./names");
 
 const CHANNEL_NAME = "silence-enforced";
 
@@ -90,7 +91,7 @@ async function handleVerify(interaction) {
 }
 
 async function refreshHoneypot(guild) {
-  const channel = guild.channels.cache.find((c) => c.name === CHANNEL_NAME);
+  const channel = findBySlug(guild, CHANNEL_NAME, (c) => c.isTextBased());
   if (!channel || !channel.isTextBased()) return;
   const id = state.guildState(guild.id).g.messages.honeypot;
   if (!id) return;
@@ -104,7 +105,7 @@ async function refreshHoneypot(guild) {
 
 async function logHoneypot(guild, user, kicks) {
   const id = state.guildState(guild.id).g.channels["mod-log"];
-  const log = (id && guild.channels.cache.get(id)) || guild.channels.cache.find((c) => c.name === "mod-log");
+  const log = (id && guild.channels.cache.get(id)) || findBySlug(guild, "mod-log", (c) => c.isTextBased());
   if (!log) return;
   const embed = new EmbedBuilder()
     .setColor(0xed4245)
@@ -119,7 +120,7 @@ async function logHoneypot(guild, user, kicks) {
 
 async function maybeHoneypot(message) {
   if (!message.guild || message.author.bot) return false;
-  if (!message.channel || message.channel.name !== CHANNEL_NAME) return false;
+  if (!message.channel || channelSlug(message.channel.name) !== CHANNEL_NAME) return false;
   if (isStaff(message.member)) {
     await message.delete().catch(() => {});
     return true;

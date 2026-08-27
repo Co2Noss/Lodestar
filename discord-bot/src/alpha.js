@@ -2,6 +2,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require("discord.js");
 const { isStaff, roleByName } = require("./staff");
+const { findBySlug } = require("./names");
 const emojis = require("./emojis");
 
 function commands() {
@@ -37,9 +38,9 @@ function panel(guild) {
         "",
         "Staff grants **Alpha Tester** with `/alpha grant`. That is the only way in — these channels stay hidden from everyone else.",
         "",
-        "**#alpha-news** — what to install and what to try",
-        "**#alpha-chat** — talk while you test",
-        "**#alpha-feedback** — bugs, weird UI, and “this used to work”",
+        "**#🧪alpha-news** — what to install and what to try",
+        "**#🗣️alpha-chat** — talk while you test",
+        "**#📋alpha-feedback** — bugs, weird UI, and “this used to work”",
         "",
         "Include class/spec, theme, and expected versus actual. `/ls debug` if you are not sure which addon errored.",
       ].join("\n")
@@ -48,7 +49,7 @@ function panel(guild) {
 }
 
 function modLog(guild) {
-  return guild.channels.cache.find((c) => c.name === "mod-log" && c.isTextBased()) || null;
+  return findBySlug(guild, "mod-log", (c) => c.isTextBased());
 }
 
 async function logGrant(guild, actor, target, added) {
@@ -94,7 +95,7 @@ async function handleInteraction(interaction) {
     }
     await member.roles.add(extra, `Alpha Tester granted by ${interaction.user.tag}`);
     await logGrant(interaction.guild, interaction.user, member, true);
-    const news = interaction.guild.channels.cache.find((c) => c.name === "alpha-news");
+    const news = findBySlug(interaction.guild, "alpha-news");
     await interaction.reply({
       content: `${member} is an **Alpha Tester**.${news ? ` They can see ${news}.` : ""}`,
       flags: MessageFlags.Ephemeral,

@@ -5,6 +5,7 @@ const config = require("./config");
 const state = require("./state");
 const { isStaff, roleByName } = require("./staff");
 const emojis = require("./emojis");
+const { channelSlug } = require("./names");
 
 const LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 const BOT_LOGIN_RE = /\[bot\]$/i;
@@ -205,10 +206,7 @@ async function grantContributor(member, reason) {
 }
 
 function feedSlug(name) {
-  return String(name || "")
-    .replace(/^[^\w]+/, "")
-    .trim()
-    .toLowerCase();
+  return channelSlug(name);
 }
 
 const CREDIT_FEEDS = new Set(["git-commits", "commits", "github", "github-issues", "issues", "github-actions"]);

@@ -21,6 +21,7 @@ const { maybeAssist } = require("./assist");
 const { roleByName } = require("./staff");
 const alpha = require("./alpha");
 const github = require("./github");
+const { channelSlug, findBySlug } = require("./names");
 
 if (!config.token) {
   console.error("Missing DISCORD_TOKEN. Copy discord-bot/.env.example to discord-bot/.env and paste the bot token.");
@@ -91,6 +92,10 @@ function helpEmbed(guild) {
     );
 }
 
+function hasChannelSlug(guild, slug) {
+  return guild.channels.cache.some((c) => channelSlug(c.name) === slug);
+}
+
 async function prepareGuild(guild) {
   try {
     await guild.commands.set(commands);
@@ -99,16 +104,17 @@ async function prepareGuild(guild) {
     console.error(`Failed to register commands in ${guild.name}:`, err.message);
   }
   const needsSetup =
-    !guild.channels.cache.some((c) => c.name === "get-help") ||
-    !guild.channels.cache.some((c) => c.name === "mod-log") ||
+    !hasChannelSlug(guild, "get-help") ||
+    !hasChannelSlug(guild, "mod-log") ||
     !guild.roles.cache.some((r) => r.name === "Developer") ||
     !guild.roles.cache.some((r) => r.name === "Bot") ||
     !guild.roles.cache.some((r) => r.name === "Member") ||
-    !guild.channels.cache.some((c) => c.name === "silence-enforced") ||
-    !guild.channels.cache.some((c) => c.name === "alpha-chat") ||
+    !hasChannelSlug(guild, "silence-enforced") ||
+    !hasChannelSlug(guild, "alpha-chat") ||
     !guild.roles.cache.some((r) => r.name === "Alpha Tester") ||
     !guild.roles.cache.some((r) => r.name === "Contributor") ||
-    !guild.channels.cache.some((c) => c.name === "🚀github-releases" || c.name === "github-releases") ||
+    !hasChannelSlug(guild, "github-releases") ||
+    !guild.channels.cache.some((c) => c.name === "👋welcome") ||
     !guild.emojis.cache.some((e) => e.name === "lodestar");
   if (needsSetup) {
     try {
@@ -171,7 +177,7 @@ function bind(client) {
       const roles = ["Developer", "Moderator", "Support", "Member"].map((n) => roleByName(member.guild, n)).filter(Boolean);
       if (roles.length) await member.roles.add(roles, "Lodestar staff").catch(() => {});
     }
-    const welcome = member.guild.channels.cache.find((c) => c.name === "welcome" && c.isTextBased());
+    const welcome = findBySlug(member.guild, "welcome", (c) => c.isTextBased());
     if (!welcome) return;
     try {
       await welcome.send({

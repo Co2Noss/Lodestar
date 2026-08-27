@@ -58,8 +58,10 @@ describe("server layout", () => {
     assert.ok(roleNames.includes("Contributor"));
     const catNames = CATEGORY_SPECS.map((c) => c.name);
     assert.equal(new Set(catNames).size, catNames.length);
-    assert.ok(catNames.includes("Alpha"));
+    assert.ok(catNames.includes("🧪 Alpha"));
     assert.ok(catNames.includes("📢 Dev Feeds"));
+    assert.ok(catNames.includes("ℹ️ Info"));
+    assert.ok(catNames.includes("🛠️ Staff"));
     const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
     const fakeRoles = {
       support: { id: "s" },
@@ -76,14 +78,15 @@ describe("server layout", () => {
     assert.ok(names.includes("📝git-commits"));
     assert.ok(names.includes("🚀github-releases"));
     assert.ok(names.includes("🐛github-issues"));
-    assert.ok(names.includes("get-help"));
-    assert.ok(names.includes("faq"));
-    assert.ok(names.includes("mod-log"));
-    assert.ok(names.includes("silence-enforced"));
-    assert.ok(names.includes("alpha-news"));
-    assert.ok(names.includes("alpha-chat"));
-    assert.ok(names.includes("alpha-feedback"));
-    const alphaChat = channels.find((c) => c.name === "alpha-chat");
+    assert.ok(names.includes("🎫get-help"));
+    assert.ok(names.includes("❓faq"));
+    assert.ok(names.includes("⚖️mod-log"));
+    assert.ok(names.includes("🍯silence-enforced"));
+    assert.ok(names.includes("🧪alpha-news"));
+    assert.ok(names.includes("🗣️alpha-chat"));
+    assert.ok(names.includes("📋alpha-feedback"));
+    assert.ok(names.includes("👋welcome"));
+    const alphaChat = channels.find((c) => c.key === "alpha-chat");
     const everyone = alphaChat.overwrites.find((o) => o.id === "everyone");
     assert.ok(everyone);
     assert.ok(everyone.deny && everyone.deny.length);
@@ -97,8 +100,9 @@ describe("server layout", () => {
   });
 
   it("hides Tickets, Staff, and Alpha from @everyone", () => {
-    assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Tickets"));
-    assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Staff"));
+    const hidden = CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.key);
+    assert.ok(hidden.includes("tickets"));
+    assert.ok(hidden.includes("staff"));
     const alpha = CATEGORY_SPECS.find((c) => c.key === "alpha");
     assert.ok(alpha);
     assert.equal(typeof alpha.overwrites, "function");
@@ -191,5 +195,7 @@ describe("github credit", () => {
     assert.equal(feedSlug("📝git-commits"), "git-commits");
     assert.equal(feedSlug("🐛github-issues"), "github-issues");
     assert.equal(feedSlug("github-actions"), "github-actions");
+    assert.equal(feedSlug("🛠️ Staff"), "staff");
+    assert.equal(feedSlug("👋welcome"), "welcome");
   });
 });

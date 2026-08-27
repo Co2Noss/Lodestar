@@ -15,6 +15,7 @@ const config = require("./config");
 const state = require("./state");
 
 const { isStaff, staffRoles } = require("./staff");
+const { findBySlug } = require("./names");
 
 function supportRole(guild) {
   const id = state.guildState(guild.id).g.roles.support;
@@ -23,12 +24,12 @@ function supportRole(guild) {
 
 function ticketsCategory(guild) {
   const id = state.guildState(guild.id).g.categories.tickets;
-  return (id && guild.channels.cache.get(id)) || guild.channels.cache.find((c) => c.name === "Tickets" && c.type === ChannelType.GuildCategory) || null;
+  return (id && guild.channels.cache.get(id)) || findBySlug(guild, "tickets", (c) => c.type === ChannelType.GuildCategory) || null;
 }
 
 function logsChannel(guild) {
   const id = state.guildState(guild.id).g.channels["ticket-logs"];
-  return (id && guild.channels.cache.get(id)) || guild.channels.cache.find((c) => c.name === "ticket-logs") || null;
+  return (id && guild.channels.cache.get(id)) || findBySlug(guild, "ticket-logs", (c) => c.isTextBased()) || null;
 }
 
 function openTicketFor(guild, userId) {

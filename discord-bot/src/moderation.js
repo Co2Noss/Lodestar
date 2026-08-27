@@ -15,6 +15,7 @@ const {
 const config = require("./config");
 const state = require("./state");
 const { isStaff } = require("./staff");
+const { channelSlug, findBySlug } = require("./names");
 
 const INVITE_RE = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord\.com\/invite|discordapp\.com\/invite)\/[a-z0-9-]+/i;
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
@@ -141,7 +142,7 @@ function addWarning(guildId, userId, entry) {
 
 function modLog(guild) {
   const id = state.guildState(guild.id).g.channels["mod-log"];
-  return (id && guild.channels.cache.get(id)) || guild.channels.cache.find((c) => c.name === "mod-log") || null;
+  return (id && guild.channels.cache.get(id)) || findBySlug(guild, "mod-log", (c) => c.isTextBased()) || null;
 }
 
 async function logAction(guild, embed) {
@@ -404,9 +405,9 @@ function automodStrikeMs(count) {
 async function maybeAutomod(message) {
   if (!message.guild || message.author.bot) return false;
   if (isStaff(message.member)) return false;
-  if (message.channel && message.channel.name === "silence-enforced") return false;
-  const parentName = message.channel.parent && message.channel.parent.name;
-  if (parentName === "Staff" || parentName === "Tickets") return false;
+  if (message.channel && channelSlug(message.channel.name) === "silence-enforced") return false;
+  const parentName = message.channel.parent && channelSlug(message.channel.parent.name);
+  if (parentName === "staff" || parentName === "tickets") return false;
 
   const inviteOrMentions = offenseFromMessage(
     message.content,

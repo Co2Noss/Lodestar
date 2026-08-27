@@ -18,6 +18,7 @@ const verification = require("./verification");
 const emojis = require("./emojis");
 const alpha = require("./alpha");
 const github = require("./github");
+const { channelSlug } = require("./names");
 
 const P = PermissionFlagsBits;
 
@@ -245,13 +246,13 @@ const ROLE_SPECS = [
 ];
 
 const CATEGORY_SPECS = [
-  { key: "info", name: "Info" },
-  { key: "support", name: "Support" },
-  { key: "tickets", name: "Tickets", hidden: true },
-  { key: "community", name: "Community" },
+  { key: "info", name: "ℹ️ Info", aliases: ["Info"] },
+  { key: "support", name: "💬 Support", aliases: ["Support"] },
+  { key: "tickets", name: "🎫 Tickets", aliases: ["Tickets"], hidden: true },
+  { key: "community", name: "👥 Community", aliases: ["Community"] },
   { key: "development", name: "📢 Dev Feeds", aliases: ["Development", "Dev Feeds", "📢 Dev Feeds"] },
-  { key: "alpha", name: "Alpha", overwrites: hiddenAlpha },
-  { key: "staff", name: "Staff", hidden: true },
+  { key: "alpha", name: "🧪 Alpha", aliases: ["Alpha"], overwrites: hiddenAlpha },
+  { key: "staff", name: "🛠️ Staff", aliases: ["Staff"], hidden: true },
 ];
 
 function channelSpecs(guild, roles) {
@@ -259,17 +260,18 @@ function channelSpecs(guild, roles) {
     ? ChannelType.GuildAnnouncement
     : ChannelType.GuildText;
   return [
-    { key: "welcome", name: "welcome", parent: "info", type: ChannelType.GuildText, topic: "Start here. Click the button after you read the rules.", overwrites: everyoneRead(guild) },
-    { key: "rules", name: "rules", parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
-    { key: "silence-enforced", name: "silence-enforced", parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild) },
-    { key: "announcements", name: "announcements", parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
-    { key: "releases", name: "releases", parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
-    { key: "links", name: "links", parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
-    { key: "get-help", name: "get-help", parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
-    { key: "faq", name: "faq", parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: membersRead(guild, roles) },
+    { key: "welcome", name: "👋welcome", aliases: ["welcome"], parent: "info", type: ChannelType.GuildText, topic: "Start here. Click the button after you read the rules.", overwrites: everyoneRead(guild) },
+    { key: "rules", name: "📜rules", aliases: ["rules"], parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
+    { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild) },
+    { key: "announcements", name: "📣announcements", aliases: ["announcements"], parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
+    { key: "releases", name: "📦releases", aliases: ["releases"], parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
+    { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
+    { key: "get-help", name: "🎫get-help", aliases: ["get-help"], parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
+    { key: "faq", name: "❓faq", aliases: ["faq"], parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: membersRead(guild, roles) },
     {
       key: "questions",
-      name: "questions",
+      name: "💡questions",
+      aliases: ["questions"],
       parent: "support",
       type: ChannelType.GuildForum,
       topic: "One question per post. Search first. Include class/spec and theme.",
@@ -285,9 +287,9 @@ function channelSpecs(guild, roles) {
         { name: "Other" },
       ],
     },
-    { key: "general", name: "general", parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: membersChat(guild, roles) },
-    { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: membersChat(guild, roles) },
-    { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: membersChat(guild, roles) },
+    { key: "general", name: "💬general", aliases: ["general"], parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: membersChat(guild, roles) },
+    { key: "screenshots", name: "🖼️screenshots", aliases: ["screenshots"], parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: membersChat(guild, roles) },
+    { key: "off-topic", name: "🌙off-topic", aliases: ["off-topic"], parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: membersChat(guild, roles) },
     {
       key: "git-commits",
       name: "📝git-commits",
@@ -318,12 +320,12 @@ function channelSpecs(guild, roles) {
       overwrites: membersRead(guild, roles),
       webhook: true,
     },
-    { key: "alpha-news", name: "alpha-news", parent: "alpha", type: ChannelType.GuildText, topic: "What to test. Staff posts here.", overwrites: alphaRead(guild, roles) },
-    { key: "alpha-chat", name: "alpha-chat", parent: "alpha", type: ChannelType.GuildText, topic: "Talk while you test unreleased builds.", overwrites: alphaChat(guild, roles) },
-    { key: "alpha-feedback", name: "alpha-feedback", parent: "alpha", type: ChannelType.GuildText, topic: "Bugs and notes from alpha builds.", overwrites: alphaChat(guild, roles) },
-    { key: "staff", name: "staff", parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
-    { key: "mod-log", name: "mod-log", parent: "staff", type: ChannelType.GuildText, topic: "Warns, timeouts, kicks, bans, automod.", overwrites: hiddenStaff(guild, roles) },
-    { key: "ticket-logs", name: "ticket-logs", parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
+    { key: "alpha-news", name: "🧪alpha-news", aliases: ["alpha-news"], parent: "alpha", type: ChannelType.GuildText, topic: "What to test. Staff posts here.", overwrites: alphaRead(guild, roles) },
+    { key: "alpha-chat", name: "🗣️alpha-chat", aliases: ["alpha-chat"], parent: "alpha", type: ChannelType.GuildText, topic: "Talk while you test unreleased builds.", overwrites: alphaChat(guild, roles) },
+    { key: "alpha-feedback", name: "📋alpha-feedback", aliases: ["alpha-feedback"], parent: "alpha", type: ChannelType.GuildText, topic: "Bugs and notes from alpha builds.", overwrites: alphaChat(guild, roles) },
+    { key: "staff", name: "🔒staff", aliases: ["staff"], parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
+    { key: "mod-log", name: "⚖️mod-log", aliases: ["mod-log"], parent: "staff", type: ChannelType.GuildText, topic: "Warns, timeouts, kicks, bans, automod.", overwrites: hiddenStaff(guild, roles) },
+    { key: "ticket-logs", name: "📁ticket-logs", aliases: ["ticket-logs"], parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
   ];
 }
 
@@ -331,16 +333,18 @@ function findRole(guild, name) {
   return guild.roles.cache.find((r) => r.name === name) || null;
 }
 
-function findChannel(guild, nameOrSpec, aliases) {
+function findChannel(guild, nameOrSpec, aliases, type) {
   const names = typeof nameOrSpec === "object" && nameOrSpec
     ? [nameOrSpec.name, ...(nameOrSpec.aliases || [])]
     : [nameOrSpec, ...(aliases || [])];
+  const pool = [...guild.channels.cache.values()].filter((c) => type == null || c.type === type);
   for (const name of names) {
     if (!name) continue;
-    const hit = guild.channels.cache.find((c) => c.name === name);
+    const hit = pool.find((c) => c.name === name);
     if (hit) return hit;
   }
-  return null;
+  const slugs = new Set(names.map(channelSlug).filter(Boolean));
+  return pool.find((c) => slugs.has(channelSlug(c.name))) || null;
 }
 
 async function ensureRole(guild, spec, report) {
@@ -362,7 +366,7 @@ async function ensureRole(guild, spec, report) {
 }
 
 async function ensureCategory(guild, spec, roles, report) {
-  let channel = findChannel(guild, spec);
+  let channel = findChannel(guild, spec, undefined, ChannelType.GuildCategory);
   if (channel && channel.type !== ChannelType.GuildCategory) {
     report.push(`skipped category ${spec.name}: a non-category channel already uses that name`);
     return channel;
@@ -374,7 +378,7 @@ async function ensureCategory(guild, spec, roles, report) {
       : [];
   if (!channel) {
     const extras = {};
-    const staffCat = findChannel(guild, "Staff");
+    const staffCat = findChannel(guild, "Staff", undefined, ChannelType.GuildCategory);
     if (spec.key === "alpha" && staffCat && staffCat.type === ChannelType.GuildCategory) {
       extras.position = staffCat.rawPosition;
     }
