@@ -204,8 +204,27 @@ async function grantContributor(member, reason) {
   return true;
 }
 
+function feedSlug(name) {
+  return String(name || "")
+    .replace(/^[^\w]+/, "")
+    .trim()
+    .toLowerCase();
+}
+
+const CREDIT_FEEDS = new Set(["git-commits", "commits", "github", "github-issues", "issues", "github-actions"]);
+
+function findIssuesChannel(guild) {
+  if (!guild || !guild.channels) return null;
+  const order = ["github-issues", "github-actions", "github", "issues"];
+  for (const want of order) {
+    const hit = guild.channels.cache.find((c) => c.isTextBased() && feedSlug(c.name) === want);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 async function announceCredit(guild, member, login, how) {
-  const channel = guild.channels.cache.find((c) => c.name === "github" && c.isTextBased());
+  const channel = findIssuesChannel(guild);
   if (!channel) return;
   const label = login ? `GitHub \`${login}\`` : "their GitHub work";
   await channel.send({
@@ -248,8 +267,8 @@ async function syncGuild(guild, report) {
 
 async function maybeCreditFromMessage(message) {
   if (!message.guild || message.author && message.author.id === message.client.user.id) return false;
-  const name = message.channel && message.channel.name;
-  if (name !== "git-commits" && name !== "github") return false;
+  const slug = feedSlug(message.channel && message.channel.name);
+  if (!CREDIT_FEEDS.has(slug)) return false;
   const chunks = [message.content];
   for (const embed of message.embeds || []) {
     chunks.push(embed.title, embed.description, embed.author && embed.author.name);
@@ -356,4 +375,5 @@ module.exports = {
   fetchContributorLogins,
   setLink,
   loginFor,
+  feedSlug,
 };

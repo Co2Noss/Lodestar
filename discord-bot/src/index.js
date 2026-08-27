@@ -108,6 +108,7 @@ async function prepareGuild(guild) {
     !guild.channels.cache.some((c) => c.name === "alpha-chat") ||
     !guild.roles.cache.some((r) => r.name === "Alpha Tester") ||
     !guild.roles.cache.some((r) => r.name === "Contributor") ||
+    !guild.channels.cache.some((c) => c.name === "🚀github-releases" || c.name === "github-releases") ||
     !guild.emojis.cache.some((e) => e.name === "lodestar");
   if (needsSetup) {
     try {

@@ -59,6 +59,7 @@ describe("server layout", () => {
     const catNames = CATEGORY_SPECS.map((c) => c.name);
     assert.equal(new Set(catNames).size, catNames.length);
     assert.ok(catNames.includes("Alpha"));
+    assert.ok(catNames.includes("📢 Dev Feeds"));
     const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
     const fakeRoles = {
       support: { id: "s" },
@@ -72,7 +73,9 @@ describe("server layout", () => {
     const channels = channelSpecs(fakeGuild, fakeRoles);
     const names = channels.map((c) => c.name);
     assert.equal(new Set(names).size, names.length);
-    assert.ok(names.includes("git-commits"));
+    assert.ok(names.includes("📝git-commits"));
+    assert.ok(names.includes("🚀github-releases"));
+    assert.ok(names.includes("🐛github-issues"));
     assert.ok(names.includes("get-help"));
     assert.ok(names.includes("faq"));
     assert.ok(names.includes("mod-log"));
@@ -87,6 +90,10 @@ describe("server layout", () => {
     const tester = alphaChat.overwrites.find((o) => o.id === "a");
     assert.ok(tester);
     assert.ok(tester.allow && tester.allow.length);
+    const issues = channels.find((c) => c.key === "github");
+    assert.ok(issues.aliases.includes("github-actions"));
+    assert.equal(issues.name, "🐛github-issues");
+    assert.ok(issues.webhook);
   });
 
   it("hides Tickets, Staff, and Alpha from @everyone", () => {
@@ -163,7 +170,7 @@ describe("verification", () => {
 });
 
 describe("github credit", () => {
-  const { normalizeLogin, parseLoginsFromText } = require("../src/github");
+  const { normalizeLogin, parseLoginsFromText, feedSlug } = require("../src/github");
 
   it("accepts real GitHub usernames and rejects bots", () => {
     assert.equal(normalizeLogin("Co2Noss"), "Co2Noss");
@@ -178,5 +185,11 @@ describe("github credit", () => {
     assert.ok(logins.includes("widgetdev"));
     assert.ok(logins.includes("co2noss"));
     assert.ok(!logins.includes("new"));
+  });
+
+  it("strips channel icons when matching GitHub feeds", () => {
+    assert.equal(feedSlug("📝git-commits"), "git-commits");
+    assert.equal(feedSlug("🐛github-issues"), "github-issues");
+    assert.equal(feedSlug("github-actions"), "github-actions");
   });
 });

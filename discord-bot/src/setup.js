@@ -9,6 +9,8 @@ const {
   ButtonStyle,
   StringSelectMenuBuilder,
 } = require("discord.js");
+const fs = require("fs");
+const path = require("path");
 const config = require("./config");
 const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
 const state = require("./state");
@@ -247,7 +249,7 @@ const CATEGORY_SPECS = [
   { key: "support", name: "Support" },
   { key: "tickets", name: "Tickets", hidden: true },
   { key: "community", name: "Community" },
-  { key: "development", name: "Development" },
+  { key: "development", name: "📢 Dev Feeds", aliases: ["Development", "Dev Feeds", "📢 Dev Feeds"] },
   { key: "alpha", name: "Alpha", overwrites: hiddenAlpha },
   { key: "staff", name: "Staff", hidden: true },
 ];
@@ -286,8 +288,36 @@ function channelSpecs(guild, roles) {
     { key: "general", name: "general", parent: "community", type: ChannelType.GuildText, topic: "Talk about Lodestar and WoW.", overwrites: membersChat(guild, roles) },
     { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: membersChat(guild, roles) },
     { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: membersChat(guild, roles) },
-    { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: membersRead(guild, roles) },
-    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues, pull requests, and Contributor credit.", overwrites: membersRead(guild, roles) },
+    {
+      key: "git-commits",
+      name: "📝git-commits",
+      aliases: ["git-commits", "commits"],
+      parent: "development",
+      type: ChannelType.GuildText,
+      topic: "GitHub commits. Point a GitHub webhook here.",
+      overwrites: membersRead(guild, roles),
+      webhook: true,
+    },
+    {
+      key: "github-releases",
+      name: "🚀github-releases",
+      aliases: ["github-releases"],
+      parent: "development",
+      type: ChannelType.GuildText,
+      topic: "GitHub releases. Point a GitHub webhook here.",
+      overwrites: membersRead(guild, roles),
+      webhook: true,
+    },
+    {
+      key: "github",
+      name: "🐛github-issues",
+      aliases: ["github-issues", "github-actions", "github", "issues"],
+      parent: "development",
+      type: ChannelType.GuildText,
+      topic: "GitHub issues and pull requests. Point a GitHub webhook here.",
+      overwrites: membersRead(guild, roles),
+      webhook: true,
+    },
     { key: "alpha-news", name: "alpha-news", parent: "alpha", type: ChannelType.GuildText, topic: "What to test. Staff posts here.", overwrites: alphaRead(guild, roles) },
     { key: "alpha-chat", name: "alpha-chat", parent: "alpha", type: ChannelType.GuildText, topic: "Talk while you test unreleased builds.", overwrites: alphaChat(guild, roles) },
     { key: "alpha-feedback", name: "alpha-feedback", parent: "alpha", type: ChannelType.GuildText, topic: "Bugs and notes from alpha builds.", overwrites: alphaChat(guild, roles) },
@@ -301,8 +331,16 @@ function findRole(guild, name) {
   return guild.roles.cache.find((r) => r.name === name) || null;
 }
 
-function findChannel(guild, name) {
-  return guild.channels.cache.find((c) => c.name === name) || null;
+function findChannel(guild, nameOrSpec, aliases) {
+  const names = typeof nameOrSpec === "object" && nameOrSpec
+    ? [nameOrSpec.name, ...(nameOrSpec.aliases || [])]
+    : [nameOrSpec, ...(aliases || [])];
+  for (const name of names) {
+    if (!name) continue;
+    const hit = guild.channels.cache.find((c) => c.name === name);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 async function ensureRole(guild, spec, report) {
@@ -324,7 +362,7 @@ async function ensureRole(guild, spec, report) {
 }
 
 async function ensureCategory(guild, spec, roles, report) {
-  let channel = findChannel(guild, spec.name);
+  let channel = findChannel(guild, spec);
   if (channel && channel.type !== ChannelType.GuildCategory) {
     report.push(`skipped category ${spec.name}: a non-category channel already uses that name`);
     return channel;
@@ -348,16 +386,21 @@ async function ensureCategory(guild, spec, roles, report) {
       ...extras,
     });
     report.push(`created category ${spec.name}`);
+    return channel;
+  }
+  if (channel.name !== spec.name) {
+    await channel.setName(spec.name, "Lodestar Support /setup");
+    report.push(`renamed category to ${spec.name}`);
   } else {
-    if (overwrites.length) await channel.permissionOverwrites.set(overwrites);
     report.push(`reused category ${spec.name}`);
   }
+  if (overwrites.length) await channel.permissionOverwrites.set(overwrites);
   return channel;
 }
 
 async function ensureChannel(guild, spec, categories, roles, report) {
   const parent = categories[spec.parent];
-  let channel = findChannel(guild, spec.name);
+  let channel = findChannel(guild, spec);
   const extras = {};
   if (spec.availableTags) extras.availableTags = spec.availableTags;
   if (spec.topic) extras.topic = spec.topic;
@@ -376,11 +419,12 @@ async function ensureChannel(guild, spec, categories, roles, report) {
   }
 
   const patch = {};
+  if (channel.name !== spec.name) patch.name = spec.name;
   if (parent && channel.parentId !== parent.id) patch.parent = parent.id;
   if (spec.topic && channel.topic !== spec.topic && channel.isTextBased()) patch.topic = spec.topic;
   if (Object.keys(patch).length) {
     await channel.edit(patch);
-    report.push(`moved #${spec.name}`);
+    report.push(patch.name ? `renamed #${spec.name}` : `moved #${spec.name}`);
   } else {
     report.push(`reused #${spec.name}`);
   }
@@ -392,6 +436,38 @@ async function ensureChannel(guild, spec, categories, roles, report) {
     }
   }
   return channel;
+}
+
+const WEBHOOK_ICON = path.join(__dirname, "..", "emojis", "lodestar.png");
+
+async function ensureFeedWebhook(channel, report) {
+  if (!channel || !channel.fetchWebhooks) return;
+  let avatar;
+  try {
+    avatar = fs.readFileSync(WEBHOOK_ICON);
+  } catch (err) {
+    report.push(`could not read webhook icon: ${err.message}`);
+    return;
+  }
+  try {
+    const hooks = await channel.fetchWebhooks();
+    const existing =
+      hooks.find((h) => h.owner && channel.client.user && h.owner.id === channel.client.user.id) ||
+      hooks.find((h) => /github|lodestar/i.test(h.name || ""));
+    if (existing) {
+      await existing.edit({ name: "Lodestar GitHub", avatar });
+      report.push(`set webhook icon in #${channel.name}`);
+      return;
+    }
+    await channel.createWebhook({
+      name: "Lodestar GitHub",
+      avatar,
+      reason: "GitHub feed with Lodestar icon",
+    });
+    report.push(`created webhook in #${channel.name}`);
+  } catch (err) {
+    report.push(`could not set webhook in #${channel.name}: ${err.message}`);
+  }
 }
 
 function withEmoji(guild, name, text) {
@@ -580,6 +656,12 @@ async function applySetup(guild) {
       } else {
         report.push(`failed #${spec.name}: ${err.message}`);
       }
+    }
+  }
+
+  for (const spec of channelSpecs(guild, roles)) {
+    if (spec.webhook && channels[spec.key]) {
+      await ensureFeedWebhook(channels[spec.key], report);
     }
   }
 
