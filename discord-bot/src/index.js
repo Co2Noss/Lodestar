@@ -78,6 +78,20 @@ function helpEmbed() {
     );
 }
 
+async function assignOwnerSupport(guild) {
+  const support = guild.roles.cache.find((r) => r.name === "Support");
+  if (!support) return;
+  try {
+    const owner = await guild.fetchOwner();
+    if (!owner.roles.cache.has(support.id)) {
+      await owner.roles.add(support, "Server owner can see support tickets");
+      console.log(`Gave @Support to ${owner.user.tag}`);
+    }
+  } catch (err) {
+    console.error(`Could not give @Support to the owner: ${err.message}`);
+  }
+}
+
 async function prepareGuild(guild) {
   try {
     await guild.commands.set(commands);
@@ -86,24 +100,30 @@ async function prepareGuild(guild) {
     console.error(`Failed to register commands in ${guild.name}:`, err.message);
   }
   const needsSetup = !guild.channels.cache.some((c) => c.name === "get-help");
-  if (!needsSetup) return;
-  try {
-    console.log(`First-time setup in ${guild.name}`);
-    const { report } = await applySetup(guild);
-    for (const line of report) console.log(`  ${line}`);
-  } catch (err) {
-    console.error(`Setup failed in ${guild.name}:`, err);
+  if (needsSetup) {
+    try {
+      console.log(`First-time setup in ${guild.name}`);
+      const { report } = await applySetup(guild);
+      for (const line of report) console.log(`  ${line}`);
+    } catch (err) {
+      console.error(`Setup failed in ${guild.name}:`, err);
+    }
   }
+  await assignOwnerSupport(guild);
 }
 
 function bind(client) {
-  client.once("ready", async () => {
+  let booted = false;
+  const onReady = async () => {
+    if (booted) return;
+    booted = true;
     console.log(`Logged in as ${client.user.tag}`);
     client.user.setActivity("Lodestar support · /faq", { type: ActivityType.Listening });
     for (const guild of client.guilds.cache.values()) {
       await prepareGuild(guild);
     }
-  });
+  };
+  client.once("clientReady", onReady);
 
   client.on("guildCreate", (guild) => prepareGuild(guild));
 

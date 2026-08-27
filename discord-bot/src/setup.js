@@ -154,7 +154,7 @@ async function ensureRole(guild, spec, report) {
   if (!role) {
     role = await guild.roles.create({
       name: spec.name,
-      color: spec.color,
+      colors: { primaryColor: spec.color },
       hoist: spec.hoist,
       mentionable: spec.mentionable,
       permissions: spec.permissions,
