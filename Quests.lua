@@ -320,6 +320,12 @@ function LS:GetQuestRecommendations()
       if self:IsHousingWeeklyQuest(info) then used[info.questID] = true end
     end
   end
+  -- Pet battle quests in the log belong on Battle Pets while that goal is on.
+  if self.db and self.db.goals and self.db.goals.PETS and self.IsPetBattleQuest then
+    for _, info in ipairs(log) do
+      if self:IsPetBattleQuest(info) then used[info.questID] = true end
+    end
+  end
 
   local superTracked = Safe(C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID)
   local extras = {}

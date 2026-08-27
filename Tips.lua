@@ -33,10 +33,18 @@ LS.TIPS = {
   {
     id = "housing_pvp",
     title = "Housing and PvP",
-    body = "Housing and PvP are goals. Weekly Conquest, a missing house, neighborhood initiatives, and housing weeklies already in your log rank only while those goals are on. The Housing tile opens the client's dashboard.",
+    body = "Housing, PvP, and Battle Pets are goals. Weekly Conquest, a missing house, neighborhood initiatives, housing weeklies already in your log, and pet battle quests already in your log rank only while those goals are on. The Housing tile opens the client's dashboard. Battle Pets opens the pet journal.",
     page = "SETTINGS",
     settingsTab = "GOALS",
     highlight = "goal:HOUSING",
+  },
+  {
+    id = "battlepets",
+    title = "Battle Pets",
+    body = "Battle Pets is a goal. Locked slots, an empty team, and pet battle quests already in your log rank while that goal is on. The Battle Pets tile shows unique pets and your team from the journal. Lodestar does not invent a catching list.",
+    page = "SETTINGS",
+    settingsTab = "GOALS",
+    highlight = "goal:PETS",
   },
   {
     id = "itemlevel",
@@ -76,6 +84,14 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.3",
+    notes = {
+      "Dashboard Readiness uses this expansion's food, flask, augment rune, and weapon oil from bags. Click a slot to use it.",
+      "Mythic+ dungeon icons teleport when that dungeon's Keystone Hero spell is in your spellbook.",
+      "Battle Pets is a goal. Locked slots, an empty team, and pet battle quests already in the log rank while that goal is on.",
+    },
+  },
+  {
     version = "1.5.21",
     notes = {
       "The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each character. The farm-location tile is gone.",
@@ -103,12 +119,6 @@ LS.CHANGELOG = {
       "Click a tile again to close the client window it opened. Housing Teleport runs from the click so the client does not block it.",
       "The canvas grows down to 36 rows. Profession icons open that profession in front of Lodestar.",
       "Themes include GW2 UI and RealUI. The tip tour walks to the feature. Settings → Optional Addons lists which addons are loaded.",
-    },
-  },
-  {
-    version = "1.4.1",
-    notes = {
-      "Below the expansion cap, Great Vault and bountiful delves stay quiet. The plan is to level; professions still rank if that goal is on.",
     },
   },
 }

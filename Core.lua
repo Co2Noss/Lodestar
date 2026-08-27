@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.21"
+LS.version = "1.5.3"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -9,7 +9,7 @@ LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
 LS.defaults = {
   -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
   -- a goal that is off silently removes recommendations the player never learns existed.
-  goals = { ENDGAME = false, SOLO = false, PREY = false, PVP = false, HOUSING = false, CRAFTING = false, MOUNTS = false, REPUTATION = false, QUESTING = false, GOLD = false },
+  goals = { ENDGAME = false, SOLO = false, PREY = false, PVP = false, HOUSING = false, CRAFTING = false, MOUNTS = false, PETS = false, REPUTATION = false, QUESTING = false, GOLD = false },
   dismissed = {},
   completed = {},
   tracked = {},

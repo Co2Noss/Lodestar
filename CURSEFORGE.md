@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.5.21](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.21)
+**Latest release:** [v1.5.3](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.3)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -26,7 +26,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 
 ## What it does
 
-On first login Lodestar asks what you care about: Great Vault and endgame, solo content, prey hunts, PvP, housing, professions, mounts, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
+On first login Lodestar asks what you care about: Great Vault and endgame, solo content, prey hunts, PvP, housing, professions, mounts, battle pets, reputation, questing, or gold making. Nothing is assumed. A goal that is off is hidden on purpose, so it will not silently drop recommendations you never chose to ignore. You can change this later in Settings.
 
 Lodestar works on its own. Optional addons unlock extra behaviour if they are loaded:
 
@@ -41,9 +41,9 @@ Lodestar works on its own. Optional addons unlock extra behaviour if they are lo
 
 From there it builds a plan. The left menu is workspaces (Dashboard, planning, tracking, account), not a second copy of Today's tabs:
 
-- **Today's Plan** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing, PvP, Housing). Only categories with work appear. The tab you were last on is remembered. Bountiful delves are named from the map when the client marks them. Questing ranks the current campaign, quests the client marks important (Prey and Voidcore unlocks included), and quests already in the log; if those are empty it asks you to check the map. Prey hunts are a goal; they fill the World Vault and drop gear. PvP ranks weekly Conquest the client still needs. Housing ranks a missing house, unfinished neighborhood initiatives, and weekly housing quests already in the log (Housewarming and the like). Lodestar does not invent housing quest IDs.
+- **Today's Plan** — ranked recommendations, split into tabs (Great Vault, Professions, Reputation, Gold, Solo content, Questing, PvP, Housing, Battle Pets). Only categories with work appear. The tab you were last on is remembered. Bountiful delves are named from the map when the client marks them. Questing ranks the current campaign, quests the client marks important (Prey and Voidcore unlocks included), and quests already in the log; if those are empty it asks you to check the map. Prey hunts are a goal; they fill the World Vault and drop gear. PvP ranks weekly Conquest the client still needs. Housing ranks a missing house, unfinished neighborhood initiatives, and weekly housing quests already in the log (Housewarming and the like). Lodestar does not invent housing quest IDs. Battle Pets ranks locked slots, an empty team, and pet battle quests already in the log. Lodestar does not invent a catching list.
 - **Weekly Plan** / **Long-Term Goals** — the same cards, split by whether they reset this week or wait.
-- **Dashboard** — snapshot of the plan as widgets you can add, remove, resize, and drag. Edit dashboard to pin Great Vault, WoW Token, weekly reset, tracked work, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey. Other addons can register tiles with `Lodestar:RegisterWidget`. Open on Professions still opens the profession tabs.
+- **Dashboard** — snapshot of the plan as widgets you can add, remove, resize, and drag. Edit dashboard to pin Great Vault, WoW Token, weekly reset, tracked work, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, readiness, housing, battle pets, calendar, guild, Delver's Journey, or Preyhunter's Journey. Other addons can register tiles with `Lodestar:RegisterWidget`. Open on Professions still opens the profession tabs.
 - **Progress** — activities you tracked. Compact mode shows the same list.
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Optional Addons picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status. Track or untrack alts when more than one character is saved.

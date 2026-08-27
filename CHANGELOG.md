@@ -1,3 +1,19 @@
+# 1.5.3
+
+- Dashboard **Readiness** checks this expansion's food, flask, augment rune, and
+  weapon oil or whetstone from bags and buffs. Click a slot to eat, use, or apply
+  it. Lodestar does not invent Midnight item IDs. Each slot is a
+  `SecureActionButton` with that bag and slot. Addon Lua does not call
+  `UseContainerItem`; the client blocks that (`ADDON_ACTION_FORBIDDEN`). The
+  four slots scale and center in the tile the same way Mythic+ dungeons do.
+- Mythic+ dungeon icons teleport when that dungeon's Keystone Hero spell is in
+  your spellbook. Click still opens Mythic+ Dungeons when it is not. Lodestar
+  does not invent teleport spell IDs.
+- **Battle Pets** is a goal. Locked slots, an empty team, and pet battle quests
+  already in the log rank while that goal is on. The dashboard tile shows unique
+  pets and your team from the journal, scaled to the tile. Lodestar does not
+  invent a catching list.
+
 # 1.5.21
 
 - The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each

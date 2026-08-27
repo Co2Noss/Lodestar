@@ -30,6 +30,7 @@ local goalList = {
   { "HOUSING", "Housing" },
   { "CRAFTING", "Professions" },
   { "MOUNTS", "Mounts" },
+  { "PETS", "Battle Pets" },
   { "REPUTATION", "Reputation" },
   { "QUESTING", "Questing" },
   { "GOLD", "Gold making" },

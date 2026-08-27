@@ -222,6 +222,39 @@ local function Hit(parent, x, y, w, h)
   return frame
 end
 
+-- UseContainerItem is protected. Addon Lua cannot call it, even from OnMouseUp.
+-- A SecureActionButton uses the bag slot from the click itself.
+local function SecureItemHit(parent, x, y, w, h, bag, slot)
+  local frame
+  local ok, created = pcall(CreateFrame, "Button", nil, parent, "SecureActionButtonTemplate")
+  if ok and created then
+    frame = created
+  else
+    frame = CreateFrame("Button", nil, parent)
+  end
+  frame:SetPoint("TOPLEFT", x, y)
+  frame:SetSize(math.max(8, w), math.max(8, h))
+  frame:EnableMouse(true)
+  if frame.RegisterForClicks then
+    pcall(frame.RegisterForClicks, frame, "AnyDown", "AnyUp")
+  end
+  local lockdown = InCombatLockdown and InCombatLockdown()
+  if not lockdown and frame.SetAttribute then
+    if bag ~= nil and slot ~= nil then
+      pcall(frame.SetAttribute, frame, "type", "item")
+      pcall(frame.SetAttribute, frame, "item", string.format("%d %d", bag, slot))
+      pcall(frame.SetAttribute, frame, "bag", bag)
+      pcall(frame.SetAttribute, frame, "slot", slot)
+    else
+      pcall(frame.SetAttribute, frame, "type", nil)
+      pcall(frame.SetAttribute, frame, "item", nil)
+      pcall(frame.SetAttribute, frame, "bag", nil)
+      pcall(frame.SetAttribute, frame, "slot", nil)
+    end
+  end
+  return frame
+end
+
 local function PaintFillBar(self, parent, x, y, width, height, fill)
   fill = math.max(0, math.min(1, tonumber(fill) or 0))
   height = math.max(6, tonumber(height) or 8)
@@ -745,6 +778,171 @@ function LS:OpenCommunities()
   return false
 end
 
+local function ChallengeMapName(mapID)
+  if not (mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo) then return end
+  local ok, name = pcall(C_ChallengeMode.GetMapUIInfo, mapID)
+  if ok and type(name) == "string" and name ~= "" then return name end
+end
+
+local function SpellBookBank()
+  return (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
+end
+
+local function SpellBookSlot(slot, bank)
+  local name, subName, spellID, description, itemType
+  if C_SpellBook and C_SpellBook.GetSpellBookItemName then
+    local ok, n, sub = pcall(C_SpellBook.GetSpellBookItemName, slot, bank)
+    if ok then name, subName = n, sub end
+  elseif GetSpellBookItemName then
+    local ok, n, sub = pcall(GetSpellBookItemName, slot, bank or "spell")
+    if ok then name, subName = n, sub end
+  end
+  if C_SpellBook and C_SpellBook.GetSpellBookItemType then
+    local ok, kind, _, id = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
+    if ok then itemType, spellID = kind, id end
+  end
+  if C_SpellBook and C_SpellBook.GetSpellBookItemInfo then
+    local ok, info = pcall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
+    if ok and type(info) == "table" then
+      spellID = spellID or info.spellID or info.actionID
+      itemType = itemType or info.itemType
+    end
+  end
+  if C_SpellBook and C_SpellBook.GetSpellBookItemDescription then
+    local ok, desc = pcall(C_SpellBook.GetSpellBookItemDescription, slot, bank)
+    if ok then description = desc end
+  end
+  if (not description or description == "") and spellID then
+    if C_Spell and C_Spell.GetSpellDescription then
+      local ok, desc = pcall(C_Spell.GetSpellDescription, spellID)
+      if ok then description = desc end
+    elseif GetSpellDescription then
+      local ok, desc = pcall(GetSpellDescription, spellID)
+      if ok then description = desc end
+    end
+  end
+  if (not name or name == "") and spellID and C_Spell and C_Spell.GetSpellName then
+    local ok, n = pcall(C_Spell.GetSpellName, spellID)
+    if ok then name = n end
+  end
+  return {
+    name = name,
+    subName = subName,
+    spellID = spellID,
+    description = description,
+    itemType = itemType,
+    slot = slot,
+    bank = bank,
+  }
+end
+
+local function SpellMatchesDungeon(spell, dungeonName)
+  if not spell or not dungeonName or dungeonName == "" then return end
+  local itemType = spell.itemType
+  if itemType == "FLYOUT" or itemType == 2 then return end
+  local hay = ((spell.description or "") .. "\n" .. (spell.name or ""))
+  return hay:find(dungeonName, 1, true) and true or false
+end
+
+local function EachPlayerSpell(fn)
+  local bank = SpellBookBank()
+  local seen = false
+  if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines then
+    local ok, lines = pcall(C_SpellBook.GetNumSpellBookSkillLines)
+    lines = ok and tonumber(lines) or 0
+    for i = 1, lines do
+      local okInfo, info, extraOffset, extraCount = pcall(C_SpellBook.GetSpellBookSkillLineInfo, i)
+      if okInfo then
+      local lineName
+      local offset, count
+      if type(info) == "table" then
+        lineName = info.name
+        offset = tonumber(info.itemIndexOffset) or 0
+        count = tonumber(info.numSpellBookItems) or 0
+      elseif type(info) == "string" then
+        lineName = info
+        offset = tonumber(extraOffset) or 0
+        count = tonumber(extraCount) or 0
+      else
+        offset, count = 0, 0
+      end
+      for j = 1, count do
+        seen = true
+        if fn(SpellBookSlot(offset + j, bank), lineName) then return end
+      end
+      end
+    end
+  end
+  if seen then return end
+  if C_SpellBook and C_SpellBook.GetSpellBookItemName then
+    for slot = 1, 400 do
+      local spell = SpellBookSlot(slot, bank)
+      if not spell.name or spell.name == "" then break end
+      if fn(spell) then return end
+    end
+    return
+  end
+  if GetNumSpellTabs and GetSpellTabInfo then
+    local tabs = tonumber(GetNumSpellTabs()) or 0
+    for i = 1, tabs do
+      local lineName, _, offset, count = GetSpellTabInfo(i)
+      offset = tonumber(offset) or 0
+      count = tonumber(count) or 0
+      for j = 1, count do
+        if fn(SpellBookSlot(offset + j, "spell"), lineName) then return end
+      end
+    end
+  end
+end
+
+function LS:MythicPlusTeleports()
+  local maps = self:SeasonDungeonMaps()
+  local names = {}
+  for _, mapID in ipairs(maps) do
+    names[mapID] = ChallengeMapName(mapID)
+  end
+  local out = {}
+  EachPlayerSpell(function(spell)
+    if not spell or not spell.name then return end
+    for mapID, dungeonName in pairs(names) do
+      if not out[mapID] and SpellMatchesDungeon(spell, dungeonName) then
+        out[mapID] = spell
+      end
+    end
+  end)
+  return out
+end
+
+function LS:MythicPlusTeleport(mapID)
+  mapID = tonumber(mapID)
+  if not mapID then return end
+  local all = self:MythicPlusTeleports()
+  return all and all[mapID]
+end
+
+function LS:CastMythicPlusTeleport(mapID)
+  local port = self:MythicPlusTeleport(mapID)
+  if not port or not port.name then return false end
+  -- Protected: must run from the click, not through pcall.
+  if CastSpellByName then
+    CastSpellByName(port.name)
+    return true
+  end
+  if C_SpellBook and C_SpellBook.CastSpell and port.slot then
+    C_SpellBook.CastSpell(port.slot, port.bank)
+    return true
+  end
+  if C_Spell and C_Spell.CastSpellByID and port.spellID then
+    C_Spell.CastSpellByID(port.spellID)
+    return true
+  end
+  if CastSpellByID and port.spellID then
+    CastSpellByID(port.spellID)
+    return true
+  end
+  return false
+end
+
 function LS:OpenMythicPlus()
   if self.ClientFrameShown and self:ClientFrameShown("ChallengesFrame") then
     self:HideClientFrame(_G.PVEFrame)
@@ -795,6 +993,7 @@ local function RegisterExtraWidgets()
         return self:PaintWidgetSettings(parent, width, "raiderio", "What this tile shows.", {
           { "score", "Score", true },
           { "dungeons", "Dungeons", true },
+          { "teleport", "Teleport", true },
         })
       end
       local w = self.widgets
@@ -899,7 +1098,14 @@ local function RegisterExtraWidgets()
           num:SetTextColor(unpack(self.colors.muted))
         end
         local dungeonID, dungeonName, dungeonLevel = mapID, name, level
+        local canPort = self:WidgetOptOn("raiderio", "teleport", true)
+          and self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
+        if canPort then
+          local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
+          PaintIconBorder(parent, art, size, a[1], a[2], a[3])
+        end
         local hit = Hit(parent, x, top, size, size)
+        if dungeonName then hit.text = { text_value = dungeonName } end
         self:HoverTip(hit, function(tip)
           if tip.ClearLines then tip:ClearLines() end
           tip:SetText(dungeonName or "Dungeon")
@@ -909,9 +1115,20 @@ local function RegisterExtraWidgets()
             else
               tip:AddLine("No timed run this season.")
             end
+            local port = self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
+            if port and self:WidgetOptOn("raiderio", "teleport", true) then
+              if port.name then tip:AddLine(port.name) end
+              tip:AddLine("Keystone Hero teleport is unlocked. Click to teleport.")
+            else
+              tip:AddLine("Click to open Mythic+ Dungeons.")
+            end
           end
         end)
         hit:SetScript("OnMouseUp", function()
+          if self:WidgetOptOn("raiderio", "teleport", true)
+              and self.CastMythicPlusTeleport and self:CastMythicPlusTeleport(dungeonID) then
+            return
+          end
           if self.OpenMythicPlus then self:OpenMythicPlus() end
         end)
         if dungeonName then art.mapName = dungeonName end
@@ -1344,6 +1561,169 @@ local function RegisterExtraWidgets()
   })
 
   LS:RegisterWidget({
+    id = "readiness",
+    title = "Readiness",
+    defaultSize = "half",
+    defaultH = 5,
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      tip:SetText("Readiness")
+      if tip.AddLine then
+        tip:AddLine("Food, flask, augment rune, and weapon oil or whetstone from this expansion.")
+        tip:AddLine("Click a slot to eat, drink, or apply what's in your bags.")
+      end
+    end,
+    render = function(self, parent, width, height)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "readiness", "Slots on this tile.", {
+          { "food", "Food", true },
+          { "flask", "Flask", true },
+          { "rune", "Rune", true },
+          { "weapon", "Weapon", true },
+        })
+      end
+      local w = self.widgets
+      height = height or 80
+      local kinds = {}
+      for _, kind in ipairs(self.READINESS_KINDS or {}) do
+        if self:WidgetOptOn("readiness", kind, true) then
+          table.insert(kinds, kind)
+        end
+      end
+      if #kinds == 0 then
+        local hint = w.text(parent, width - 16, 10)
+        hint:SetPoint("TOP", 0, -8)
+        if hint.SetJustifyH then hint:SetJustifyH("CENTER") end
+        if self.colors then hint:SetTextColor(unpack(self.colors.muted)) end
+        hint:SetText("Food, flask, rune, and weapon are hidden. Edit dashboard to pick some.")
+        return height
+      end
+      local snap = self.ReadinessSnapshot and self:ReadinessSnapshot() or {}
+      local n = #kinds
+      local gap = 6
+      if parent.SetClipsChildren then parent:SetClipsChildren(true) end
+      local innerW = math.max(1, width - 16)
+      local innerH = math.max(1, height - 8)
+      local size = math.max(16, math.min(
+        math.floor((innerW - gap * (n - 1)) / n),
+        math.floor(innerH * 0.82)
+      ))
+      local captionSize = math.max(9, math.min(13, math.floor(size * 0.22)))
+      local captionH = captionSize + 3
+      size = math.min(size, math.max(16, innerH - captionH - 2))
+      local usedW = n * size + (n - 1) * gap
+      local usedH = size + captionH
+      local x0 = math.floor((width - usedW) / 2)
+      local y = -math.max(2, math.floor((innerH - usedH) / 2))
+      local labels = self.READINESS_LABELS or {}
+      local clicks = {
+        food = "Click to eat.",
+        flask = "Click to use.",
+        rune = "Click to use.",
+        weapon = "Click to apply to your weapon.",
+      }
+      for i, kind in ipairs(kinds) do
+        local slotKind = kind
+        local row = snap[slotKind] or {}
+        local bag, slot = row.bag, row.slot
+        local hasItem = bag ~= nil and slot ~= nil
+        local x = x0 + (i - 1) * (size + gap)
+        local art = parent:CreateTexture(nil, "ARTWORK")
+        art:SetSize(size, size)
+        art:SetPoint("TOPLEFT", x, y)
+        if row.icon and art.SetTexture then pcall(art.SetTexture, art, row.icon) end
+        if (not row.icon) and art.SetColorTexture and self.colors then
+          art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
+        end
+        if row.up then
+          local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
+          PaintIconBorder(parent, art, size, a[1], a[2], a[3])
+        elseif hasItem then
+          local wr, wg, wb
+          if self.colors and self.colors.warn then
+            wr, wg, wb = self.colors.warn[1], self.colors.warn[2], self.colors.warn[3]
+          else
+            wr, wg, wb = self:MissingEnchantColor()
+          end
+          PaintIconBorder(parent, art, size, wr, wg, wb)
+        end
+        if row.count and row.count > 1 then
+          local fontSize = math.max(8, math.min(16, math.floor(size * 0.28)))
+          local plate = parent:CreateTexture(nil, "OVERLAY")
+          plate:SetSize(math.max(10, math.floor(size * 0.62)), math.max(8, math.floor(size * 0.36)))
+          plate:SetPoint("BOTTOMRIGHT", art, "BOTTOMRIGHT", 0, 0)
+          if plate.SetDrawLayer then plate:SetDrawLayer("OVERLAY", 1) end
+          if plate.SetColorTexture then plate:SetColorTexture(0, 0, 0, 0.55) end
+          local num = w.text(parent, size, fontSize)
+          if num.ClearAllPoints then num:ClearAllPoints() end
+          num:SetPoint("BOTTOMRIGHT", art, "BOTTOMRIGHT", -1, 1)
+          if num.SetJustifyH then num:SetJustifyH("RIGHT") end
+          if num.SetFont then
+            num:SetFont(self:ThemeFont(), fontSize, "OUTLINE")
+          end
+          num:SetText(tostring(row.count))
+          if self.colors then num:SetTextColor(unpack(self.colors.text)) end
+        end
+        local caption = w.text(parent, size + 8, captionSize)
+        if caption.ClearAllPoints then caption:ClearAllPoints() end
+        caption:SetPoint("TOP", art, "BOTTOM", 0, -1)
+        if caption.SetJustifyH then caption:SetJustifyH("CENTER") end
+        caption:SetWidth(size + 8)
+        if caption.SetFont then
+          caption:SetFont(self:ThemeFont(), captionSize, "")
+        end
+        caption:SetText(labels[slotKind] or slotKind)
+        if self.FitText then self:FitText(caption, size + 8, 1) end
+        if row.up and self.colors then
+          caption:SetTextColor(unpack(self.colors.accent))
+        elseif hasItem and self.colors and self.colors.warn then
+          caption:SetTextColor(unpack(self.colors.warn))
+        elseif self.colors then
+          caption:SetTextColor(unpack(self.colors.muted))
+        end
+        local hit = SecureItemHit(parent, x, y, size, size + captionH, bag, slot)
+        hit.text = caption
+        self:HoverTip(hit, function(tip)
+          local live = self.ReadinessSnapshot and self:ReadinessSnapshot() or {}
+          local info = live[slotKind] or {}
+          if tip.ClearLines then tip:ClearLines() end
+          tip:SetText(info.name or labels[slotKind] or slotKind)
+          if tip.AddLine then
+            if info.up then
+              local left = info.remaining and self.FormatDuration and self:FormatDuration(info.remaining)
+              tip:AddLine(left and ("Up  ·  " .. left .. " left") or "Up")
+            else
+              tip:AddLine("Not up")
+            end
+            if info.count and info.count > 0 then
+              tip:AddLine(tostring(info.count) .. " in bags")
+            end
+            if info.bag ~= nil and info.slot ~= nil then
+              tip:AddLine(clicks[slotKind] or "Click to use.")
+            else
+              tip:AddLine("Nothing in bags this expansion.")
+            end
+          end
+        end)
+        hit:SetScript("OnMouseUp", function()
+          -- Do not use the item here. Do not rebuild the tile until the click
+          -- finishes; a SecureActionButton uses the bag on mouse down.
+          if self.page ~= "DASHBOARD" or not self.ShowPage then return end
+          local refresh = function()
+            if LS.page == "DASHBOARD" and LS.ShowPage then LS:ShowPage("DASHBOARD") end
+          end
+          if C_Timer and C_Timer.After then
+            C_Timer.After(0, refresh)
+          else
+            refresh()
+          end
+        end)
+      end
+      return height
+    end,
+  })
+
+  LS:RegisterWidget({
     id = "housing",
     title = "Housing",
     defaultSize = "half",
@@ -1448,6 +1828,143 @@ local function RegisterExtraWidgets()
         end)
       end
       return stacked and math.max(80, -barY + 30) or math.max(64, height)
+    end,
+  })
+
+  LS:RegisterWidget({
+    id = "battlepets",
+    title = "Battle Pets",
+    defaultSize = "half",
+    defaultH = 5,
+    click = function(self)
+      if self.OpenPetJournal then self:OpenPetJournal() end
+    end,
+    tooltip = function(self, tip)
+      if tip.ClearLines then tip:ClearLines() end
+      local info = self.BattlePetProgress and self:BattlePetProgress() or {}
+      tip:SetText("Battle Pets")
+      if tip.AddLine then
+        if info.owned then
+          tip:AddLine(string.format("%d unique  ·  %d collected", info.unique or 0, info.owned))
+        end
+        if info.summoned and info.summoned.name then
+          tip:AddLine("Summoned  " .. info.summoned.name)
+        end
+        tip:AddLine("Click the tile to open the pet journal. Click again to close it.")
+        tip:AddLine("Click a slotted pet to summon it.")
+      end
+    end,
+    render = function(self, parent, width, height)
+      if self.dashboardEdit then
+        return self:PaintWidgetSettings(parent, width, "battlepets", "What this tile shows.", {
+          { "count", "Count", true },
+          { "team", "Team", true },
+          { "summoned", "Summoned", true },
+        })
+      end
+      local w = self.widgets
+      height = height or 80
+      local info = self.BattlePetProgress and self:BattlePetProgress()
+      if not info then
+        local line = w.text(parent, width - 24, 12)
+        line:SetPoint("TOPLEFT", 12, -8)
+        if self.colors then line:SetTextColor(unpack(self.colors.muted)) end
+        line:SetText("Battle pets are not on this client.")
+        return height
+      end
+      if parent.SetClipsChildren then parent:SetClipsChildren(true) end
+      local showCount = self:WidgetOptOn("battlepets", "count", true)
+      local showSummoned = self:WidgetOptOn("battlepets", "summoned", true)
+      local showTeam = self:WidgetOptOn("battlepets", "team", true)
+      local countH = showCount and math.max(16, math.min(28, math.floor(height * 0.22))) or 0
+      local summonedH = showSummoned and math.max(10, math.min(14, math.floor(height * 0.12))) or 0
+      local headerH = countH + summonedH
+      if showCount then
+        local line = w.text(parent, width - 16, countH - 2)
+        if line.ClearAllPoints then line:ClearAllPoints() end
+        line:SetPoint("TOP", 0, -2)
+        if line.SetJustifyH then line:SetJustifyH("CENTER") end
+        if line.SetFont then
+          line:SetFont(self:ThemeFont(), math.max(14, math.min(24, countH - 4)), "")
+        end
+        if self.colors then line:SetTextColor(unpack(self.colors.accent)) end
+        if (info.owned or 0) > 0 then
+          line:SetText(string.format("%d unique", info.unique or 0))
+        else
+          line:SetText("No battle pets yet")
+        end
+        if self.FitText then self:FitText(line, width - 16, 1) end
+      end
+      if showSummoned then
+        local meta = w.text(parent, width - 16, summonedH)
+        if meta.ClearAllPoints then meta:ClearAllPoints() end
+        meta:SetPoint("TOP", 0, -(countH + 1))
+        if meta.SetJustifyH then meta:SetJustifyH("CENTER") end
+        if self.colors then meta:SetTextColor(unpack(self.colors.muted)) end
+        if info.summoned and info.summoned.name then
+          meta:SetText(info.summoned.name)
+        else
+          meta:SetText("No pet summoned")
+        end
+        if self.FitText then self:FitText(meta, width - 16, 1) end
+      end
+      if showTeam then
+        local team = info.team or {}
+        local n = 3
+        local gap = 6
+        local innerW = math.max(1, width - 16)
+        local innerH = math.max(1, height - headerH - 8)
+        local size = math.max(18, math.min(
+          math.floor((innerW - gap * (n - 1)) / n),
+          innerH
+        ))
+        local usedW = n * size + (n - 1) * gap
+        local usedH = size
+        local x0 = math.floor((width - usedW) / 2)
+        local y = -(headerH + math.max(2, math.floor((innerH - usedH) / 2)))
+        for i = 1, n do
+          local slotKind = i
+          local row = team[slotKind] or {}
+          local x = x0 + (i - 1) * (size + gap)
+          local art = parent:CreateTexture(nil, "ARTWORK")
+          art:SetSize(size, size)
+          art:SetPoint("TOPLEFT", x, y)
+          if row.icon and art.SetTexture then pcall(art.SetTexture, art, row.icon) end
+          if (not row.icon) and art.SetColorTexture and self.colors then
+            art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
+          end
+          if row.summoned then
+            local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
+            PaintIconBorder(parent, art, size, a[1], a[2], a[3])
+          end
+          local hit = Hit(parent, x, y, size, size)
+          hit.text = { text_value = row.name or ("Pet slot " .. tostring(slotKind)) }
+          local petGuid, petName, petLocked = row.guid, row.name, row.locked
+          self:HoverTip(hit, function(tip)
+            if tip.ClearLines then tip:ClearLines() end
+            if petLocked then
+              tip:SetText("Locked slot")
+            else
+              tip:SetText(petName or "Empty slot")
+            end
+            if tip.AddLine then
+              if petGuid then
+                tip:AddLine("Click to summon.")
+              elseif not petLocked then
+                tip:AddLine("No pet slotted.")
+              end
+            end
+          end)
+          hit:SetScript("OnMouseUp", function()
+            if petGuid and self.SummonBattlePet then
+              self:SummonBattlePet(petGuid)
+              return
+            end
+            if self.OpenPetJournal then self:OpenPetJournal() end
+          end)
+        end
+      end
+      return height
     end,
   })
 

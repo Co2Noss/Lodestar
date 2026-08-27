@@ -90,6 +90,7 @@ function LS:FindActivity(id)
     self.GetQuestRecommendations and self:GetQuestRecommendations() or {},
     self.GetPvPRecommendations and self:GetPvPRecommendations() or {},
     self.GetHousingRecommendations and self:GetHousingRecommendations() or {},
+    self.GetPetRecommendations and self:GetPetRecommendations() or {},
   }
   local function search(want)
     for _, list in ipairs(lists) do

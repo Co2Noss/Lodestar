@@ -147,6 +147,16 @@ function methods.GetScale(self) return self.scale or 1 end
 function methods.SetMovable(self, v) self.movable = v and true or false end
 function methods.SetResizable(self, v) self.resizable = v and true or false end
 function methods.RegisterForDrag(self, btn) self.dragButton = btn end
+function methods.RegisterForClicks(self, ...)
+  self.registeredClicks = { ... }
+end
+function methods.SetAttribute(self, key, value)
+  self.attributes = self.attributes or {}
+  self.attributes[key] = value
+end
+function methods.GetAttribute(self, key)
+  return self.attributes and self.attributes[key]
+end
 function methods.StartMoving(self) self.moving = true end
 function methods.StartSizing(self, edge)
   self.moving = true
@@ -174,6 +184,41 @@ function CreateFrame(kind, name, parent, template)
   if name then _G[name] = f end
   table.insert(AllFrames, f)
   return f
+end
+
+-- Headless clicks: fire the same scripts a real click would, and honor a
+-- SecureActionButton item attribute the way the client would.
+function ClickFrame(frame, mouseButton)
+  mouseButton = mouseButton or "LeftButton"
+  if type(frame) ~= "table" then return end
+  if frame.scripts and frame.scripts.OnMouseDown then
+    frame.scripts.OnMouseDown(frame, mouseButton)
+  end
+  local typ = frame.GetAttribute and frame:GetAttribute("type")
+  if typ == "item" then
+    local bag, slot = frame:GetAttribute("bag"), frame:GetAttribute("slot")
+    local item = frame:GetAttribute("item")
+    if (bag == nil or slot == nil) and type(item) == "string" then
+      local a, b = item:match("^(%d+)%s+(%d+)$")
+      bag, slot = tonumber(a), tonumber(b)
+    end
+    if bag ~= nil and slot ~= nil then
+      if C_Container and C_Container.UseContainerItem then
+        C_Container.UseContainerItem(bag, slot)
+      elseif UseContainerItem then
+        UseContainerItem(bag, slot)
+      end
+    end
+  end
+  if frame.scripts and frame.scripts.OnClick then
+    frame.scripts.OnClick(frame, mouseButton)
+  end
+  if frame.scripts and frame.scripts.PostClick then
+    frame.scripts.PostClick(frame, mouseButton)
+  end
+  if frame.scripts and frame.scripts.OnMouseUp then
+    frame.scripts.OnMouseUp(frame, mouseButton)
+  end
 end
 
 -- Chat output, kept so tests can assert what the player is told at login.
@@ -218,6 +263,24 @@ TokenFrame = new("Frame", "TokenFrame")
 TokenFrame.shown = false
 OpenedCharacter = false
 OpenedCurrencies = false
+CollectionsJournal = new("Frame", "CollectionsJournal")
+CollectionsJournal.shown = false
+CollectionsJournal.selectedTab = 1
+COLLECTIONS_JOURNAL_TAB_INDEX_MOUNTS = 1
+COLLECTIONS_JOURNAL_TAB_INDEX_PETS = 2
+OpenedPetJournal = false
+function ToggleCollectionsJournal(tab)
+  if CollectionsJournal.shown and (not tab or CollectionsJournal.selectedTab == tab) then
+    CollectionsJournal.shown = false
+    return
+  end
+  CollectionsJournal.shown = true
+  CollectionsJournal.selectedTab = tab or COLLECTIONS_JOURNAL_TAB_INDEX_PETS
+  OpenedPetJournal = true
+end
+function CollectionsJournal_SetTab(frame, tab)
+  if type(frame) == "table" then frame.selectedTab = tab end
+end
 CharacterTab = nil
 function ShowUIPanel(frame)
   if type(frame) == "table" then
@@ -229,6 +292,7 @@ function ShowUIPanel(frame)
     if frame == CommunitiesFrame then OpenedCommunities = true end
     if frame == DelvesDashboardFrame then OpenedDelvesDashboard = true end
     if frame == ChallengesFrame then OpenedMythicPlus = true end
+    if frame == CollectionsJournal then OpenedPetJournal = true end
     if frame == CharacterFrame and CharacterTab == "PaperDollFrame" then OpenedCharacter = true end
     if frame == CharacterFrame and CharacterTab == "TokenFrame" then OpenedCurrencies = true end
   end
@@ -382,6 +446,7 @@ GetRealmName = function() return "Testrealm" end
 UnitLevel = function() return 90 end
 GetMaxLevelForPlayerExpansion = function() return 90 end
 GetExpansionLevel = function() return 11 end
+NUM_BAG_SLOTS = 4
 EXPANSION_NAME10 = "The War Within"
 EXPANSION_NAME11 = "Midnight"
 PlayerMoney = 0
@@ -408,12 +473,32 @@ GetItemQualityColor = function(quality)
   return 1, 1, 1, 1
 end
 ItemInfoByLink = {}
+ItemInfoByID = {}
 ItemStats = {}
 InventoryTooltip = {}
+local function ItemInfoRow(link)
+  local row = ItemInfoByLink[link] or ItemInfoByID[link]
+  if not row and type(link) == "string" then
+    local id = tonumber(link:match("item:(%d+)"))
+    row = id and ItemInfoByID[id]
+  end
+  return row
+end
 GetItemInfo = function(link)
-  local row = ItemInfoByLink[link]
+  local row = ItemInfoRow(link)
   if not row then return end
-  return row.name, link, row.quality, row.ilvl, 1, row.type, row.subType, 1, row.equipLoc, row.icon
+  local itemLink = row.link or (type(link) == "string" and link) or ("item:" .. tostring(link))
+  return row.name, itemLink, row.quality, row.ilvl, 1, row.type, row.subType, 1, row.equipLoc, row.icon,
+    0, row.classID, row.subclassID, 0, row.expacID
+end
+GetItemInfoInstant = function(link)
+  local row = ItemInfoRow(link)
+  if not row then return end
+  local id = tonumber(link) or row.itemID
+  if type(link) == "string" then
+    id = tonumber(link:match("item:(%d+)")) or id
+  end
+  return id, row.type, row.subType, row.equipLoc, row.icon, row.classID, row.subclassID
 end
 GetItemStats = function(link, into)
   local stats = ItemStats[link] or {}
@@ -556,6 +641,7 @@ C_UIWidgetManager = {
   end,
 }
 QuestLog = {}
+QuestTagInfo = {}
 SuperTrackedQuestID = nil
 ActivePreyQuestID = nil
 C_QuestLog = {
@@ -599,6 +685,9 @@ C_QuestLog = {
         return q.waypoint.map, q.waypoint.x, q.waypoint.y
       end
     end
+  end,
+  GetQuestTagInfo = function(id)
+    return QuestTagInfo[id]
   end,
 }
 
@@ -817,6 +906,13 @@ Enum = {
   CampaignState = { Invalid = 0, Complete = 1, InProgress = 2, Stalled = 3 },
   BankType = { Character = 0, Guild = 1, Account = 2 },
   TooltipDataLineType = { GemSocket = 3, ItemEnchantmentPermanent = 15 },
+  ItemClass = { Consumable = 0 },
+  ItemConsumableSubclass = {
+    Generic = 0, Potion = 1, Elixir = 2, Flask = 3, Scroll = 4,
+    FoodAndDrink = 5, ItemEnhancement = 6, Bandage = 7, Other = 8, VantusRune = 9,
+  },
+  SpellBookSpellBank = { Player = 0, Pet = 1 },
+  QuestTagType = { PetBattle = 4 },
 }
 DifficultyUtil = {
   ID = { DungeonHeroic = 2, DungeonMythic = 23, DungeonChallenge = 8,
@@ -887,6 +983,39 @@ C_ChallengeMode = {
   end,
 }
 
+SpellBookItems = {}
+SpellBookSkillLines = {}
+CastSpellByNameUsed = nil
+CastSpellByName = function(name)
+  CastSpellByNameUsed = name
+end
+C_SpellBook = {
+  GetNumSpellBookSkillLines = function()
+    return #SpellBookSkillLines
+  end,
+  GetSpellBookSkillLineInfo = function(i)
+    return SpellBookSkillLines[i]
+  end,
+  GetSpellBookItemName = function(slot)
+    local row = SpellBookItems[slot]
+    return row and row.name
+  end,
+  GetSpellBookItemDescription = function(slot)
+    local row = SpellBookItems[slot]
+    return row and row.description
+  end,
+  GetSpellBookItemType = function(slot)
+    local row = SpellBookItems[slot]
+    if not row then return end
+    return "SPELL", row.spellID, row.spellID
+  end,
+  GetSpellBookItemInfo = function(slot)
+    local row = SpellBookItems[slot]
+    if not row then return end
+    return { spellID = row.spellID, actionID = row.spellID, itemType = "SPELL" }
+  end,
+}
+
 C_PlayerInfo = {
   GetPlayerMythicPlusRatingSummary = function()
     return MythicPlusRating
@@ -924,6 +1053,39 @@ C_Housing = {
   end,
 }
 
+OwnedPetIDs = {}
+PetInfoByID = {}
+PetLoadOut = {
+  [1] = { locked = false },
+  [2] = { locked = false },
+  [3] = { locked = false },
+}
+SummonedPetGUID = nil
+JournalUnlocked = true
+C_PetJournal = {
+  GetOwnedPetIDs = function() return OwnedPetIDs end,
+  GetNumPets = function()
+    return #OwnedPetIDs, #OwnedPetIDs
+  end,
+  GetPetInfoByPetID = function(id)
+    local p = PetInfoByID[id]
+    if not p then return end
+    return p.speciesID, p.customName, p.level or 1, 0, 100, p.displayID, p.favorite,
+      p.name, p.icon, p.petType, p.creatureID, p.sourceText, p.description, p.isWild,
+      p.canBattle ~= false
+  end,
+  GetPetLoadOutInfo = function(slot)
+    local row = PetLoadOut[slot]
+    if not row then return nil, nil, nil, nil, true end
+    return row.petGUID, row.ability1, row.ability2, row.ability3, row.locked == true
+  end,
+  GetSummonedPetGUID = function() return SummonedPetGUID end,
+  SummonPetByGUID = function(guid)
+    SummonedPetGUID = guid
+  end,
+  IsJournalUnlocked = function() return JournalUnlocked ~= false end,
+}
+
 C_NeighborhoodInitiative = {
   GetCurrentInitiative = function() return CurrentInitiative end,
   GetInitiativeProgress = function() return InitiativeProgress end,
@@ -948,6 +1110,9 @@ C_Item = {
   GetItemStats = function(link, into)
     return GetItemStats(link, into)
   end,
+  GetItemInfoInstant = function(link)
+    return GetItemInfoInstant(link)
+  end,
 }
 
 C_TooltipInfo = {
@@ -956,10 +1121,64 @@ C_TooltipInfo = {
   end,
 }
 
+BagContents = {}
+UsedContainerItem = nil
+local function BagSlot(bag, slot)
+  return BagContents[bag] and BagContents[bag][slot]
+end
 C_Container = {
-  GetContainerNumSlots = function() return 0 end,
-  GetContainerItemLink = function() return nil end,
+  GetContainerNumSlots = function(bag)
+    local data = BagContents[bag]
+    if type(data) ~= "table" then return 0 end
+    local n = 0
+    for slot in pairs(data) do
+      if type(slot) == "number" and slot > n then n = slot end
+    end
+    return n
+  end,
+  GetContainerItemInfo = function(bag, slot)
+    return BagSlot(bag, slot)
+  end,
+  GetContainerItemLink = function(bag, slot)
+    local info = BagSlot(bag, slot)
+    return info and (info.hyperlink or info.link)
+  end,
+  UseContainerItem = function(bag, slot)
+    UsedContainerItem = { bag = bag, slot = slot }
+  end,
 }
+GetItemCount = function(itemID)
+  local n = 0
+  for _, slots in pairs(BagContents) do
+    if type(slots) == "table" then
+      for _, info in pairs(slots) do
+        if type(info) == "table" and info.itemID == itemID then
+          n = n + (info.stackCount or 1)
+        end
+      end
+    end
+  end
+  return n
+end
+PlayerAuras = {}
+C_UnitAuras = {
+  GetAuraDataByIndex = function(unit, index)
+    if unit ~= "player" then return end
+    return PlayerAuras[index]
+  end,
+}
+UnitAura = function(unit, index)
+  if unit ~= "player" then return end
+  local a = PlayerAuras[index]
+  if not a then return end
+  return a.name, a.icon, a.applications or 1, a.dispelName, a.duration, a.expirationTime
+end
+WeaponEnchantInfo = nil
+GetWeaponEnchantInfo = function()
+  local w = WeaponEnchantInfo
+  if type(w) ~= "table" then return false end
+  return w.hasMainHand, w.expiration, w.charges or 0, w.enchantID or 1
+end
 
 C_WowTokenPublic = {
   UpdateMarketPrice = function() end,

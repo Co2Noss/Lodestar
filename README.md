@@ -75,10 +75,10 @@ primary profession icons and opens that profession in front of Lodestar when you
 click again to close it. Great Vault opens from
 Dashboard; Progress is the tracked list.
 
-- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, housing, calendar, guild, Delver's Journey, or Preyhunter's Journey, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
+- **Dashboard** — a layout of widgets you pick. The default set is the plan snapshot, shortcuts, professions, and the next card. Edit dashboard to add Great Vault, tracked work, WoW Token, weekly reset, warband, HandyNotes rares, Mythic+, gold, currencies, PvP, item level, housing, battle pets, calendar, guild, Delver's Journey, or Preyhunter's Journey, then drag and resize them on that tab. Great Vault still opens the client's chest. Clicking vault slots opens Lodestar's breakdown.
 - **Today's Plan** — recommendations matching your goals, ranked best first and split into tabs by where the work happens. The last tab you were on is remembered.
-- **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge, weekly Conquest, neighborhood initiatives, housing weeklies already in the log.
-- **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up. Which of those to rank is still chosen in Settings.
+- **Weekly Plan** — the subset that resets: Great Vault, bountiful delves, weekly profession knowledge, weekly Conquest, neighborhood initiatives, housing weeklies already in the log, weekly pet battle quests already in the log.
+- **Long-Term Goals** — mounts, treasures, reputation, gold, catch-up, unlocking battle pets. Which of those to rank is still chosen in Settings.
 - **Progress** — activities you tracked, in score order. Compact mode shows the same list. Track or Untrack from Details.
 - **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status. When more than one character is saved, each alt can be tracked or untracked so it drops out of totals and warband gold without being forgotten.
@@ -96,9 +96,10 @@ marks empty rooms with a bordered plus so you can see where it can land.
 The default layout is Overview, Jump, Professions, and Next, each starting at half
 width — the same size as WoW Token and the other addable tiles. Tiles that need another
 addon stay out of the add list until that addon is loaded: rares need HandyNotes plus a notes pack.
-Mythic+, Gold, Currencies, PvP, Item Level, Housing, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
+Mythic+, Gold, Currencies, PvP, Item Level, Readiness, Housing, Battle Pets, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
 the client's overall dungeon score (Raider.IO colours it when loaded). Click the tile to
-open the client's Mythic+ Dungeons tab; click again to close it. Gold sums
+open the client's Mythic+ Dungeons tab; click again to close it. Click a dungeon with
+its Keystone Hero teleport in your spellbook to go there. Gold sums
 characters Lodestar has seen, plus the warband bank when the client reports it; hover lists each character. Currencies start on
 this expansion and use the client's rarity colour; edit mode toggles what to track
 (and hides live amounts until you click Done editing). Click
@@ -112,10 +113,14 @@ missing, and a yellow caution when the client reports an empty gem slot. Helm an
 rings take both; shoulder takes enchants; wrist takes sockets; back takes neither.
 A gemmed ring is not flagged for sockets. Missing
 enchants and sockets are listed beside the gear so two flags on one piece never overlap.
+**Readiness** checks this expansion's food, flask, augment rune, and weapon oil
+or whetstone from bags and buffs. Click a slot to eat, use, or apply it.
 **Housing** shows the house name, level, and favor the client reports, with a bar
 toward the next house level, **Dashboard**
 to open the client's Housing Dashboard (click again to close it) and **Teleport** when `C_Housing.TeleportHome`
 has a house GUID.
+**Battle Pets** shows unique pets and your battle team from the journal. Click the
+tile to open the pet journal (click again to close it); click a slotted pet to summon it.
 **Calendar** lists this week and next from the client's calendar, including guild events
 and invites; click opens the calendar, click again closes it. **Guild** shows the guild name with the emblem
 centered under it; click opens Communities, click again closes it. **Delver's Journey** and **Preyhunter's Journey** show this
@@ -147,7 +152,7 @@ Lodestar:RegisterWidget({
 
 Recommendations are scored against the goals you chose on first login, which Settings can
 change at any time, then grouped by where the work happens: Great Vault, Professions,
-Mounts, Reputation, Solo content, Questing, PvP, Housing. Today's Plan, Weekly Plan, Great Vault, Professions
+Mounts, Reputation, Solo content, Questing, PvP, Housing, Battle Pets. Today's Plan, Weekly Plan, Great Vault, Professions
 and Settings each use the same tab strip, so moving between groups is a click rather than a
 scroll. Tab order is stable; the work inside a tab is still ranked best first. The last tab
 on each page is remembered.
@@ -211,6 +216,12 @@ weekly housing quests already in the log (Housewarming and the like) rank while 
 goal is on. Lodestar does not invent plots or housing quest IDs. The Housing dashboard
 tile shows house level and favor the client reports, opens the client's Housing
 Dashboard, and teleports with `C_Housing.TeleportHome` when a house GUID exists.
+
+**Battle Pets** is a goal. Locked journal slots, an empty team, and pet battle
+quests already in the log rank while that goal is on. Lodestar does not invent
+species IDs or a catching circuit. The Battle Pets tile shows unique pets and
+your team from `C_PetJournal`; click the tile to open the pet journal, or a
+slotted pet to summon it.
 
 ## Professions and knowledge
 

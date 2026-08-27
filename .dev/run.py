@@ -15,7 +15,7 @@ ADDON = os.path.dirname(HERE)
 # Load order must match the .toc.
 FILES = [
     "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
-    "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Housing.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
+    "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
 
@@ -115,11 +115,11 @@ class Session:
         if button is None:
             raise AssertionError(f"no button labelled {label!r} on page "
                                  f"{self.eval('__LS.page')}")
-        button.scripts.OnMouseUp(button, "LeftButton")
+        self.lua.eval("ClickFrame")(button, "LeftButton")
         self.timers()
 
 
-GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "PvP", "Housing", "Professions", "Mounts", "Reputation", "Questing", "Gold making"]
+GOALS = ["Great Vault & endgame", "Solo content", "Prey hunts", "PvP", "Housing", "Professions", "Mounts", "Battle Pets", "Reputation", "Questing", "Gold making"]
 
 # --- a fresh install ------------------------------------------------------
 print("-- fresh install --")
@@ -216,7 +216,7 @@ check("select all turns on every goal",
         local n = 0
         for _, on in pairs(__LS.db.goals) do if on then n = n + 1 end end
         return n
-      end)()""") == 10)
+      end)()""") == 11)
 check("the same button becomes clear all", "Clear all" in s.texts())
 s.click("Clear all")
 check("clear all turns every goal off", not s.eval("__LS:GoalsChosen()"))
@@ -348,7 +348,7 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.21", "1.5.2", "1.5.1", "1.5.0", "1.4.1"]), log)
+      all(name in log for name in ["1.5.3", "1.5.21", "1.5.2", "1.5.1", "1.5.0"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -913,7 +913,9 @@ check("edit mode lists widgets you can add",
       "Add · WoW Token" in edit and "Add · Weekly reset" in edit
       and "Add · Currencies" in edit and "Add · PvP" in edit
       and "Add · Item Level" in edit
+      and "Add · Readiness" in edit
       and "Add · Housing" in edit
+      and "Add · Battle Pets" in edit
       and "Add · Calendar" in edit and "Add · Guild" in edit
       and "Add · Delver's Journey" in edit and "Add · Preyhunter's Journey" in edit
       and "Add · Mythic+" in edit and "Add · Gold" in edit
@@ -1955,6 +1957,97 @@ s.exec("""
   __LS.db.goals.HOUSING = false
 """)
 
+s.exec("""
+  JournalUnlocked = false
+  PetLoadOut = {
+    [1] = { locked = true },
+    [2] = { locked = true },
+    [3] = { locked = true },
+  }
+  OwnedPetIDs = {}
+  PetInfoByID = {}
+  __LS.db.goals.PETS = false
+""")
+check("Battle Pets stays quiet while that goal is off",
+      s.eval("#__LS:GetPetRecommendations()") == 0)
+s.exec("__LS.db.goals.PETS = true")
+pets = s.eval("""(function()
+  local r = __LS:GetPetRecommendations()[1]
+  if not r then return "none" end
+  return table.concat({ r.id, r.title, r.category }, "|")
+end)()""")
+check("Battle Pets ranks locked slots the client reports",
+      pets == "pets_training|Unlock battle pets|Battle Pets", pets)
+check("Battle Pets ranks while that goal is on",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetRecommendations()) do
+          if r.id == "pets_training" then return true end
+        end
+        return false
+      end)()""") is True)
+check("FindActivity can open that battle pets rec",
+      s.eval('(__LS:FindActivity("pets_training") or {}).title') == "Unlock battle pets")
+check("unlocking battle pets sits on the long-term plan",
+      s.eval('__LS:ActivityHorizon({ id = "pets_training", category = "Battle Pets" })') == "LONG")
+s.exec("""
+  JournalUnlocked = true
+  PetLoadOut = {
+    [1] = { locked = false },
+    [2] = { locked = false },
+    [3] = { locked = false },
+  }
+  OwnedPetIDs = { "Pet-1", "Pet-2" }
+  PetInfoByID["Pet-1"] = { speciesID = 10, name = "Alpine Hare", icon = 1, level = 25 }
+  PetInfoByID["Pet-2"] = { speciesID = 10, name = "Alpine Hare", icon = 1, level = 1 }
+""")
+pets_team = s.eval("""(function()
+  local r = __LS:GetPetRecommendations()[1]
+  if not r then return "none" end
+  return r.id
+end)()""")
+check("Battle Pets ranks an empty team when you already own pets",
+      pets_team == "pets_team", pets_team)
+s.exec("""
+  PetLoadOut[1] = { petGUID = "Pet-1", locked = false }
+  PetLoadOut[2] = { petGUID = "Pet-2", locked = false }
+  PetLoadOut[3] = { petGUID = "Pet-1", locked = false }
+  QuestLog = { { questID = 2001, title = "That's Super Tame" } }
+  QuestTagInfo[2001] = { tagName = "Pet Battle", tagID = 4 }
+""")
+pets_quest = s.eval("""(function()
+  local r
+  for _, row in ipairs(__LS:GetPetRecommendations()) do
+    if row.id == "pets_quest_2001" then r = row end
+  end
+  if not r then return "none" end
+  return table.concat({ r.title, r.category }, "|")
+end)()""")
+check("Battle Pets ranks a pet battle quest already in the log",
+      pets_quest == "That's Super Tame|Battle Pets", pets_quest)
+s.exec("__LS.db.goals.QUESTING = true")
+check("pet battle quests are not also listed as questing cards",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetQuestRecommendations()) do
+          if r.id and tostring(r.id):find("2001", 1, true) then return true end
+          if r.title == "That's Super Tame" then return true end
+        end
+        return false
+      end)()""") is not True)
+check("a weekly pet battle quest sits on the weekly plan",
+      s.eval('__LS:ActivityHorizon({ id = "pets_weekly_2001", category = "Battle Pets" })') == "WEEKLY")
+s.exec("""
+  QuestLog = {}
+  QuestTagInfo = {}
+  OwnedPetIDs = {}
+  PetInfoByID = {}
+  PetLoadOut = {
+    [1] = { locked = false },
+    [2] = { locked = false },
+    [3] = { locked = false },
+  }
+  __LS.db.goals.PETS = false
+  __LS.db.goals.QUESTING = false
+""")
 
 s.exec("__LS.db.goals.MOUNTS = true")
 s.exec("__LS:ShowPage('TODAY')")
@@ -2155,8 +2248,8 @@ s.exec("""
 s.timers()
 s.click("Add · Mythic+")
 mythic = s.texts()
-check("Mythic+ edit lists score and dungeon toggles, not the live score",
-      "Score" in mythic and "Dungeons" in mythic
+check("Mythic+ edit lists score, dungeon, and teleport toggles, not the live score",
+      "Score" in mythic and "Dungeons" in mythic and "Teleport" in mythic
       and "Honor 47" not in mythic, mythic)
 s.click("Done editing")
 mythic = s.texts()
@@ -2198,6 +2291,61 @@ s.exec("__LS:OpenMythicPlus()")
 check("clicking Mythic+ again closes the Dungeons tab",
       s.eval("PVEFrame.shown") is not True
       and s.eval("ChallengesFrame.shown") is not True)
+s.exec("""
+  CastSpellByNameUsed = nil
+  OpenedMythicPlus = false
+  PVEFrame.shown = false
+  ChallengesFrame.shown = false
+""")
+check("Mythic+ has no dungeon teleport until the spellbook has one",
+      s.eval("__LS:MythicPlusTeleport(403)") is None)
+s.exec("""
+  SpellBookItems[1] = {
+    name = "Path of the Rookery",
+    description = "Teleport to The Rookery.",
+    spellID = 4241,
+  }
+  SpellBookItems[2] = {
+    name = "Frostbolt",
+    description = "Launches a bolt of frost.",
+    spellID = 116,
+  }
+  SpellBookSkillLines[1] = {
+    name = "Hero's Path: Midnight",
+    itemIndexOffset = 0,
+    numSpellBookItems = 2,
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+port = s.eval("""(function()
+  local a = __LS:MythicPlusTeleport(403)
+  local b = __LS:MythicPlusTeleport(2)
+  return table.concat({
+    tostring(a and a.name), tostring(b and b.name),
+  }, "|")
+end)()""")
+check("Mythic+ matches a Keystone Hero teleport from the spellbook to this season's dungeon",
+      port == "Path of the Rookery|nil", port)
+s.exec("CastSpellByNameUsed = nil; OpenedMythicPlus = false")
+s.click("The Rookery")
+check("clicking a dungeon with Keystone Hero unlocked teleports",
+      s.eval("CastSpellByNameUsed") == "Path of the Rookery")
+check("that teleport does not open the Mythic+ Dungeons tab",
+      s.eval("OpenedMythicPlus") is not True)
+s.exec("CastSpellByNameUsed = nil; OpenedMythicPlus = false; PVEFrame.shown = false; ChallengesFrame.shown = false")
+s.click("Temple of the Jade Serpent")
+check("clicking a dungeon without a Keystone Hero teleport opens Mythic+ Dungeons",
+      s.eval("OpenedMythicPlus") is True
+      and s.eval("CastSpellByNameUsed") is None)
+s.exec("CastSpellByNameUsed = nil; __LS:CastMythicPlusTeleport(2)")
+check("CastMythicPlusTeleport stays quiet when that dungeon is not unlocked",
+      s.eval("CastSpellByNameUsed") is None)
+s.exec("""
+  SpellBookItems = {}
+  SpellBookSkillLines = {}
+  CastSpellByNameUsed = nil
+""")
 check("a narrow activity card keeps a readable text column",
       s.eval("""(function()
         local parent = CreateFrame("Frame")
@@ -2436,6 +2584,55 @@ check("Housing paints a bar toward the next house level",
         end
         return visit(__LS.frame, 0)
       end)()""") - (490 / 1190)) < 0.01)
+s.click("Edit dashboard")
+s.click("Reset widgets")
+s.exec("""
+  OwnedPetIDs = { "Pet-1", "Pet-2", "Pet-3" }
+  PetInfoByID["Pet-1"] = { speciesID = 10, name = "Alpine Hare", icon = 132193, level = 25 }
+  PetInfoByID["Pet-2"] = { speciesID = 11, name = "Blue Moth", icon = 132194, level = 10 }
+  PetInfoByID["Pet-3"] = { speciesID = 10, name = "Alpine Hare", icon = 132193, level = 1 }
+  PetLoadOut[1] = { petGUID = "Pet-1", locked = false }
+  PetLoadOut[2] = { petGUID = "Pet-2", locked = false }
+  PetLoadOut[3] = { locked = false }
+  SummonedPetGUID = "Pet-1"
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.click("Add · Battle Pets")
+pets_edit = s.texts()
+check("Battle Pets edit lists count, team, and summoned, not live names",
+      "Count" in pets_edit and "Team" in pets_edit and "Summoned" in pets_edit
+      and "Alpine Hare" not in pets_edit and "2 unique" not in pets_edit, pets_edit)
+s.click("Done editing")
+pets_tile = s.texts()
+check("Battle Pets shows unique count and the summoned pet from the journal",
+      "2 unique" in pets_tile and "Alpine Hare" in pets_tile, pets_tile)
+s.exec("""
+  OpenedPetJournal = false
+  CollectionsJournal.shown = false
+  __LS:OpenPetJournal()
+""")
+check("Battle Pets opens the pet journal",
+      s.eval("OpenedPetJournal") is True
+      and s.eval("CollectionsJournal.shown") is True
+      and s.eval("CollectionsJournal.selectedTab") == 2)
+s.exec("__LS:OpenPetJournal()")
+check("clicking Battle Pets again closes the pet journal",
+      s.eval("CollectionsJournal.shown") is not True)
+s.exec("SummonedPetGUID = nil")
+s.click("Alpine Hare")
+check("clicking a slotted pet summons it",
+      s.eval("SummonedPetGUID") == "Pet-1")
+s.exec("""
+  OwnedPetIDs = {}
+  PetInfoByID = {}
+  PetLoadOut = {
+    [1] = { locked = false },
+    [2] = { locked = false },
+    [3] = { locked = false },
+  }
+  SummonedPetGUID = nil
+""")
 s.click("Edit dashboard")
 s.click("Reset widgets")
 s.exec("""
@@ -2808,6 +3005,126 @@ check("Raider.IO tooltip uses the player profile, including shift refreshes",
       s.eval("GameTooltip._tip") == "profile:Testchar")
 s.click("Edit dashboard")
 s.click("Reset widgets")
+ready_add = s.texts()
+check("Readiness is on the add list",
+      "Add · Readiness" in ready_add, ready_add)
+s.click("Add · Readiness")
+ready_edit = s.texts()
+check("Readiness edit lists food, flask, rune, and weapon, not live buffs",
+      "Food" in ready_edit and "Flask" in ready_edit and "Rune" in ready_edit
+      and "Weapon" in ready_edit and "Slots on this tile." in ready_edit
+      and "Well Fed" not in ready_edit and "in bags" not in ready_edit, ready_edit)
+s.click("Done editing")
+ready = s.texts()
+check("Readiness shows empty slots from bags and auras",
+      "Food" in ready and "Flask" in ready and "Rune" in ready and "Weapon" in ready, ready)
+s.exec("UsedContainerItem = nil; __LS:UseReadinessItem('food')")
+check("an empty Readiness slot does not use a bag item",
+      s.eval("UsedContainerItem") is None)
+s.exec("""
+  local expac = GetExpansionLevel()
+  ItemInfoByID[90001] = {
+    name = "Test Feast", quality = 1, ilvl = 90, icon = 134062,
+    classID = 0, subclassID = 5, expacID = expac,
+  }
+  ItemInfoByID[90011] = {
+    name = "Old Snacks", quality = 1, ilvl = 10, icon = 134062,
+    classID = 0, subclassID = 5, expacID = expac,
+  }
+  ItemInfoByID[90002] = {
+    name = "Phial of Last Expansion", quality = 1, ilvl = 80, icon = 134713,
+    classID = 0, subclassID = 3, expacID = expac - 1,
+  }
+  ItemInfoByID[90003] = {
+    name = "Flask of This Season", quality = 1, ilvl = 90, icon = 134713,
+    classID = 0, subclassID = 3, expacID = expac,
+  }
+  ItemInfoByID[90004] = {
+    name = "Void-Touched Augment Rune", quality = 1, ilvl = 1, icon = 132858,
+    classID = 0, subclassID = 8, expacID = expac,
+  }
+  ItemInfoByID[90005] = {
+    name = "Test Weapon Oil", quality = 1, ilvl = 90, icon = 134795,
+    classID = 0, subclassID = 6, expacID = expac,
+  }
+  BagContents[0] = {
+    [1] = { itemID = 90001, stackCount = 20, iconFileID = 134062,
+            hyperlink = "|Hitem:90001|h[Test Feast]|h" },
+    [2] = { itemID = 90002, stackCount = 4, iconFileID = 134713,
+            hyperlink = "|Hitem:90002|h[Phial of Last Expansion]|h" },
+    [3] = { itemID = 90003, stackCount = 2, iconFileID = 134713,
+            hyperlink = "|Hitem:90003|h[Flask of This Season]|h" },
+    [4] = { itemID = 90004, stackCount = 3, iconFileID = 132858,
+            hyperlink = "|Hitem:90004|h[Void-Touched Augment Rune]|h" },
+    [6] = { itemID = 90001, stackCount = 5, iconFileID = 134062,
+            hyperlink = "|Hitem:90001|h[Test Feast]|h" },
+    [7] = { itemID = 90011, stackCount = 99, iconFileID = 134062,
+            hyperlink = "|Hitem:90011|h[Old Snacks]|h" },
+  }
+  BagContents[1] = {
+    [1] = { itemID = 90005, stackCount = 1, iconFileID = 134795,
+            hyperlink = "|Hitem:90005|h[Test Weapon Oil]|h" },
+  }
+""")
+ready_snap = s.eval("""(function()
+  local s = __LS:ReadinessSnapshot()
+  local f, k, r, w = s.food, s.flask, s.rune, s.weapon
+  return table.concat({
+    tostring(f and f.itemID), tostring(f and f.count), tostring(f and f.bag), tostring(f and f.slot),
+    tostring(k and k.itemID), tostring(k and k.bag), tostring(k and k.slot),
+    tostring(r and r.itemID), tostring(w and w.itemID),
+    tostring(f and f.up), tostring(w and w.up),
+  }, "|")
+end)()""")
+check("Readiness picks this expansion's best food, flask, rune, and oil from bags",
+      ready_snap == "90001|25|0|1|90003|0|3|90004|90005|false|false", ready_snap)
+s.exec("""
+  PlayerAuras = {
+    { name = "Well Fed", icon = 134062, expirationTime = 4600 },
+    { name = "Flask of This Season", icon = 134713, expirationTime = 2800 },
+    { name = "Void-Touched Augment Rune", icon = 132858, expirationTime = 1900 },
+  }
+  WeaponEnchantInfo = { hasMainHand = true, expiration = 1800000 }
+""")
+ready_up = s.eval("""(function()
+  local s = __LS:ReadinessSnapshot()
+  return table.concat({
+    tostring(s.food.up), tostring(math.floor((s.food.remaining or 0) + 0.5)),
+    tostring(s.flask.up), tostring(s.rune.up), tostring(s.weapon.up),
+    tostring(math.floor((s.weapon.remaining or 0) + 0.5)),
+  }, "|")
+end)()""")
+check("Readiness reads Well Fed, flask, augment, and weapon enchant from the client",
+      ready_up == "true|3600|true|true|true|1800", ready_up)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+ready_hit = s.eval("""(function()
+  local f = """ + FIND_BUTTON + """("Food")
+  if not f then return "none" end
+  return table.concat({
+    tostring(f.template or ""),
+    tostring(f.GetAttribute and f:GetAttribute("type") or ""),
+    tostring(f.GetAttribute and f:GetAttribute("item") or ""),
+  }, "|")
+end)()""")
+check("Readiness slots are secure item buttons, not UseContainerItem from Lua",
+      ready_hit == "SecureActionButtonTemplate|item|0 1", ready_hit)
+s.exec("UsedContainerItem = nil")
+s.click("Food")
+check("clicking Food eats the feast from bags",
+      s.eval("UsedContainerItem and UsedContainerItem.bag") == 0
+      and s.eval("UsedContainerItem and UsedContainerItem.slot") == 1)
+s.exec("UsedContainerItem = nil; __LS:UseReadinessItem('flask')")
+check("using Flask consumes this season's flask, not last expansion's",
+      s.eval("UsedContainerItem and UsedContainerItem.bag") == 0
+      and s.eval("UsedContainerItem and UsedContainerItem.slot") == 3)
+s.exec("UsedContainerItem = nil")
+s.click("Weapon")
+check("clicking Weapon applies the oil from bags",
+      s.eval("UsedContainerItem and UsedContainerItem.bag") == 1
+      and s.eval("UsedContainerItem and UsedContainerItem.slot") == 1)
+s.click("Edit dashboard")
+s.click("Reset widgets")
 s.click("Done editing")
 s.exec("""
   RaiderIO = nil
@@ -2818,7 +3135,12 @@ s.exec("""
   RatedInfo = {}
   EquipmentLinks, EquipmentQuality, EquipmentTexture = {}, {}, {}
   ItemInfoByLink = {}
+  ItemInfoByID = {}
   ItemStats = {}
+  BagContents = {}
+  PlayerAuras = {}
+  WeaponEnchantInfo = nil
+  UsedContainerItem = nil
 """)
 
 s.exec("""
