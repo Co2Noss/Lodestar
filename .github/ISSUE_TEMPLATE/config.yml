@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord support
+    url: https://discord.gg/a7hrHavcwq
+    about: Questions, install help, and "is this Lodestar?" go here first. Use /faq and /ls debug before filing a bug.
+  - name: Lodestar wiki
+    url: https://github.com/Co2Noss/Lodestar/wiki
+    about: Install, dashboard, ranking, and how other addons register tiles.
