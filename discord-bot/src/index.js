@@ -14,7 +14,9 @@ const config = require("./config");
 const { FAQS, findFaq, faqChoices, faqEmbed, linksEmbed } = require("./faqs");
 const { applySetup } = require("./setup");
 const tickets = require("./tickets");
+const moderation = require("./moderation");
 const { maybeAssist } = require("./assist");
+const { roleByName } = require("./staff");
 
 if (!config.token) {
   console.error("Missing DISCORD_TOKEN. Copy discord-bot/.env.example to discord-bot/.env and paste the bot token.");
@@ -46,7 +48,8 @@ const commands = [
     .setName("help")
     .setDescription("How to get Lodestar support on this server.")
     .setDMPermission(false),
-].map((c) => c.toJSON());
+  ...moderation.commands(),
+].map((c) => (typeof c.toJSON === "function" ? c.toJSON() : c));
 
 function makeClient(privileged) {
   const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
@@ -67,6 +70,7 @@ function helpEmbed() {
         "`/faq` — answers for install, goals, gold, rares, vault, debug, and more",
         "`/ticket` — private ticket with Support (or the button in #get-help)",
         "`/close` — close your ticket",
+        "`/mod` — warn, timeout, kick, ban, purge (Developer and Moderator)",
         "`/setup` — admins: rebuild the server layout",
         "",
         "Include class/spec, theme, and expected versus actual. `/ls debug` isolates addon errors.",
@@ -78,20 +82,6 @@ function helpEmbed() {
     );
 }
 
-async function assignOwnerSupport(guild) {
-  const support = guild.roles.cache.find((r) => r.name === "Support");
-  if (!support) return;
-  try {
-    const owner = await guild.fetchOwner();
-    if (!owner.roles.cache.has(support.id)) {
-      await owner.roles.add(support, "Server owner can see support tickets");
-      console.log(`Gave @Support to ${owner.user.tag}`);
-    }
-  } catch (err) {
-    console.error(`Could not give @Support to the owner: ${err.message}`);
-  }
-}
-
 async function prepareGuild(guild) {
   try {
     await guild.commands.set(commands);
@@ -99,17 +89,20 @@ async function prepareGuild(guild) {
   } catch (err) {
     console.error(`Failed to register commands in ${guild.name}:`, err.message);
   }
-  const needsSetup = !guild.channels.cache.some((c) => c.name === "get-help");
+  const needsSetup =
+    !guild.channels.cache.some((c) => c.name === "get-help") ||
+    !guild.channels.cache.some((c) => c.name === "mod-log") ||
+    !guild.roles.cache.some((r) => r.name === "Developer") ||
+    !guild.roles.cache.some((r) => r.name === "Bot");
   if (needsSetup) {
     try {
-      console.log(`First-time setup in ${guild.name}`);
+      console.log(`Setup in ${guild.name}`);
       const { report } = await applySetup(guild);
       for (const line of report) console.log(`  ${line}`);
     } catch (err) {
       console.error(`Setup failed in ${guild.name}:`, err);
     }
   }
-  await assignOwnerSupport(guild);
 }
 
 function bind(client) {
@@ -128,6 +121,15 @@ function bind(client) {
   client.on("guildCreate", (guild) => prepareGuild(guild));
 
   client.on("guildMemberAdd", async (member) => {
+    const botRole = roleByName(member.guild, "Bot");
+    if (member.user.bot && botRole && !member.roles.cache.has(botRole.id)) {
+      await member.roles.add(botRole, "Bot role").catch(() => {});
+      return;
+    }
+    if (config.developerUserIds.includes(member.id)) {
+      const roles = ["Developer", "Moderator", "Support"].map((n) => roleByName(member.guild, n)).filter(Boolean);
+      if (roles.length) await member.roles.add(roles, "Lodestar staff").catch(() => {});
+    }
     const welcome = member.guild.channels.cache.find((c) => c.name === "welcome" && c.isTextBased());
     if (!welcome) return;
     try {
@@ -140,6 +142,11 @@ function bind(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    try {
+      if (await moderation.maybeAutomod(message)) return;
+    } catch (err) {
+      console.error("automod failed:", err);
+    }
     const reply = maybeAssist(message);
     if (!reply) return;
     try {
@@ -199,6 +206,8 @@ async function handleInteraction(interaction) {
     return;
   }
 
+  if (await moderation.handleInteraction(interaction)) return;
+
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "help") {
@@ -247,7 +256,7 @@ async function handleInteraction(interaction) {
         summary + extra,
         "",
         channels["get-help"] ? `Ticket panel: ${channels["get-help"]}` : "",
-        "Drag the **Lodestar Support** role above Support and Moderator in Server Settings → Roles so the bot can manage those roles.",
+        "Drag the **Lodestar Support** bot role above Developer, Moderator, Support, and Bot so it can assign those roles and timeout people.",
       ]
         .filter(Boolean)
         .join("\n"),

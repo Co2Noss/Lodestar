@@ -58,11 +58,11 @@ function everyoneChat(guild) {
 }
 
 function hiddenStaff(guild, roles) {
-  return [
-    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
-    { id: roles.support.id, allow: STAFF_ALLOW },
-    { id: roles.moderator.id, allow: STAFF_ALLOW },
-  ];
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  for (const key of ["developer", "moderator", "support"]) {
+    if (roles[key]) overwrites.push({ id: roles[key].id, allow: STAFF_ALLOW });
+  }
+  return overwrites;
 }
 
 function hiddenTickets(guild, roles) {
@@ -74,6 +74,14 @@ function hiddenTickets(guild, roles) {
 }
 
 const ROLE_SPECS = [
+  {
+    key: "bot",
+    name: "Bot",
+    color: 0x99aab5,
+    hoist: true,
+    mentionable: false,
+    permissions: [],
+  },
   {
     key: "support",
     name: "Support",
@@ -88,7 +96,37 @@ const ROLE_SPECS = [
     color: 0x5865f2,
     hoist: true,
     mentionable: false,
-    permissions: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.ManageMessages, P.ManageThreads, P.ModerateMembers],
+    permissions: [
+      P.ViewChannel,
+      P.SendMessages,
+      P.EmbedLinks,
+      P.AttachFiles,
+      P.ReadMessageHistory,
+      P.ManageMessages,
+      P.ManageThreads,
+      P.ModerateMembers,
+      P.KickMembers,
+      P.BanMembers,
+    ],
+  },
+  {
+    key: "developer",
+    name: "Developer",
+    color: config.color,
+    hoist: true,
+    mentionable: true,
+    permissions: [
+      P.ViewChannel,
+      P.SendMessages,
+      P.EmbedLinks,
+      P.AttachFiles,
+      P.ReadMessageHistory,
+      P.ManageMessages,
+      P.ManageThreads,
+      P.ModerateMembers,
+      P.KickMembers,
+      P.BanMembers,
+    ],
   },
 ];
 
@@ -137,6 +175,7 @@ function channelSpecs(guild, roles) {
     { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: everyoneRead(guild) },
     { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues and pull requests.", overwrites: everyoneRead(guild) },
     { key: "staff", name: "staff", parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
+    { key: "mod-log", name: "mod-log", parent: "staff", type: ChannelType.GuildText, topic: "Warns, timeouts, kicks, bans, automod.", overwrites: hiddenStaff(guild, roles) },
     { key: "ticket-logs", name: "ticket-logs", parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
   ];
 }
@@ -259,8 +298,9 @@ function rulesEmbed() {
         "1. Be decent. This is a support server, not a raid.",
         "2. Search #faq, `/faq`, and the [wiki](https://github.com/Co2Noss/Lodestar/wiki) before asking.",
         "3. Bugs need class/spec, theme (Blizzard, ElvUI, or other), Lodestar version, and expected versus actual. `/ls debug` first if you are not sure which addon errored.",
-        "4. No piracy, account trading, or NSFW.",
+        "4. No piracy, account trading, or NSFW. No invite ads.",
         "5. Staff may close idle tickets. Re-open one if you still need help.",
+        "6. The bot removes spam, invite ads, and mass mentions. Co2Noss is developer, moderator, and support — `/mod` is there when a person needs a warn, timeout, kick, or ban.",
       ].join("\n")
     );
 }
@@ -329,6 +369,40 @@ function mention(channel) {
   return channel ? `<#${channel.id}>` : "(missing)";
 }
 
+async function assignPeople(guild, roles, report) {
+  const staffWanted = [roles.developer, roles.moderator, roles.support].filter(Boolean);
+  for (const id of config.developerUserIds) {
+    const member = await guild.members.fetch(id).catch(() => null);
+    if (!member) {
+      report.push(`could not find developer user ${id}`);
+      continue;
+    }
+    const missing = staffWanted.filter((r) => !member.roles.cache.has(r.id));
+    if (!missing.length) continue;
+    try {
+      await member.roles.add(missing, "Co2Noss is developer, moderator, and support");
+      report.push(`gave ${missing.map((r) => `@${r.name}`).join(", ")} to ${member.user.tag}`);
+    } catch (err) {
+      report.push(`could not assign staff roles to ${member.user.tag}: ${err.message}`);
+    }
+  }
+  if (!roles.bot) return;
+  try {
+    await guild.members.fetch();
+  } catch {
+    // member intent missing; still try cache
+  }
+  for (const member of guild.members.cache.values()) {
+    if (!member.user.bot || member.roles.cache.has(roles.bot.id)) continue;
+    try {
+      await member.roles.add(roles.bot, "Bot role");
+      report.push(`gave @Bot to ${member.user.tag}`);
+    } catch (err) {
+      report.push(`could not give @Bot to ${member.user.tag}: ${err.message}`);
+    }
+  }
+}
+
 async function applySetup(guild) {
   const report = [];
   const roles = {};
@@ -339,8 +413,8 @@ async function applySetup(guild) {
       report.push(`failed role @${spec.name}: ${err.message}`);
     }
   }
-  if (!roles.support || !roles.moderator) {
-    throw new Error("Could not create Support and Moderator roles. Drag the bot role to the top of the role list and run /setup again.");
+  if (!roles.support || !roles.moderator || !roles.developer || !roles.bot) {
+    throw new Error("Could not create Developer, Moderator, Support, and Bot roles. Drag the Lodestar Support bot role to the top of the role list and run /setup again.");
   }
 
   const categories = {};
@@ -400,10 +474,17 @@ async function applySetup(guild) {
   }
 
   state.patch(guild.id, (g) => {
-    g.roles = { support: roles.support.id, moderator: roles.moderator.id };
+    g.roles = {
+      developer: roles.developer.id,
+      moderator: roles.moderator.id,
+      support: roles.support.id,
+      bot: roles.bot.id,
+    };
     g.channels = Object.fromEntries(Object.entries(channels).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));
     g.categories = Object.fromEntries(Object.entries(categories).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));
   });
+
+  await assignPeople(guild, roles, report);
 
   return { report, roles, channels, categories };
 }
@@ -413,6 +494,7 @@ module.exports = {
   CATEGORY_SPECS,
   channelSpecs,
   applySetup,
+  assignPeople,
   ticketPanel,
   faqPanel,
   faqEmbed,

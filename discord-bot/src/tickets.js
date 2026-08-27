@@ -14,7 +14,7 @@ const {
 const config = require("./config");
 const state = require("./state");
 
-const P = PermissionFlagsBits;
+const { isStaff, staffRoles } = require("./staff");
 
 function supportRole(guild) {
   const id = state.guildState(guild.id).g.roles.support;
@@ -81,8 +81,8 @@ async function createTicket(interaction) {
   }
 
   const parent = ticketsCategory(guild);
-  const support = supportRole(guild);
-  if (!parent || !support) {
+  const staff = staffRoles(guild);
+  if (!parent || !staff.length) {
     return interaction.reply({
       content: "Support is not set up yet. An admin needs to run `/setup` first.",
       ephemeral: true,
@@ -111,10 +111,10 @@ async function createTicket(interaction) {
         id: user.id,
         allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.AttachFiles, P.EmbedLinks, P.AddReactions],
       },
-      {
-        id: support.id,
+      ...staff.map((role) => ({
+        id: role.id,
         allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.AttachFiles, P.EmbedLinks, P.ManageMessages, P.ManageThreads],
-      },
+      })),
     ],
     reason: `Ticket for ${user.tag}`,
   });
@@ -131,8 +131,9 @@ async function createTicket(interaction) {
     )
     .setFooter({ text: "Staff: close when this is done. Include /ls debug if an error is involved." });
 
+  const support = supportRole(guild);
   await channel.send({
-    content: `${user} ${support}`,
+    content: `${user}${support ? ` ${support}` : ""}`,
     embeds: [embed],
     components: [ticketButtons()],
   });
@@ -146,8 +147,7 @@ function canClose(interaction, channel) {
   const opener = (topic.match(/user:(\d+)/) || [])[1];
   if (opener && opener === interaction.user.id) return true;
   if (interaction.memberPermissions?.has(P.ManageChannels)) return true;
-  const support = supportRole(interaction.guild);
-  return Boolean(support && interaction.member.roles.cache.has(support.id));
+  return isStaff(interaction.member);
 }
 
 async function transcript(channel) {
@@ -168,7 +168,7 @@ async function closeTicket(interaction) {
     return interaction.reply({ content: "Use this inside a ticket channel.", ephemeral: true });
   }
   if (!canClose(interaction, channel)) {
-    return interaction.reply({ content: "Only the opener or Support can close this.", ephemeral: true });
+    return interaction.reply({ content: "Only the opener or staff can close this.", ephemeral: true });
   }
 
   await interaction.deferReply();

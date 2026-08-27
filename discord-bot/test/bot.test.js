@@ -49,20 +49,56 @@ describe("server layout", () => {
   it("uses unique role, category, and channel names", () => {
     const roleNames = ROLE_SPECS.map((r) => r.name);
     assert.equal(new Set(roleNames).size, roleNames.length);
+    assert.ok(roleNames.includes("Developer"));
+    assert.ok(roleNames.includes("Bot"));
+    assert.ok(roleNames.includes("Moderator"));
+    assert.ok(roleNames.includes("Support"));
     const catNames = CATEGORY_SPECS.map((c) => c.name);
     assert.equal(new Set(catNames).size, catNames.length);
     const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
-    const fakeRoles = { support: { id: "s" }, moderator: { id: "m" } };
+    const fakeRoles = { support: { id: "s" }, moderator: { id: "m" }, developer: { id: "d" }, bot: { id: "b" } };
     const channels = channelSpecs(fakeGuild, fakeRoles);
     const names = channels.map((c) => c.name);
     assert.equal(new Set(names).size, names.length);
     assert.ok(names.includes("git-commits"));
     assert.ok(names.includes("get-help"));
     assert.ok(names.includes("faq"));
+    assert.ok(names.includes("mod-log"));
   });
 
   it("hides Tickets and Staff from @everyone", () => {
     assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Tickets"));
     assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Staff"));
+  });
+});
+
+describe("moderation", () => {
+  const { parseDuration, offenseFromMessage, spamOffense, resetSpam } = require("../src/moderation");
+
+  it("parses timeout durations", () => {
+    assert.equal(parseDuration("10m", 0), 10 * 60 * 1000);
+    assert.equal(parseDuration("1h", 0), 60 * 60 * 1000);
+    assert.equal(parseDuration("1d", 0), 24 * 60 * 60 * 1000);
+    assert.equal(parseDuration("nope", 0), null);
+  });
+
+  it("flags invite ads and mass mentions", () => {
+    assert.equal(offenseFromMessage("join discord.gg/notours", 0, false), "invite spam");
+    assert.equal(offenseFromMessage("hello", 5, false), "mass mentions");
+    assert.equal(offenseFromMessage("hello", 1, true), "mass mentions");
+    assert.equal(offenseFromMessage("gold making is quiet", 0, false), null);
+  });
+
+  it("flags repeated and rapid messages", () => {
+    resetSpam("u1");
+    const now = Date.now();
+    assert.equal(spamOffense("u1", "hello", now), null);
+    assert.equal(spamOffense("u1", "hello", now + 1), null);
+    assert.equal(spamOffense("u1", "hello", now + 2), null);
+    assert.equal(spamOffense("u1", "hello", now + 3), "repeated messages");
+    resetSpam("u2");
+    let hit = null;
+    for (let i = 0; i < 6; i++) hit = spamOffense("u2", `msg ${i}`, now + i);
+    assert.equal(hit, "message spam");
   });
 });

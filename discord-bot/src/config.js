@@ -6,6 +6,11 @@ module.exports = {
   token: process.env.DISCORD_TOKEN || "",
   clientId: process.env.DISCORD_CLIENT_ID || "1542504614744821764",
   guildId: process.env.DISCORD_GUILD_ID || "1541817004531646555",
+  // Co2Noss is developer, moderator, and support until others are added.
+  developerUserIds: (process.env.DEVELOPER_USER_IDS || "260152610697248768")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean),
   invite: "https://discord.gg/a7hrHavcwq",
   color: 0xf2b838,
   accent: 0x59d8c9,
