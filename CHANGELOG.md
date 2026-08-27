@@ -1,3 +1,15 @@
+# 1.5.31
+
+- Housing asks the client for house info and keeps the owned-house list,
+  current house, and house level from those events. The tile no longer says
+  "No house" while the Housing Dashboard shows one, just because
+  `GetPlayerOwnedHouses` is still empty.
+- Mythic+ dungeon teleports match `Path of the Rookery` to `The Rookery`
+  (case and a leading "The") and expand spellbook flyouts. Click uses a
+  `SecureActionButton` (`type=spell`) the same way Readiness uses bag slots.
+- Opening Mythic+ Dungeons from a tile hides the dashboard tooltip and raises
+  only the group-finder window, so a dark box no longer sits over the tab.
+
 # 1.5.3
 
 - Dashboard **Readiness** checks this expansion's food, flask, augment rune, and

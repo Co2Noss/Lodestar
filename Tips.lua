@@ -84,6 +84,14 @@ LS.TIPS = {
 -- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.31",
+    notes = {
+      "Housing asks the client for house info so the tile does not say No house while the Housing Dashboard shows one.",
+      "Mythic+ dungeon teleports match Path of the Rookery to The Rookery and expand spellbook flyouts. Click is a SecureActionButton.",
+      "Opening Mythic+ Dungeons hides the dashboard tooltip and no longer paints a dark box over the tab.",
+    },
+  },
+  {
     version = "1.5.3",
     notes = {
       "Dashboard Readiness uses this expansion's food, flask, augment rune, and weapon oil from bags. Click a slot to use it.",
@@ -109,16 +117,6 @@ LS.CHANGELOG = {
     version = "1.5.1",
     notes = {
       "Settings → Reputation no longer paints a full-page panel over the faction list, so Rank all and the factions stay readable.",
-    },
-  },
-  {
-    version = "1.5.0",
-    notes = {
-      "Dashboard tiles for Mythic+, currencies, PvP, item level, housing, calendar, guild, and journeys. Edit a tile to pick what it shows; live Honor and gold stay off until Done editing.",
-      "Housing and PvP are goals. Neighborhood initiatives, housing weeklies already in the log, and weekly Conquest rank from the client.",
-      "Click a tile again to close the client window it opened. Housing Teleport runs from the click so the client does not block it.",
-      "The canvas grows down to 36 rows. Profession icons open that profession in front of Lodestar.",
-      "Themes include GW2 UI and RealUI. The tip tour walks to the feature. Settings → Optional Addons lists which addons are loaded.",
     },
   },
 }

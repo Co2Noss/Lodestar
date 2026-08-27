@@ -1011,6 +1011,7 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
   if spec.click and not edit then
     chrome:EnableMouse(true)
     chrome:SetScript("OnMouseUp", function()
+      if LS.HideWidgetTip then LS:HideWidgetTip() end
       spec.click(self)
     end)
   end

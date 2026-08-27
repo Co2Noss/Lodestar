@@ -40,22 +40,93 @@ local function FirstHouse(houses)
   if type(houses) ~= "table" then return end
   if houses[1] then return houses[1] end
   for _, house in pairs(houses) do
-    if type(house) == "table" then return house end
+    if type(house) == "table" or (type(house) == "string" and house ~= "") then
+      return house
+    end
   end
+end
+
+local function AsHouse(row)
+  if type(row) == "string" and row ~= "" then
+    return { houseGUID = row }
+  end
+  if type(row) ~= "table" then return end
+  local guid = row.houseGUID or row.houseGuid or row.guid or row.houseID
+  local name = row.houseName or row.name or row.displayName
+  local neighborhood = row.neighborhoodName or row.neighborhood
+  local hoodGUID = row.neighborhoodGUID or row.neighborhoodGuid
+  local plot = row.plotID or row.plotId
+  local level = tonumber(row.houseLevel) or tonumber(row.level) or tonumber(row.currentLevel)
+  if not (guid or name or plot or hoodGUID or row.ownerName) then return end
+  return {
+    houseName = name,
+    neighborhoodName = neighborhood,
+    plotID = plot,
+    houseGUID = guid,
+    neighborhoodGUID = hoodGUID,
+    houseLevel = level,
+    ownerName = row.ownerName,
+  }
 end
 
 function LS:HousingAPIsReady()
-  return C_Housing and (C_Housing.GetPlayerOwnedHouses or C_Housing.GetCurrentHouseInfo) and true
+  return C_Housing and (C_Housing.GetPlayerOwnedHouses or C_Housing.GetCurrentHouseInfo
+    or C_Housing.GetTrackedHouseGuid) and true
+end
+
+function LS:RequestHousingInfo()
+  if C_AddOns and C_AddOns.LoadAddOn then
+    pcall(C_AddOns.LoadAddOn, "Blizzard_HousingDashboard")
+  elseif LoadAddOn then
+    pcall(LoadAddOn, "Blizzard_HousingDashboard")
+  end
+  if not C_Housing then return end
+  if C_Housing.RequestCurrentHouseInfo then
+    pcall(C_Housing.RequestCurrentHouseInfo)
+  end
+end
+
+function LS:RememberHouseList(list)
+  if type(list) == "table" then self._houseList = list end
+end
+
+function LS:RememberCurrentHouse(info)
+  if type(info) == "table" then self._currentHouse = info end
+end
+
+function LS:RememberHouseFavor(info)
+  if info ~= nil then self._houseFavor = info end
+end
+
+function LS:RememberHouseLevel(info)
+  if info ~= nil then self._houseLevelInfo = info end
+end
+
+function LS:RememberTrackedHouse(guid)
+  if type(guid) == "string" and guid ~= "" then
+    self._trackedHouseGuid = guid
+  elseif type(guid) == "table" then
+    self._trackedHouseGuid = guid.houseGUID or guid.houseGuid or guid.guid
+  end
+end
+
+local function CollectHouse(self)
+  local house = AsHouse(FirstHouse(Safe(C_Housing and C_Housing.GetPlayerOwnedHouses)))
+  if house then return house end
+  house = AsHouse(FirstHouse(self._houseList))
+  if house then return house end
+  house = AsHouse(self._currentHouse)
+  if house then return house end
+  house = AsHouse(Safe(C_Housing and C_Housing.GetCurrentHouseInfo))
+  if house then return house end
+  local guid = self._trackedHouseGuid or Safe(C_Housing and C_Housing.GetTrackedHouseGuid)
+  if type(guid) == "string" and guid ~= "" then
+    return { houseGUID = guid }
+  end
 end
 
 function LS:PlayerOwnsHouse()
-  local houses = Safe(C_Housing and C_Housing.GetPlayerOwnedHouses)
-  if type(houses) == "table" and Count(houses) > 0 then return true end
-  local info = Safe(C_Housing and C_Housing.GetCurrentHouseInfo)
-  if type(info) == "table" and (info.houseName or info.plotID or info.ownerName or info.houseGUID) then
-    return true
-  end
-  return false
+  return CollectHouse(self) and true or false
 end
 
 function LS:OpenHousingDashboard()
@@ -124,17 +195,36 @@ end
 function LS:HousingProgress()
   local out = { owned = false }
   if not self:HousingAPIsReady() then return out end
-  local houses = Safe(C_Housing.GetPlayerOwnedHouses)
-  local house = FirstHouse(houses) or Safe(C_Housing.GetCurrentHouseInfo)
-  if type(house) ~= "table" then return out end
+  if not self._housingAsked then
+    self._housingAsked = true
+    self:RequestHousingInfo()
+  end
+  local house = CollectHouse(self)
+  if not house then return out end
   out.owned = true
   out.name = house.houseName
   out.neighborhood = house.neighborhoodName
   out.plotID = house.plotID
   out.houseGUID = house.houseGUID
   out.neighborhoodGUID = house.neighborhoodGUID
-  out.level = tonumber(house.houseLevel) or tonumber(house.level)
-  local favor, favorLevel = CurrentFavor(house.houseGUID)
+  out.level = tonumber(house.houseLevel)
+  local favor, favorLevel = house.houseGUID and CurrentFavor(house.houseGUID) or nil
+  if favor == nil and self._houseFavor ~= nil then
+    if type(self._houseFavor) == "table" then
+      favor = Num(self._houseFavor)
+      favorLevel = tonumber(self._houseFavor.level) or tonumber(self._houseFavor.houseLevel)
+    elseif type(self._houseFavor) == "number" then
+      favor = self._houseFavor
+    end
+  end
+  if not out.level and self._houseLevelInfo then
+    local info = self._houseLevelInfo
+    if type(info) == "table" then
+      out.level = tonumber(info.houseLevel) or tonumber(info.level) or tonumber(info.newHouseLevel)
+    elseif type(info) == "number" then
+      out.level = info
+    end
+  end
   out.favor = favor
   if not out.level then out.level = favorLevel end
   local maxLevel = Safe(C_Housing.GetMaxHouseLevel)
@@ -225,6 +315,10 @@ function LS:GetHousingRecommendations()
   local out = {}
   if not (self.db and self.db.goals and self.db.goals.HOUSING) then return out end
   if not self:HousingAPIsReady() then return out end
+  if not self._housingAsked then
+    self._housingAsked = true
+    self:RequestHousingInfo()
+  end
 
   local houses = Safe(C_Housing.GetPlayerOwnedHouses)
   local listed = type(houses) == "table"

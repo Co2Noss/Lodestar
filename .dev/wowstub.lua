@@ -209,6 +209,13 @@ function ClickFrame(frame, mouseButton)
         UseContainerItem(bag, slot)
       end
     end
+  elseif typ == "spell" then
+    local spell = frame:GetAttribute("spell")
+    if type(spell) == "string" and spell ~= "" then
+      if CastSpellByName then
+        CastSpellByName(spell)
+      end
+    end
   end
   if frame.scripts and frame.scripts.OnClick then
     frame.scripts.OnClick(frame, mouseButton)
@@ -989,6 +996,20 @@ CastSpellByNameUsed = nil
 CastSpellByName = function(name)
   CastSpellByNameUsed = name
 end
+
+Flyouts = {}
+function GetFlyoutInfo(flyoutID)
+  local f = Flyouts[flyoutID]
+  if not f then return end
+  return f.name, f.description, f.numSlots or #(f.slots or {}), f.isKnown ~= false
+end
+function GetFlyoutSlotInfo(flyoutID, slot)
+  local f = Flyouts[flyoutID]
+  local row = f and f.slots and f.slots[slot]
+  if not row then return end
+  return row.spellID, row.overrideSpellID, row.isKnown ~= false, row.name, row.slotSpecID
+end
+
 C_SpellBook = {
   GetNumSpellBookSkillLines = function()
     return #SpellBookSkillLines
@@ -1007,12 +1028,21 @@ C_SpellBook = {
   GetSpellBookItemType = function(slot)
     local row = SpellBookItems[slot]
     if not row then return end
+    if row.itemType == "FLYOUT" then
+      local id = row.flyoutID or row.spellID
+      return "FLYOUT", id, id
+    end
     return "SPELL", row.spellID, row.spellID
   end,
   GetSpellBookItemInfo = function(slot)
     local row = SpellBookItems[slot]
     if not row then return end
-    return { spellID = row.spellID, actionID = row.spellID, itemType = "SPELL" }
+    return {
+      spellID = row.spellID,
+      actionID = row.flyoutID or row.spellID,
+      itemType = row.itemType or "SPELL",
+      flyoutID = row.flyoutID,
+    }
   end,
 }
 
@@ -1028,6 +1058,8 @@ CurrentHouseFavor = nil
 MaxHouseLevel = 10
 HouseLevelFavor = { [1] = 0, [2] = 10, [3] = 1200, [4] = 2400, [5] = 3700 }
 TeleportedHome = nil
+TrackedHouseGuid = nil
+RequestedHouseInfo = nil
 CurrentInitiative = nil
 InitiativeProgress = nil
 PlayerContribution = nil
@@ -1038,6 +1070,12 @@ C_Housing = {
   end,
   GetCurrentHouseInfo = function()
     return CurrentHouseInfo
+  end,
+  GetTrackedHouseGuid = function()
+    return TrackedHouseGuid
+  end,
+  RequestCurrentHouseInfo = function()
+    RequestedHouseInfo = true
   end,
   GetMaxHouseLevel = function()
     return MaxHouseLevel

@@ -348,7 +348,7 @@ s.click("Changelog")
 check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
 log = s.texts()
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.3", "1.5.21", "1.5.2", "1.5.1", "1.5.0"]), log)
+      all(name in log for name in ["1.5.31", "1.5.3", "1.5.21", "1.5.2", "1.5.1"]), log)
 
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
@@ -1894,6 +1894,51 @@ check("Housing progress reads house level and favor from the client",
 check("Housing reports fill toward the next house level",
       abs(s.eval("__LS:HousingProgress().fill") - (490 / 1190)) < 0.01)
 s.exec("""
+  OwnedHouses = {}
+  CurrentHouseInfo = nil
+  __LS._houseList = nil
+  __LS._currentHouse = nil
+  __LS._trackedHouseGuid = nil
+  __LS._housingAsked = false
+""")
+check("Housing is empty until the client lists a house",
+      s.eval("__LS:PlayerOwnsHouse()") is not True)
+s.exec("""
+  __LS:RememberHouseList({ {
+    houseName = "Hammerlock's House", houseLevel = 6, houseGUID = "House-6",
+  } })
+""")
+cached = s.eval("""(function()
+  local p = __LS:HousingProgress()
+  return table.concat({
+    tostring(p.owned), tostring(p.name), tostring(p.level)
+  }, "|")
+end)()""")
+check("Housing uses the house list event when GetPlayerOwnedHouses is still empty",
+      cached == "true|Hammerlock's House|6", cached)
+s.exec("""
+  __LS._houseList = nil
+  OwnedHouses = { "House-GUID-1" }
+""")
+check("Housing treats a GUID-only owned list as a house",
+      s.eval("__LS:PlayerOwnsHouse()") is True)
+s.exec("""
+  OwnedHouses = {}
+  __LS._houseList = nil
+  __LS._currentHouse = nil
+  __LS._trackedHouseGuid = nil
+  RequestedHouseInfo = nil
+  __LS._housingAsked = false
+  __LS:HousingProgress()
+""")
+check("Housing asks the client for house info when the owned list is empty",
+      s.eval("RequestedHouseInfo") is True)
+s.exec("""
+  OwnedHouses = { {
+    plotID = 7, houseName = "Test House", neighborhoodName = "Founder's Point",
+    houseGUID = "House-1", neighborhoodGUID = "Hood-1",
+  } }
+  CurrentHouseFavor = 500
   OpenedHousingDashboard = false
   __LS:OpenHousingDashboard()
 """)
@@ -2287,6 +2332,19 @@ s.exec("""
 check("Mythic+ opens the Mythic+ Dungeons tab", s.eval("OpenedMythicPlus") is True)
 check("Mythic+ opens in front of Lodestar",
       s.eval("PVEFrame.frameStrata") == "DIALOG")
+check("Mythic+ does not raise ChallengesFrame over the Dungeons tab",
+      s.eval("ChallengesFrame.frameStrata") != "DIALOG")
+s.exec("""
+  PVEFrame.shown = false
+  ChallengesFrame.shown = false
+  GameTooltip:SetText("Raider.IO Records")
+  GameTooltip.shown = true
+  __LS._tipOwner = PVEFrame
+  OpenedMythicPlus = false
+  __LS:OpenMythicPlus()
+""")
+check("opening Mythic+ Dungeons hides the dashboard tooltip",
+      s.eval("GameTooltip.shown") is not True)
 s.exec("__LS:OpenMythicPlus()")
 check("clicking Mythic+ again closes the Dungeons tab",
       s.eval("PVEFrame.shown") is not True
@@ -2342,8 +2400,54 @@ s.exec("CastSpellByNameUsed = nil; __LS:CastMythicPlusTeleport(2)")
 check("CastMythicPlusTeleport stays quiet when that dungeon is not unlocked",
       s.eval("CastSpellByNameUsed") is None)
 s.exec("""
+  SpellBookItems[1] = {
+    name = "Path of the Rookery",
+    spellID = 4241,
+  }
+  SpellBookItems[2] = nil
+  SpellBookSkillLines[1] = {
+    name = "Hero's Path: Midnight",
+    itemIndexOffset = 0,
+    numSpellBookItems = 1,
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("Mythic+ matches Path of the Rookery to The Rookery without a description",
+      s.eval("(__LS:MythicPlusTeleport(403) or {}).name") == "Path of the Rookery")
+s.exec("CastSpellByNameUsed = nil; OpenedMythicPlus = false")
+s.click("The Rookery")
+check("a name-only Keystone Hero match still teleports",
+      s.eval("CastSpellByNameUsed") == "Path of the Rookery"
+      and s.eval("OpenedMythicPlus") is not True)
+s.exec("""
+  SpellBookItems = {
+    [1] = { name = "Hero's Path", itemType = "FLYOUT", flyoutID = 9 },
+  }
+  SpellBookSkillLines[1] = {
+    name = "Hero's Path: Midnight",
+    itemIndexOffset = 0,
+    numSpellBookItems = 1,
+  }
+  Flyouts[9] = {
+    name = "Hero's Path",
+    numSlots = 1,
+    slots = { { spellID = 4241, name = "Path of the Rookery" } },
+  }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("Mythic+ matches a Keystone Hero teleport inside a spellbook flyout",
+      s.eval("(__LS:MythicPlusTeleport(403) or {}).name") == "Path of the Rookery")
+s.exec("CastSpellByNameUsed = nil; OpenedMythicPlus = false")
+s.click("The Rookery")
+check("clicking a dungeon teleports from a flyout spell",
+      s.eval("CastSpellByNameUsed") == "Path of the Rookery"
+      and s.eval("OpenedMythicPlus") is not True)
+s.exec("""
   SpellBookItems = {}
   SpellBookSkillLines = {}
+  Flyouts = {}
   CastSpellByNameUsed = nil
 """)
 check("a narrow activity card keeps a readable text column",

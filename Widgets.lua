@@ -255,6 +255,34 @@ local function SecureItemHit(parent, x, y, w, h, bag, slot)
   return frame
 end
 
+-- CastSpellByName is protected the same way. Keystone Hero ports use type=spell.
+local function SecureSpellHit(parent, x, y, w, h, spellName)
+  local frame
+  local ok, created = pcall(CreateFrame, "Button", nil, parent, "SecureActionButtonTemplate")
+  if ok and created then
+    frame = created
+  else
+    frame = CreateFrame("Button", nil, parent)
+  end
+  frame:SetPoint("TOPLEFT", x, y)
+  frame:SetSize(math.max(8, w), math.max(8, h))
+  frame:EnableMouse(true)
+  if frame.RegisterForClicks then
+    pcall(frame.RegisterForClicks, frame, "AnyDown", "AnyUp")
+  end
+  local lockdown = InCombatLockdown and InCombatLockdown()
+  if not lockdown and frame.SetAttribute then
+    if type(spellName) == "string" and spellName ~= "" then
+      pcall(frame.SetAttribute, frame, "type", "spell")
+      pcall(frame.SetAttribute, frame, "spell", spellName)
+    else
+      pcall(frame.SetAttribute, frame, "type", nil)
+      pcall(frame.SetAttribute, frame, "spell", nil)
+    end
+  end
+  return frame
+end
+
 local function PaintFillBar(self, parent, x, y, width, height, fill)
   fill = math.max(0, math.min(1, tonumber(fill) or 0))
   height = math.max(6, tonumber(height) or 8)
@@ -788,8 +816,13 @@ local function SpellBookBank()
   return (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
 end
 
+local function IsFlyoutType(itemType)
+  return itemType == "FLYOUT" or itemType == 2
+    or (Enum and Enum.SpellBookItemType and itemType == Enum.SpellBookItemType.Flyout)
+end
+
 local function SpellBookSlot(slot, bank)
-  local name, subName, spellID, description, itemType
+  local name, subName, spellID, description, itemType, flyoutID
   if C_SpellBook and C_SpellBook.GetSpellBookItemName then
     local ok, n, sub = pcall(C_SpellBook.GetSpellBookItemName, slot, bank)
     if ok then name, subName = n, sub end
@@ -798,14 +831,22 @@ local function SpellBookSlot(slot, bank)
     if ok then name, subName = n, sub end
   end
   if C_SpellBook and C_SpellBook.GetSpellBookItemType then
-    local ok, kind, _, id = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
-    if ok then itemType, spellID = kind, id end
+    local ok, kind, actionID, id = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
+    if ok then
+      itemType = kind
+      if IsFlyoutType(kind) then
+        flyoutID = actionID or id
+      else
+        spellID = id or actionID
+      end
+    end
   end
   if C_SpellBook and C_SpellBook.GetSpellBookItemInfo then
     local ok, info = pcall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
     if ok and type(info) == "table" then
-      spellID = spellID or info.spellID or info.actionID
+      spellID = spellID or info.spellID
       itemType = itemType or info.itemType
+      flyoutID = flyoutID or info.flyoutID or (IsFlyoutType(info.itemType) and (info.actionID or info.spellID))
     end
   end
   if C_SpellBook and C_SpellBook.GetSpellBookItemDescription then
@@ -829,6 +870,7 @@ local function SpellBookSlot(slot, bank)
     name = name,
     subName = subName,
     spellID = spellID,
+    flyoutID = flyoutID,
     description = description,
     itemType = itemType,
     slot = slot,
@@ -838,10 +880,66 @@ end
 
 local function SpellMatchesDungeon(spell, dungeonName)
   if not spell or not dungeonName or dungeonName == "" then return end
-  local itemType = spell.itemType
-  if itemType == "FLYOUT" or itemType == 2 then return end
-  local hay = ((spell.description or "") .. "\n" .. (spell.name or ""))
-  return hay:find(dungeonName, 1, true) and true or false
+  if IsFlyoutType(spell.itemType) then return end
+  local function fold(s)
+    s = string.lower(s or "")
+    s = s:gsub("^the%s+", "")
+    return s
+  end
+  local hay = fold((spell.description or "") .. "\n" .. (spell.name or ""))
+  local needle = fold(dungeonName)
+  if needle == "" then return end
+  return hay:find(needle, 1, true) and true or false
+end
+
+local function FlyoutSpells(spell)
+  local flyoutID = spell and (spell.flyoutID or (IsFlyoutType(spell.itemType) and spell.spellID))
+  if not flyoutID or not IsFlyoutType(spell and spell.itemType) then return end
+  local n
+  if GetFlyoutInfo then
+    local ok, _, _, numSlots = pcall(GetFlyoutInfo, flyoutID)
+    if ok then n = tonumber(numSlots) end
+  end
+  if not n and C_Spell and C_Spell.GetFlyoutInfo then
+    local ok, info = pcall(C_Spell.GetFlyoutInfo, flyoutID)
+    if ok then
+      if type(info) == "table" then n = tonumber(info.numSlots or info.slotCount)
+      else n = tonumber(info) end
+    end
+  end
+  n = tonumber(n) or 0
+  if n <= 0 then return end
+  local out = {}
+  for i = 1, n do
+    local id, known, spellName, description
+    if GetFlyoutSlotInfo then
+      local ok, spellID, _, isKnown, name = pcall(GetFlyoutSlotInfo, flyoutID, i)
+      if ok then id, known, spellName = spellID, isKnown, name end
+    elseif C_Spell and C_Spell.GetFlyoutSlotInfo then
+      local ok, info = pcall(C_Spell.GetFlyoutSlotInfo, flyoutID, i)
+      if ok and type(info) == "table" then
+        id, known, spellName = info.spellID, info.isKnown, info.name
+      end
+    end
+    if known == false then -- skip unknown
+    else
+      if (not description or description == "") and id and C_Spell and C_Spell.GetSpellDescription then
+        local ok, desc = pcall(C_Spell.GetSpellDescription, id)
+        if ok then description = desc end
+      end
+      if spellName or id then
+        table.insert(out, {
+          name = spellName,
+          spellID = id,
+          description = description,
+          slot = spell.slot,
+          bank = spell.bank,
+        })
+      end
+    end
+  end
+  if #out == 0 then return end
+  return out
 end
 
 local function EachPlayerSpell(fn)
@@ -904,9 +1002,12 @@ function LS:MythicPlusTeleports()
   local out = {}
   EachPlayerSpell(function(spell)
     if not spell or not spell.name then return end
-    for mapID, dungeonName in pairs(names) do
-      if not out[mapID] and SpellMatchesDungeon(spell, dungeonName) then
-        out[mapID] = spell
+    local pack = FlyoutSpells(spell) or { spell }
+    for _, row in ipairs(pack) do
+      for mapID, dungeonName in pairs(names) do
+        if not out[mapID] and SpellMatchesDungeon(row, dungeonName) then
+          out[mapID] = row
+        end
       end
     end
   end)
@@ -944,6 +1045,7 @@ function LS:CastMythicPlusTeleport(mapID)
 end
 
 function LS:OpenMythicPlus()
+  if self.HideWidgetTip then self:HideWidgetTip() end
   if self.ClientFrameShown and self:ClientFrameShown("ChallengesFrame") then
     self:HideClientFrame(_G.PVEFrame)
     self:HideClientFrame(_G.ChallengesFrame)
@@ -957,8 +1059,9 @@ function LS:OpenMythicPlus()
   if PVEFrame_ShowFrame then
     local ok = pcall(PVEFrame_ShowFrame, "ChallengesFrame")
     if ok then
+      -- Raise the group-finder window, not ChallengesFrame. That child has its
+      -- own backdrop; lifting it to DIALOG/toplevel paints a dark box over the tab.
       self:FrontClientFrame(PVEFrame)
-      self:FrontClientFrame(ChallengesFrame)
       return true
     end
   end
@@ -1098,13 +1201,18 @@ local function RegisterExtraWidgets()
           num:SetTextColor(unpack(self.colors.muted))
         end
         local dungeonID, dungeonName, dungeonLevel = mapID, name, level
-        local canPort = self:WidgetOptOn("raiderio", "teleport", true)
+        local port = self:WidgetOptOn("raiderio", "teleport", true)
           and self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
-        if canPort then
+        if port then
           local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
           PaintIconBorder(parent, art, size, a[1], a[2], a[3])
         end
-        local hit = Hit(parent, x, top, size, size)
+        local hit
+        if port and port.name then
+          hit = SecureSpellHit(parent, x, top, size, size, port.name)
+        else
+          hit = Hit(parent, x, top, size, size)
+        end
         if dungeonName then hit.text = { text_value = dungeonName } end
         self:HoverTip(hit, function(tip)
           if tip.ClearLines then tip:ClearLines() end
@@ -1115,9 +1223,8 @@ local function RegisterExtraWidgets()
             else
               tip:AddLine("No timed run this season.")
             end
-            local port = self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
-            if port and self:WidgetOptOn("raiderio", "teleport", true) then
-              if port.name then tip:AddLine(port.name) end
+            if port and port.name then
+              tip:AddLine(port.name)
               tip:AddLine("Keystone Hero teleport is unlocked. Click to teleport.")
             else
               tip:AddLine("Click to open Mythic+ Dungeons.")
@@ -1125,8 +1232,14 @@ local function RegisterExtraWidgets()
           end
         end)
         hit:SetScript("OnMouseUp", function()
-          if self:WidgetOptOn("raiderio", "teleport", true)
-              and self.CastMythicPlusTeleport and self:CastMythicPlusTeleport(dungeonID) then
+          if self.HideWidgetTip then self:HideWidgetTip() end
+          local live = self:WidgetOptOn("raiderio", "teleport", true)
+            and self.MythicPlusTeleport and self:MythicPlusTeleport(dungeonID)
+          if live then
+            if hit.GetAttribute and hit:GetAttribute("type") == "spell" then
+              return
+            end
+            if self.CastMythicPlusTeleport then self:CastMythicPlusTeleport(dungeonID) end
             return
           end
           if self.OpenMythicPlus then self:OpenMythicPlus() end

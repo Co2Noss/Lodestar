@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.3"
+LS.version = "1.5.31"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -296,6 +296,14 @@ for _, name in ipairs({
       "MODIFIER_STATE_CHANGED",
       "CALENDAR_UPDATE_EVENT_LIST",
       "GUILD_ROSTER_UPDATE",
+      "PLAYER_HOUSE_LIST_UPDATED",
+      "CURRENT_HOUSE_INFO_UPDATED",
+      "CURRENT_HOUSE_INFO_RECIEVED",
+      "HOUSE_INFO_UPDATED",
+      "HOUSE_LEVEL_FAVOR_UPDATED",
+      "HOUSE_LEVEL_CHANGED",
+      "TRACKED_HOUSE_CHANGED",
+      "VIEW_HOUSES_LIST_RECIEVED",
     }) do
   pcall(events.RegisterEvent, events, name)
 end
@@ -327,10 +335,24 @@ events:SetScript("OnEvent", function(_, event, arg)
     if LS.RefreshWidgetTooltip then LS:RefreshWidgetTooltip() end
     return
   end
+  if event == "PLAYER_HOUSE_LIST_UPDATED" or event == "VIEW_HOUSES_LIST_RECIEVED" then
+    if LS.RememberHouseList then LS:RememberHouseList(arg) end
+  elseif event == "CURRENT_HOUSE_INFO_UPDATED" or event == "CURRENT_HOUSE_INFO_RECIEVED" then
+    if LS.RememberCurrentHouse then LS:RememberCurrentHouse(arg) end
+  elseif event == "HOUSE_LEVEL_FAVOR_UPDATED" then
+    if LS.RememberHouseFavor then LS:RememberHouseFavor(arg) end
+  elseif event == "HOUSE_LEVEL_CHANGED" then
+    if LS.RememberHouseLevel then LS:RememberHouseLevel(arg) end
+  elseif event == "HOUSE_INFO_UPDATED" then
+    if LS.RememberCurrentHouse then LS:RememberCurrentHouse(arg) end
+  elseif event == "TRACKED_HOUSE_CHANGED" then
+    if LS.RememberTrackedHouse then LS:RememberTrackedHouse(arg) end
+  end
   if event == "PLAYER_LOGIN" then
     if RequestRaidInfo then RequestRaidInfo() end
     if C_Calendar and C_Calendar.OpenCalendar then pcall(C_Calendar.OpenCalendar) end
     if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
+    if LS.RequestHousingInfo then LS:RequestHousingInfo() end
     RefreshState()
     if LS.db.welcomed then
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls to open.")

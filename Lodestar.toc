@@ -1,7 +1,7 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.5.3
+## Version: 1.5.31
 ## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI, RaiderIO, GW2_UI, nibRealUI, Aurora
 ## SavedVariables: LodestarDB, LodestarDebugDB
 Core.lua
