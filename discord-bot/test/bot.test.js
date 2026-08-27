@@ -2,8 +2,15 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
+const { PermissionFlagsBits } = require("discord.js");
 const { FAQS, findFaq, suggestFaq, faqChoices } = require("../src/faqs");
 const { ROLE_SPECS, CATEGORY_SPECS, channelSpecs } = require("../src/setup");
+
+const P = PermissionFlagsBits;
+
+function hasFlag(list, bit) {
+  return Array.isArray(list) && list.some((x) => BigInt(x) === BigInt(bit));
+}
 
 describe("faqs", () => {
   it("has unique ids and at least a dozen topics", () => {
@@ -50,6 +57,10 @@ describe("server layout", () => {
     const roleNames = ROLE_SPECS.map((r) => r.name);
     assert.equal(new Set(roleNames).size, roleNames.length);
     assert.ok(roleNames.includes("Member"));
+    assert.ok(roleNames.includes("Unverified"));
+    const unverified = ROLE_SPECS.find((r) => r.key === "unverified");
+    assert.equal(unverified.hoist, false);
+    assert.equal(unverified.mentionable, false);
     assert.ok(roleNames.includes("Developer"));
     assert.ok(roleNames.includes("Bot"));
     assert.ok(roleNames.includes("Moderator"));
@@ -69,6 +80,7 @@ describe("server layout", () => {
       developer: { id: "d" },
       bot: { id: "b" },
       member: { id: "mem" },
+      unverified: { id: "uv" },
       alpha: { id: "a" },
       contributor: { id: "c" },
     };
@@ -113,6 +125,58 @@ describe("server layout", () => {
     const overwrites = alpha.overwrites(fakeGuild, { alpha: { id: "a" } });
     const everyone = overwrites.find((o) => o.id === "everyone");
     assert.ok(everyone.deny && everyone.deny.length);
+  });
+
+  it("hides welcome and honeypot from Member, keeps them for Unverified and staff", () => {
+    const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
+    const fakeRoles = {
+      support: { id: "s" },
+      moderator: { id: "m" },
+      developer: { id: "d" },
+      bot: { id: "b" },
+      member: { id: "mem" },
+      unverified: { id: "uv" },
+      alpha: { id: "a" },
+    };
+    const channels = channelSpecs(fakeGuild, fakeRoles);
+    const welcome = channels.find((c) => c.key === "welcome");
+    const honeypot = channels.find((c) => c.key === "silence-enforced");
+    const rules = channels.find((c) => c.key === "rules");
+
+    const welcomeEveryone = welcome.overwrites.find((o) => o.id === "everyone");
+    const welcomeUnverified = welcome.overwrites.find((o) => o.id === "uv");
+    const welcomeMember = welcome.overwrites.find((o) => o.id === "mem");
+    const welcomeBot = welcome.overwrites.find((o) => o.id === "b");
+    const welcomeStaff = welcome.overwrites.find((o) => o.id === "d");
+    assert.ok(hasFlag(welcomeEveryone.deny, P.ViewChannel));
+    assert.ok(hasFlag(welcomeUnverified.allow, P.ViewChannel));
+    assert.ok(hasFlag(welcomeUnverified.allow, P.ReadMessageHistory));
+    assert.ok(hasFlag(welcomeUnverified.allow, P.AddReactions));
+    assert.ok(hasFlag(welcomeUnverified.deny, P.SendMessages));
+    assert.ok(hasFlag(welcomeMember.deny, P.ViewChannel));
+    assert.ok(hasFlag(welcomeBot.allow, P.ViewChannel));
+    assert.ok(hasFlag(welcomeBot.allow, P.SendMessages));
+    assert.ok(hasFlag(welcomeStaff.allow, P.ViewChannel));
+
+    const potEveryone = honeypot.overwrites.find((o) => o.id === "everyone");
+    const potUnverified = honeypot.overwrites.find((o) => o.id === "uv");
+    const potMember = honeypot.overwrites.find((o) => o.id === "mem");
+    const potBot = honeypot.overwrites.find((o) => o.id === "b");
+    const potStaff = honeypot.overwrites.find((o) => o.id === "s");
+    assert.ok(hasFlag(potEveryone.deny, P.ViewChannel));
+    assert.ok(hasFlag(potUnverified.allow, P.ViewChannel));
+    assert.ok(hasFlag(potUnverified.allow, P.SendMessages));
+    assert.ok(hasFlag(potUnverified.allow, P.ReadMessageHistory));
+    assert.ok(hasFlag(potUnverified.deny, P.AddReactions));
+    assert.ok(hasFlag(potUnverified.deny, P.AttachFiles));
+    assert.ok(hasFlag(potUnverified.deny, P.EmbedLinks));
+    assert.ok(hasFlag(potMember.deny, P.ViewChannel));
+    assert.ok(hasFlag(potBot.allow, P.ViewChannel));
+    assert.ok(hasFlag(potStaff.allow, P.ViewChannel));
+
+    const rulesEveryone = rules.overwrites.find((o) => o.id === "everyone");
+    assert.ok(hasFlag(rulesEveryone.allow, P.ViewChannel));
+    assert.ok(hasFlag(rulesEveryone.deny, P.SendMessages));
   });
 });
 

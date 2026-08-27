@@ -18,7 +18,7 @@ const tickets = require("./tickets");
 const moderation = require("./moderation");
 const verification = require("./verification");
 const { maybeAssist } = require("./assist");
-const { roleByName } = require("./staff");
+const { roleByName, isStaff } = require("./staff");
 const alpha = require("./alpha");
 const github = require("./github");
 const feeds = require("./feeds");
@@ -114,6 +114,7 @@ async function prepareGuild(guild) {
     !hasChannelSlug(guild, "alpha-chat") ||
     !guild.roles.cache.some((r) => r.name === "Alpha Tester") ||
     !guild.roles.cache.some((r) => r.name === "Contributor") ||
+    !guild.roles.cache.some((r) => r.name === "Unverified") ||
     !hasChannelSlug(guild, "github-releases") ||
     !guild.channels.cache.some((c) => c.name === "👋welcome") ||
     !guild.emojis.cache.some((e) => e.name === "lodestar");
@@ -191,6 +192,12 @@ function bind(client) {
     if (memberRole && member.roles.cache.has(memberRole.id)) {
       await verification.onBecameMember(member).catch((err) => console.error("welcome failed:", err.message));
       return;
+    }
+    if (!isStaff(member)) {
+      const unverifiedRole = roleByName(member.guild, "Unverified");
+      if (unverifiedRole && !member.roles.cache.has(unverifiedRole.id)) {
+        await member.roles.add(unverifiedRole, "Unverified until they accept the rules").catch(() => {});
+      }
     }
     try {
       await verification.sendJoinPrompt(member);

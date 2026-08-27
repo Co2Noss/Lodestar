@@ -87,14 +87,39 @@ function membersChat(guild, roles) {
   return overwrites;
 }
 
-function honeypotOverwrites(guild) {
-  return [
-    {
-      id: guild.roles.everyone.id,
+function gateOverwrites(guild, roles, unverified) {
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  if (roles.unverified) {
+    overwrites.push({
+      id: roles.unverified.id,
+      allow: unverified.allow,
+      deny: unverified.deny,
+    });
+  }
+  if (roles.member) {
+    overwrites.push({ id: roles.member.id, deny: [P.ViewChannel] });
+  }
+  if (roles.bot) {
+    overwrites.push({
+      id: roles.bot.id,
       allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory],
-      deny: [P.AddReactions, P.CreatePublicThreads, P.SendMessagesInThreads, P.AttachFiles, P.EmbedLinks],
-    },
-  ];
+    });
+  }
+  return addStaffOverwrites(overwrites, roles);
+}
+
+function welcomeOverwrites(guild, roles) {
+  return gateOverwrites(guild, roles, {
+    allow: [P.ViewChannel, P.ReadMessageHistory, P.AddReactions],
+    deny: [P.SendMessages, P.CreatePublicThreads, P.SendMessagesInThreads],
+  });
+}
+
+function honeypotOverwrites(guild, roles) {
+  return gateOverwrites(guild, roles, {
+    allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory],
+    deny: [P.AddReactions, P.CreatePublicThreads, P.SendMessagesInThreads, P.AttachFiles, P.EmbedLinks],
+  });
 }
 
 function hiddenStaff(guild, roles) {
@@ -164,6 +189,14 @@ function alphaChat(guild, roles) {
 }
 
 const ROLE_SPECS = [
+  {
+    key: "unverified",
+    name: "Unverified",
+    color: 0x99aab5,
+    hoist: false,
+    mentionable: false,
+    permissions: [],
+  },
   {
     key: "member",
     name: "Member",
@@ -259,9 +292,9 @@ function channelSpecs(guild, roles) {
     ? ChannelType.GuildAnnouncement
     : ChannelType.GuildText;
   return [
-    { key: "welcome", name: "👋welcome", aliases: ["welcome"], parent: "info", type: ChannelType.GuildText, topic: "Start here. Click the button after you read the rules.", overwrites: everyoneRead(guild) },
+    { key: "welcome", name: "👋welcome", aliases: ["welcome"], parent: "info", type: ChannelType.GuildText, topic: "Start here. Click the button after you read the rules.", overwrites: welcomeOverwrites(guild, roles) },
     { key: "rules", name: "📜rules", aliases: ["rules"], parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
-    { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild) },
+    { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild, roles) },
     { key: "announcements", name: "📣announcements", aliases: ["announcements"], parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
     { key: "releases", name: "📦releases", aliases: ["releases"], parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
     { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
@@ -575,14 +608,41 @@ async function assignPeople(guild, roles, report) {
       report.push(`could not assign staff roles to ${member.user.tag}: ${err.message}`);
     }
   }
-  if (!roles.bot) return;
+  if (roles.bot) {
+    for (const member of guild.members.cache.values()) {
+      if (!member.user.bot || member.roles.cache.has(roles.bot.id)) continue;
+      try {
+        await member.roles.add(roles.bot, "Bot role");
+        report.push(`gave @Bot to ${member.user.tag}`);
+      } catch (err) {
+        report.push(`could not give @Bot to ${member.user.tag}: ${err.message}`);
+      }
+    }
+  }
+  if (!roles.unverified) return;
   for (const member of guild.members.cache.values()) {
-    if (!member.user.bot || member.roles.cache.has(roles.bot.id)) continue;
+    if (member.user.bot) continue;
+    const hasMember = roles.member && member.roles.cache.has(roles.member.id);
+    const hasStaff = ["developer", "moderator", "support"].some(
+      (key) => roles[key] && member.roles.cache.has(roles[key].id)
+    );
+    const hasUnverified = member.roles.cache.has(roles.unverified.id);
+    if (hasMember || hasStaff) {
+      if (!hasUnverified) continue;
+      try {
+        await member.roles.remove(roles.unverified, "Verified or staff: hide welcome and honeypot");
+        report.push(`removed @Unverified from ${member.user.tag}`);
+      } catch (err) {
+        report.push(`could not remove @Unverified from ${member.user.tag}: ${err.message}`);
+      }
+      continue;
+    }
+    if (hasUnverified) continue;
     try {
-      await member.roles.add(roles.bot, "Bot role");
-      report.push(`gave @Bot to ${member.user.tag}`);
+      await member.roles.add(roles.unverified, "Unverified until they accept the rules");
+      report.push(`gave @Unverified to ${member.user.tag}`);
     } catch (err) {
-      report.push(`could not give @Bot to ${member.user.tag}: ${err.message}`);
+      report.push(`could not give @Unverified to ${member.user.tag}: ${err.message}`);
     }
   }
 }
@@ -597,8 +657,8 @@ async function applySetup(guild) {
       report.push(`failed role @${spec.name}: ${err.message}`);
     }
   }
-  if (!roles.support || !roles.moderator || !roles.developer || !roles.bot || !roles.member) {
-    throw new Error("Could not create Member, Developer, Moderator, Support, and Bot roles. Drag the Lodestar Support bot role to the top of the role list and run /setup again.");
+  if (!roles.support || !roles.moderator || !roles.developer || !roles.bot || !roles.member || !roles.unverified) {
+    throw new Error("Could not create Member, Unverified, Developer, Moderator, Support, and Bot roles. Drag the Lodestar Support bot role to the top of the role list and run /setup again.");
   }
 
   const categories = {};
@@ -677,6 +737,7 @@ async function applySetup(guild) {
   state.patch(guild.id, (g) => {
     g.roles = {
       member: roles.member.id,
+      unverified: roles.unverified.id,
       developer: roles.developer.id,
       moderator: roles.moderator.id,
       support: roles.support.id,
@@ -700,6 +761,8 @@ module.exports = {
   channelSpecs,
   applySetup,
   assignPeople,
+  welcomeOverwrites,
+  honeypotOverwrites,
   ticketPanel,
   faqPanel,
   faqEmbed,

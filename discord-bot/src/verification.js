@@ -143,7 +143,20 @@ async function sendJoinPrompt(member) {
   return msg;
 }
 
+async function removeUnverified(member) {
+  const role = roleByName(member.guild, "Unverified");
+  if (!role || !member.roles.cache.has(role.id)) return false;
+  try {
+    await member.roles.remove(role, "Passed rules verification");
+    return true;
+  } catch (err) {
+    console.error("could not remove Unverified:", err.message);
+    return false;
+  }
+}
+
 async function onBecameMember(member) {
+  await removeUnverified(member);
   await clearJoinPrompt(member.guild, member.id);
   if (!takeAnnounceSlot(member.id)) return false;
   try {
@@ -202,6 +215,7 @@ async function handleVerify(interaction) {
     return;
   }
   if (member.roles.cache.has(role.id)) {
+    await removeUnverified(member);
     await clearJoinPrompt(interaction.guild, member.id);
     await interaction.reply({ content: "You're already in. The rest of the server is unlocked.", flags: MessageFlags.Ephemeral });
     return;
@@ -301,5 +315,6 @@ module.exports = {
   isJoinPrompt,
   sendJoinPrompt,
   onBecameMember,
+  removeUnverified,
   sweepVerifiedPrompts,
 };
