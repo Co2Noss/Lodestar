@@ -19,6 +19,8 @@ const moderation = require("./moderation");
 const verification = require("./verification");
 const { maybeAssist } = require("./assist");
 const { roleByName } = require("./staff");
+const alpha = require("./alpha");
+const github = require("./github");
 
 if (!config.token) {
   console.error("Missing DISCORD_TOKEN. Copy discord-bot/.env.example to discord-bot/.env and paste the bot token.");
@@ -51,6 +53,8 @@ const commands = [
     .setDescription("How to get Lodestar support on this server.")
     .setDMPermission(false),
   ...moderation.commands(),
+  ...alpha.commands(),
+  ...github.commands(),
 ].map((c) => (typeof c.toJSON === "function" ? c.toJSON() : c));
 
 function makeClient(privileged) {
@@ -73,6 +77,8 @@ function helpEmbed(guild) {
         "`/faq` — answers for install, goals, gold, rares, vault, debug, and more",
         "`/ticket` — private ticket with Support (or the button in #get-help)",
         "`/close` — close your ticket",
+        "`/github link` — connect your GitHub so commits and PRs grant Contributor",
+        "`/alpha` — staff: grant the Alpha Tester channels",
         "`/mod` — warn, timeout, kick, ban, purge (Developer and Moderator)",
         "`/setup` — admins: rebuild the server layout",
         "",
@@ -99,6 +105,9 @@ async function prepareGuild(guild) {
     !guild.roles.cache.some((r) => r.name === "Bot") ||
     !guild.roles.cache.some((r) => r.name === "Member") ||
     !guild.channels.cache.some((c) => c.name === "silence-enforced") ||
+    !guild.channels.cache.some((c) => c.name === "alpha-chat") ||
+    !guild.roles.cache.some((r) => r.name === "Alpha Tester") ||
+    !guild.roles.cache.some((r) => r.name === "Contributor") ||
     !guild.emojis.cache.some((e) => e.name === "lodestar");
   if (needsSetup) {
     try {
@@ -133,7 +142,19 @@ function bind(client) {
     client.user.setActivity("Lodestar support · /faq", { type: ActivityType.Listening });
     for (const guild of client.guilds.cache.values()) {
       await prepareGuild(guild);
+      try {
+        const report = [];
+        await github.syncGuild(guild, report);
+        for (const line of report) console.log(`  ${line}`);
+      } catch (err) {
+        console.error(`GitHub sync failed in ${guild.name}:`, err);
+      }
     }
+    setInterval(() => {
+      for (const guild of client.guilds.cache.values()) {
+        github.syncGuild(guild).catch((err) => console.error("GitHub sync failed:", err));
+      }
+    }, 15 * 60 * 1000).unref();
   };
   client.once("clientReady", onReady);
 
@@ -170,6 +191,11 @@ function bind(client) {
       if (await moderation.maybeAutomod(message)) return;
     } catch (err) {
       console.error("automod failed:", err);
+    }
+    try {
+      if (await github.maybeCreditFromMessage(message)) return;
+    } catch (err) {
+      console.error("github credit failed:", err);
     }
     const reply = maybeAssist(message);
     if (!reply) return;
@@ -232,6 +258,8 @@ async function handleInteraction(interaction) {
 
   if (await verification.handleInteraction(interaction)) return;
   if (await moderation.handleInteraction(interaction)) return;
+  if (await alpha.handleInteraction(interaction)) return;
+  if (await github.handleInteraction(interaction)) return;
 
   if (!interaction.isChatInputCommand()) return;
 
@@ -281,7 +309,7 @@ async function handleInteraction(interaction) {
         summary + extra,
         "",
         channels["get-help"] ? `Ticket panel: ${channels["get-help"]}` : "",
-        "Drag the **Lodestar Support** bot role above Developer, Moderator, Support, and Bot so it can assign those roles and timeout people.",
+        "Drag the **Lodestar Support** bot role above Developer, Moderator, Support, Alpha Tester, Contributor, and Bot so it can assign those roles and timeout people.",
       ]
         .filter(Boolean)
         .join("\n"),

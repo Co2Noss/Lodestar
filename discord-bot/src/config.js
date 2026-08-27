@@ -23,4 +23,8 @@ module.exports = {
     releases: "https://github.com/Co2Noss/Lodestar/releases",
     paypal: "http://paypal.me/Co2Noss",
   },
+  githubRepo: process.env.GITHUB_REPO || "Co2Noss/Lodestar",
+  githubToken: process.env.GITHUB_TOKEN || "",
+  // Discord user ID → GitHub login. Co2Noss owns the repo.
+  githubLinks: { "260152610697248768": "Co2Noss" },
 };

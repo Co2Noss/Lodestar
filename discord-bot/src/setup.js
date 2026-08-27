@@ -14,6 +14,8 @@ const { FAQS, faqEmbed, linksEmbed } = require("./faqs");
 const state = require("./state");
 const verification = require("./verification");
 const emojis = require("./emojis");
+const alpha = require("./alpha");
+const github = require("./github");
 
 const P = PermissionFlagsBits;
 
@@ -109,6 +111,56 @@ function hiddenTickets(guild, roles) {
   ];
 }
 
+function addStaffOverwrites(overwrites, roles) {
+  for (const key of ["developer", "moderator", "support"]) {
+    if (roles[key]) overwrites.push({ id: roles[key].id, allow: STAFF_ALLOW });
+  }
+  return overwrites;
+}
+
+function hiddenAlpha(guild, roles) {
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  if (roles.alpha) {
+    overwrites.push({
+      id: roles.alpha.id,
+      allow: [P.ViewChannel, P.ReadMessageHistory, P.AddReactions],
+    });
+  }
+  return addStaffOverwrites(overwrites, roles);
+}
+
+function alphaRead(guild, roles) {
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  if (roles.alpha) {
+    overwrites.push({
+      id: roles.alpha.id,
+      allow: [P.ViewChannel, P.ReadMessageHistory, P.AddReactions],
+      deny: [P.SendMessages, P.CreatePublicThreads, P.SendMessagesInThreads],
+    });
+  }
+  return addStaffOverwrites(overwrites, roles);
+}
+
+function alphaChat(guild, roles) {
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  if (roles.alpha) {
+    overwrites.push({
+      id: roles.alpha.id,
+      allow: [
+        P.ViewChannel,
+        P.SendMessages,
+        P.ReadMessageHistory,
+        P.AddReactions,
+        P.EmbedLinks,
+        P.AttachFiles,
+        P.CreatePublicThreads,
+        P.SendMessagesInThreads,
+      ],
+    });
+  }
+  return addStaffOverwrites(overwrites, roles);
+}
+
 const ROLE_SPECS = [
   {
     key: "member",
@@ -124,6 +176,22 @@ const ROLE_SPECS = [
     color: 0x99aab5,
     hoist: true,
     mentionable: false,
+    permissions: [],
+  },
+  {
+    key: "contributor",
+    name: "Contributor",
+    color: config.color,
+    hoist: true,
+    mentionable: true,
+    permissions: [],
+  },
+  {
+    key: "alpha",
+    name: "Alpha Tester",
+    color: 0xeb459e,
+    hoist: true,
+    mentionable: true,
     permissions: [],
   },
   {
@@ -180,6 +248,7 @@ const CATEGORY_SPECS = [
   { key: "tickets", name: "Tickets", hidden: true },
   { key: "community", name: "Community" },
   { key: "development", name: "Development" },
+  { key: "alpha", name: "Alpha", overwrites: hiddenAlpha },
   { key: "staff", name: "Staff", hidden: true },
 ];
 
@@ -218,7 +287,10 @@ function channelSpecs(guild, roles) {
     { key: "screenshots", name: "screenshots", parent: "community", type: ChannelType.GuildText, topic: "Dashboard layouts, compact mode, themes.", overwrites: membersChat(guild, roles) },
     { key: "off-topic", name: "off-topic", parent: "community", type: ChannelType.GuildText, topic: "Not Lodestar. Still be decent.", overwrites: membersChat(guild, roles) },
     { key: "git-commits", name: "git-commits", parent: "development", type: ChannelType.GuildText, topic: "GitHub commits. Webhooks post here.", overwrites: membersRead(guild, roles) },
-    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues and pull requests.", overwrites: membersRead(guild, roles) },
+    { key: "github", name: "github", parent: "development", type: ChannelType.GuildText, topic: "Issues, pull requests, and Contributor credit.", overwrites: membersRead(guild, roles) },
+    { key: "alpha-news", name: "alpha-news", parent: "alpha", type: ChannelType.GuildText, topic: "What to test. Staff posts here.", overwrites: alphaRead(guild, roles) },
+    { key: "alpha-chat", name: "alpha-chat", parent: "alpha", type: ChannelType.GuildText, topic: "Talk while you test unreleased builds.", overwrites: alphaChat(guild, roles) },
+    { key: "alpha-feedback", name: "alpha-feedback", parent: "alpha", type: ChannelType.GuildText, topic: "Bugs and notes from alpha builds.", overwrites: alphaChat(guild, roles) },
     { key: "staff", name: "staff", parent: "staff", type: ChannelType.GuildText, topic: "Staff only.", overwrites: hiddenStaff(guild, roles) },
     { key: "mod-log", name: "mod-log", parent: "staff", type: ChannelType.GuildText, topic: "Warns, timeouts, kicks, bans, automod.", overwrites: hiddenStaff(guild, roles) },
     { key: "ticket-logs", name: "ticket-logs", parent: "staff", type: ChannelType.GuildText, topic: "Closed ticket transcripts.", overwrites: hiddenStaff(guild, roles) },
@@ -257,17 +329,27 @@ async function ensureCategory(guild, spec, roles, report) {
     report.push(`skipped category ${spec.name}: a non-category channel already uses that name`);
     return channel;
   }
-  const overwrites = spec.hidden ? hiddenStaff(guild, roles) : [];
+  const overwrites = spec.overwrites
+    ? spec.overwrites(guild, roles)
+    : spec.hidden
+      ? hiddenStaff(guild, roles)
+      : [];
   if (!channel) {
+    const extras = {};
+    const staffCat = findChannel(guild, "Staff");
+    if (spec.key === "alpha" && staffCat && staffCat.type === ChannelType.GuildCategory) {
+      extras.position = staffCat.rawPosition;
+    }
     channel = await guild.channels.create({
       name: spec.name,
       type: ChannelType.GuildCategory,
       permissionOverwrites: overwrites,
       reason: "Lodestar Support /setup",
+      ...extras,
     });
     report.push(`created category ${spec.name}`);
   } else {
-    if (spec.hidden) await channel.permissionOverwrites.set(overwrites);
+    if (overwrites.length) await channel.permissionOverwrites.set(overwrites);
     report.push(`reused category ${spec.name}`);
   }
   return channel;
@@ -445,17 +527,6 @@ async function assignPeople(guild, roles, report) {
       report.push(`could not assign staff roles to ${member.user.tag}: ${err.message}`);
     }
   }
-  for (const member of guild.members.cache.values()) {
-    if (member.user.bot) continue;
-    if (roles.member && !member.roles.cache.has(roles.member.id)) {
-      try {
-        await member.roles.add(roles.member, "Existing member during verification rollout");
-        report.push(`gave @Member to ${member.user.tag}`);
-      } catch (err) {
-        report.push(`could not give @Member to ${member.user.tag}: ${err.message}`);
-      }
-    }
-  }
   if (!roles.bot) return;
   for (const member of guild.members.cache.values()) {
     if (!member.user.bot || member.roles.cache.has(roles.bot.id)) continue;
@@ -538,6 +609,8 @@ async function applySetup(guild) {
     [channels.links, "links", { embeds: [linksEmbed()] }],
     [channels.faq, "faq", faqPanel(guild)],
     [channels["get-help"], "ticket", ticketPanel(guild)],
+    [channels["alpha-news"], "alpha", alpha.panel(guild)],
+    [channels.github, "github-credit", github.panel(guild)],
   ];
   for (const [channel, key, payload] of posts) {
     try {
@@ -554,6 +627,8 @@ async function applySetup(guild) {
       moderator: roles.moderator.id,
       support: roles.support.id,
       bot: roles.bot.id,
+      contributor: roles.contributor && roles.contributor.id,
+      alpha: roles.alpha && roles.alpha.id,
     };
     g.channels = Object.fromEntries(Object.entries(channels).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));
     g.categories = Object.fromEntries(Object.entries(categories).filter(([, ch]) => ch).map(([k, ch]) => [k, ch.id]));

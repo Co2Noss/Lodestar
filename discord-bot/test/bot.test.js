@@ -54,10 +54,21 @@ describe("server layout", () => {
     assert.ok(roleNames.includes("Bot"));
     assert.ok(roleNames.includes("Moderator"));
     assert.ok(roleNames.includes("Support"));
+    assert.ok(roleNames.includes("Alpha Tester"));
+    assert.ok(roleNames.includes("Contributor"));
     const catNames = CATEGORY_SPECS.map((c) => c.name);
     assert.equal(new Set(catNames).size, catNames.length);
+    assert.ok(catNames.includes("Alpha"));
     const fakeGuild = { id: "1", features: ["COMMUNITY"], roles: { everyone: { id: "everyone" } } };
-    const fakeRoles = { support: { id: "s" }, moderator: { id: "m" }, developer: { id: "d" }, bot: { id: "b" }, member: { id: "mem" } };
+    const fakeRoles = {
+      support: { id: "s" },
+      moderator: { id: "m" },
+      developer: { id: "d" },
+      bot: { id: "b" },
+      member: { id: "mem" },
+      alpha: { id: "a" },
+      contributor: { id: "c" },
+    };
     const channels = channelSpecs(fakeGuild, fakeRoles);
     const names = channels.map((c) => c.name);
     assert.equal(new Set(names).size, names.length);
@@ -66,11 +77,28 @@ describe("server layout", () => {
     assert.ok(names.includes("faq"));
     assert.ok(names.includes("mod-log"));
     assert.ok(names.includes("silence-enforced"));
+    assert.ok(names.includes("alpha-news"));
+    assert.ok(names.includes("alpha-chat"));
+    assert.ok(names.includes("alpha-feedback"));
+    const alphaChat = channels.find((c) => c.name === "alpha-chat");
+    const everyone = alphaChat.overwrites.find((o) => o.id === "everyone");
+    assert.ok(everyone);
+    assert.ok(everyone.deny && everyone.deny.length);
+    const tester = alphaChat.overwrites.find((o) => o.id === "a");
+    assert.ok(tester);
+    assert.ok(tester.allow && tester.allow.length);
   });
 
-  it("hides Tickets and Staff from @everyone", () => {
+  it("hides Tickets, Staff, and Alpha from @everyone", () => {
     assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Tickets"));
     assert.ok(CATEGORY_SPECS.filter((c) => c.hidden).map((c) => c.name).includes("Staff"));
+    const alpha = CATEGORY_SPECS.find((c) => c.key === "alpha");
+    assert.ok(alpha);
+    assert.equal(typeof alpha.overwrites, "function");
+    const fakeGuild = { roles: { everyone: { id: "everyone" } } };
+    const overwrites = alpha.overwrites(fakeGuild, { alpha: { id: "a" } });
+    const everyone = overwrites.find((o) => o.id === "everyone");
+    assert.ok(everyone.deny && everyone.deny.length);
   });
 });
 
@@ -131,5 +159,24 @@ describe("verification", () => {
     const old = { createdTimestamp: Date.now() - 2 * 60 * 60 * 1000 };
     assert.equal(accountTooNew(fresh), true);
     assert.equal(accountTooNew(old), false);
+  });
+});
+
+describe("github credit", () => {
+  const { normalizeLogin, parseLoginsFromText } = require("../src/github");
+
+  it("accepts real GitHub usernames and rejects bots", () => {
+    assert.equal(normalizeLogin("Co2Noss"), "Co2Noss");
+    assert.equal(normalizeLogin("@octocat"), "octocat");
+    assert.equal(normalizeLogin("dependabot[bot]"), null);
+    assert.equal(normalizeLogin("not valid"), null);
+    assert.equal(normalizeLogin("the"), null);
+  });
+
+  it("pulls authors out of GitHub webhook text", () => {
+    const logins = parseLoginsFromText("Pull request opened by WidgetDev\n1 new commit by Co2Noss");
+    assert.ok(logins.includes("widgetdev"));
+    assert.ok(logins.includes("co2noss"));
+    assert.ok(!logins.includes("new"));
   });
 });
