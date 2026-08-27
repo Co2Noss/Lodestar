@@ -2,8 +2,8 @@
 
 const {
   SlashCommandBuilder,
-  UserContextMenuCommandBuilder,
-  MessageContextMenuCommandBuilder,
+  ContextMenuCommandBuilder,
+  ApplicationCommandType,
   EmbedBuilder,
   PermissionFlagsBits,
   MessageFlags,
@@ -111,9 +111,18 @@ function commands() {
           .addUserOption((opt) => opt.setName("user").setDescription("Only this member").setRequired(false))
       )
       .addSubcommand((s) => s.setName("warnings").setDescription("Show warns for a member").addUserOption(user)),
-    new UserContextMenuCommandBuilder().setName("Timeout 10m").setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
-    new UserContextMenuCommandBuilder().setName("Warn").setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
-    new MessageContextMenuCommandBuilder().setName("Delete and warn").setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    new ContextMenuCommandBuilder()
+      .setName("Timeout 10m")
+      .setType(ApplicationCommandType.User)
+      .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    new ContextMenuCommandBuilder()
+      .setName("Warn")
+      .setType(ApplicationCommandType.User)
+      .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    new ContextMenuCommandBuilder()
+      .setName("Delete and warn")
+      .setType(ApplicationCommandType.Message)
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
   ].map((c) => c.toJSON());
 }
 
