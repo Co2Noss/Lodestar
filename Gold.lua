@@ -31,6 +31,7 @@ local FARMS = {
   {
     id = "gold_herb_midnight",
     title = "Herb Midnight",
+    expansion = "Midnight",
     minutes = 30,
     profession = 182,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
@@ -52,6 +53,7 @@ local FARMS = {
   {
     id = "gold_herb_ka",
     title = "Herb Khaz Algar",
+    expansion = "The War Within",
     minutes = 30,
     profession = 182,
     where = "Khaz Algar",
@@ -67,6 +69,7 @@ local FARMS = {
   {
     id = "gold_mine_midnight",
     title = "Mine Midnight",
+    expansion = "Midnight",
     minutes = 30,
     profession = 186,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
@@ -86,6 +89,7 @@ local FARMS = {
   {
     id = "gold_mine_ka",
     title = "Mine Khaz Algar",
+    expansion = "The War Within",
     minutes = 30,
     profession = 186,
     where = "Khaz Algar",
@@ -99,6 +103,7 @@ local FARMS = {
   {
     id = "gold_skin_midnight",
     title = "Skin Midnight",
+    expansion = "Midnight",
     minutes = 30,
     profession = 393,
     where = "Eversong Woods, Zul'Aman, Harandar, Voidstorm",
@@ -121,6 +126,7 @@ local FARMS = {
   {
     id = "gold_skin_ka",
     title = "Skin Khaz Algar",
+    expansion = "The War Within",
     minutes = 30,
     profession = 393,
     where = "Khaz Algar",
@@ -135,6 +141,7 @@ local FARMS = {
   {
     id = "gold_cloth_midnight",
     title = "Farm Midnight cloth",
+    expansion = "Midnight",
     minutes = 30,
     profession = 197,
     where = "Eversong Woods Amani trolls, Zul'Aman",
@@ -152,6 +159,7 @@ local FARMS = {
   {
     id = "gold_cloth_ka",
     title = "Farm Khaz Algar cloth",
+    expansion = "The War Within",
     minutes = 30,
     profession = 197,
     where = "Hallowfall Veneration Grounds, Priory follower dungeon",
@@ -163,6 +171,7 @@ local FARMS = {
   {
     id = "gold_cloth_frostweave",
     title = "Farm Frostweave Cloth",
+    expansion = "Wrath of the Lich King",
     minutes = 30,
     where = "Icecrown humanoids",
     kind = "cloth",
@@ -173,6 +182,7 @@ local FARMS = {
   {
     id = "gold_cloth_netherweave",
     title = "Farm Netherweave Cloth",
+    expansion = "The Burning Crusade",
     minutes = 30,
     where = "Netherstorm humanoids",
     kind = "cloth",
@@ -183,6 +193,7 @@ local FARMS = {
   {
     id = "gold_pet_whelpling",
     title = "Farm Dark Whelplings",
+    expansion = "Classic",
     minutes = 40,
     where = "Wetlands, Badlands, Burning Steppes",
     kind = "pet",
@@ -191,6 +202,7 @@ local FARMS = {
   {
     id = "gold_pet_azure",
     title = "Farm Azure Whelplings",
+    expansion = "Classic",
     minutes = 40,
     where = "Winterspring",
     kind = "pet",
@@ -199,6 +211,7 @@ local FARMS = {
   {
     id = "gold_pet_sprite",
     title = "Farm Sprite Darter Eggs",
+    expansion = "Classic",
     minutes = 35,
     where = "Feralas",
     kind = "pet",
@@ -207,6 +220,7 @@ local FARMS = {
   {
     id = "gold_pet_teroclaw",
     title = "Farm Teroclaw Hatchlings",
+    expansion = "Warlords of Draenor",
     minutes = 25,
     where = "Talador nests",
     kind = "pet",
@@ -303,7 +317,10 @@ function LS:GetGoldRecommendations()
   if not ready then return out end
 
   for _, farm in ipairs(FARMS) do
-    if not farm.profession or KnowsProfession(farm.profession) then
+    local inFocus = not self.ExpansionInFocus
+      or (farm.expansion and self:ExpansionInFocus(farm.expansion))
+      or (not farm.expansion and self:FocusExpansion() == "all")
+    if inFocus and (not farm.profession or KnowsProfession(farm.profession)) then
       local copper, priced = 0, 0
       local hourly = farm.kind == "gather" or farm.kind == "cloth"
       for _, item in ipairs(farm.items or {}) do

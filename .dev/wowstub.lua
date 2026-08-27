@@ -472,6 +472,16 @@ UnitLevel = function() return 90 end
 GetMaxLevelForPlayerExpansion = function() return 90 end
 GetExpansionLevel = function() return 11 end
 NUM_BAG_SLOTS = 4
+EXPANSION_NAME0 = "Classic"
+EXPANSION_NAME1 = "The Burning Crusade"
+EXPANSION_NAME2 = "Wrath of the Lich King"
+EXPANSION_NAME3 = "Cataclysm"
+EXPANSION_NAME4 = "Mists of Pandaria"
+EXPANSION_NAME5 = "Warlords of Draenor"
+EXPANSION_NAME6 = "Legion"
+EXPANSION_NAME7 = "Battle for Azeroth"
+EXPANSION_NAME8 = "Shadowlands"
+EXPANSION_NAME9 = "Dragonflight"
 EXPANSION_NAME10 = "The War Within"
 EXPANSION_NAME11 = "Midnight"
 PlayerMoney = 0
@@ -1278,13 +1288,14 @@ C_Calendar = {
 }
 
 GuildName = nil
+GuildRankName = nil
 GuildMemberTotal = nil
 GuildOnlineCount = nil
 GuildMembers = {}
 IsInGuild = function() return GuildName ~= nil and GuildName ~= false end
 GetGuildInfo = function()
   if not GuildName then return end
-  return GuildName, "Officer", 1
+  return GuildName, GuildRankName or "Officer", 1
 end
 GetNumGuildMembers = function()
   if GuildMemberTotal then return GuildMemberTotal, GuildOnlineCount or 0 end

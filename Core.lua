@@ -1,10 +1,12 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.4"
+LS.version = "1.5.5"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
 LS.MEDIA_ICON = "Interface\\AddOns\\Lodestar\\Media\\LogoIcon.tga"
+LS.MEDIA_DISCORD = "Interface\\AddOns\\Lodestar\\Media\\Discord.tga"
+LS.MEDIA_GITHUB = "Interface\\AddOns\\Lodestar\\Media\\GitHub.tga"
 
 LS.defaults = {
   -- Nothing is assumed. The welcome page asks before Lodestar filters anything out, because
@@ -21,6 +23,9 @@ LS.defaults = {
   goldSource = "AUTO",
   waypointSource = "AUTO",
   currentExpansionOnly = true,
+  -- current = this expansion; all = every expansion; or an expansion name to focus
+  -- one era (Cataclysm alchemy, older reputations, and so on).
+  focusExpansion = "current",
   collapsed = {},
   sidebarCollapsed = false,
   repExpansions = {},
@@ -107,7 +112,157 @@ local function migrate(db)
     end
   end
   db.tokenHistory = db.tokenHistory or {}
+  if db.focusExpansion == nil then
+    if db.currentExpansionOnly == false then
+      db.focusExpansion = "all"
+    else
+      db.focusExpansion = "current"
+    end
+  end
+  db.currentExpansionOnly = db.focusExpansion == "current"
+  if not db.repSeeded then
+    db.repSeeded = true
+    local hasRep
+    for _, on in pairs(db.repExpansions or {}) do
+      if on then hasRep = true break end
+    end
+    if not hasRep then
+      for _, on in pairs(db.repGroups or {}) do
+        if on == true then hasRep = true break end
+      end
+    end
+    if not hasRep then
+      for _, on in pairs(db.repFactions or {}) do
+        if on == true then hasRep = true break end
+      end
+    end
+    if not hasRep then
+      local name = LS.CurrentExpansionName and LS:CurrentExpansionName()
+      if name then
+        db.repExpansions = db.repExpansions or {}
+        db.repExpansions[name] = true
+      end
+    end
+  end
   if LS.SeedSeenTips then LS:SeedSeenTips(db) end
+end
+
+-- Skill-line and reputation headers use these region names instead of EXPANSION_NAME*.
+LS.EXPANSION_ALIASES = {
+  ["Khaz Algar"] = "The War Within",
+  ["Dragon Isles"] = "Dragonflight",
+  ["Kul Tiran"] = "Battle for Azeroth",
+  ["Zandalari"] = "Battle for Azeroth",
+  ["Outland"] = "The Burning Crusade",
+  ["Northrend"] = "Wrath of the Lich King",
+  ["Pandaria"] = "Mists of Pandaria",
+  ["Draenor"] = "Warlords of Draenor",
+}
+
+function LS:CurrentExpansionName()
+  local level = GetExpansionLevel and GetExpansionLevel()
+  if level == nil then return nil end
+  local name = _G["EXPANSION_NAME" .. tostring(level)]
+  if type(name) == "string" and name ~= "" then return name end
+end
+
+function LS:NormalizeExpansionName(name)
+  if type(name) ~= "string" or name == "" then return nil end
+  return self.EXPANSION_ALIASES[name] or name
+end
+
+function LS:ExpansionReleaseIndex(name)
+  name = self:NormalizeExpansionName(name)
+  if not name then return end
+  for i = 0, 20 do
+    if _G["EXPANSION_NAME" .. i] == name then return i end
+  end
+end
+
+function LS:ExpansionFromLabel(label)
+  if type(label) ~= "string" or label == "" then return nil end
+  local names = {}
+  for i = 0, 20 do
+    local name = _G["EXPANSION_NAME" .. i]
+    if type(name) == "string" and name ~= "" then table.insert(names, name) end
+  end
+  for alias in pairs(self.EXPANSION_ALIASES) do
+    table.insert(names, alias)
+  end
+  table.sort(names, function(a, b) return #a > #b end)
+  for _, name in ipairs(names) do
+    if label == name or label:sub(1, #name + 1) == name .. " " then
+      return self:NormalizeExpansionName(name)
+    end
+  end
+end
+
+function LS:FocusExpansion()
+  local value = self.db and self.db.focusExpansion
+  if type(value) == "string" and value ~= "" then return value end
+  if self.db and self.db.currentExpansionOnly == false then return "all" end
+  return "current"
+end
+
+function LS:SetFocusExpansion(value)
+  if value ~= "current" and value ~= "all" and (type(value) ~= "string" or value == "") then
+    value = "current"
+  end
+  self.db.focusExpansion = value
+  self.db.currentExpansionOnly = value == "current"
+end
+
+function LS:ExpansionInFocus(name)
+  local focus = self:FocusExpansion()
+  if focus == "all" then return true end
+  name = self:NormalizeExpansionName(name)
+  if not name then return false end
+  if focus == "current" then return name == self:CurrentExpansionName() end
+  return name == focus
+end
+
+function LS:FocusExpansionLabel()
+  local focus = self:FocusExpansion()
+  if focus == "all" then return "All expansions" end
+  if focus == "current" then
+    local name = self:CurrentExpansionName()
+    return name and (name .. " (current)") or "Current expansion"
+  end
+  return focus
+end
+
+function LS:FocusExpansionChoices()
+  local current = self:CurrentExpansionName()
+  local labels, values = {}, {}
+  local currentLabel = current and (current .. " (current)") or "Current expansion"
+  table.insert(labels, currentLabel)
+  values[currentLabel] = "current"
+  table.insert(labels, "All expansions")
+  values["All expansions"] = "all"
+  local extras, seen = {}, { [current or ""] = true }
+  local function add(name)
+    name = self:NormalizeExpansionName(name)
+    if name and not seen[name] and self:ExpansionReleaseIndex(name) then
+      seen[name] = true
+      extras[name] = true
+    end
+  end
+  for _, prof in ipairs(self.professions or {}) do
+    add(prof.expansion)
+  end
+  for _, row in ipairs((self.profile and self.profile.repRows) or {}) do
+    if row.kind == "expansion" then add(row.name) end
+  end
+  local list = {}
+  for name in pairs(extras) do table.insert(list, name) end
+  table.sort(list, function(a, b)
+    return (self:ExpansionReleaseIndex(a) or -1) > (self:ExpansionReleaseIndex(b) or -1)
+  end)
+  for _, name in ipairs(list) do
+    table.insert(labels, name)
+    values[name] = name
+  end
+  return labels, values
 end
 
 function LS:FormatDuration(seconds)

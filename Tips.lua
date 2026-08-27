@@ -62,7 +62,7 @@ LS.TIPS = {
   {
     id = "calendar_guild",
     title = "Calendar and guild",
-    body = "Edit dashboard to add Calendar and Guild. Calendar lists this week and next from the client, including guild events and invites. Guild shows who is online and opens Communities.",
+    body = "Edit dashboard to add Calendar and Guild. Calendar lists this week and next from the client, including guild events and invites. Guild shows your rank and who is online, and opens Communities.",
     page = "DASHBOARD",
     highlight = "edit",
   },
@@ -81,8 +81,19 @@ LS.TIPS = {
   },
 }
 
--- Last five version blocks for Settings → Changelog. Keep this in step with CHANGELOG.md.
+-- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
+  {
+    version = "1.5.5",
+    notes = {
+      "Changelog is its own left-menu page, under Settings and above FAQ.",
+      "The Guild tile shows your rank from the client. Edit dashboard can turn that line off.",
+      "Help copies Discord and GitHub from the click itself, with those marks from addon media.",
+      "Spare knowledge on a finished tree stays off Today. All expansions still tracks weeklies and treasures.",
+      "Professions and gold default to this expansion. Settings → Goals can switch to All expansions or focus an older one. Reputation starts on this expansion.",
+      "Clicking the Professions page no longer opens a profession window on other pages.",
+    },
+  },
   {
     version = "1.5.4",
     notes = {
@@ -116,13 +127,6 @@ LS.CHANGELOG = {
     notes = {
       "The dashboard Gold tile is the warband total Lodestar has seen. Hover lists each character. The farm-location tile is gone.",
       "The Gold trend sits under the amount instead of drawing through the coins.",
-    },
-  },
-  {
-    version = "1.5.2",
-    notes = {
-      "Compact and Progress no longer show a raw vault id when that slot is no longer being ranked.",
-      "Mythic+ dims the whole dungeon icon behind the key level, instead of a smaller plate that only showed up on bright art.",
     },
   },
 }
@@ -182,8 +186,16 @@ LS.FAQ = {
     a = "That is the default. Drag slides it around the edge. Settings → Appearance → Lock to the minimap turns that off so the button can sit anywhere.",
   },
   {
+    q = "Why am I only seeing this expansion?",
+    a = "Professions and gold farms default to this expansion. Settings → Goals has an expansion focus: this expansion, All expansions, or a single older one. All expansions still tracks weeklies and treasures; leftover points on a finished tree stay off Today. Reputation starts on this expansion; Settings → Reputation can rank older factions.",
+  },
+  {
     q = "Why are old knowledge points on the Dashboard?",
-    a = "They should not be. Dashboard and Warband unspent knowledge only count the current expansion.",
+    a = "They should not be. Dashboard and Warband unspent knowledge only count the current expansion, and only points that still fit in a specialization tree. Spare points after the trees are full stay off those totals.",
+  },
+  {
+    q = "Why doesn't Lodestar tell me to spend leftover knowledge?",
+    a = "Once every specialization rank is bought, those points have nowhere to go. Tracking All expansions still shows weeklies and treasures. The profession page still shows the spare count. Today stays quiet instead of ranking a spend that cannot happen.",
   },
   {
     q = "What Lodestar is not",
@@ -221,8 +233,8 @@ LS.SUPPORT = {
     url = "https://discord.gg/a7hrHavcwq",
     action = "Copy Discord invite",
     copied = "Discord invite",
-    icon = "Interface\\ChatFrame\\UI-ChatIcon-Share",
-    color = { 0.345, 0.396, 0.949 },
+    icon = LS.MEDIA_DISCORD,
+    cover = true,
   },
   {
     name = "GitHub",
@@ -230,8 +242,8 @@ LS.SUPPORT = {
     url = "https://github.com/Co2Noss/Lodestar/issues",
     action = "Copy GitHub issues",
     copied = "GitHub issues link",
-    icon = "Interface\\HelpFrame\\HelpIcon-OpenTicket",
-    color = { 0.13, 0.15, 0.18 },
+    icon = LS.MEDIA_GITHUB,
+    cover = true,
   },
 }
 

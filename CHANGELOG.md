@@ -1,5 +1,30 @@
 # Unreleased
 
+# 1.5.5
+
+- Changelog is its own left-menu page, under Settings and above FAQ,
+  instead of a Settings tab.
+- The Guild tile shows your guild rank from the client. Edit dashboard
+  can turn that line off.
+- Help copies Discord and GitHub links with `CopyToClipboard` from the
+  click itself. Wrapping that in `pcall` tainted the hardware event and
+  the client blocked it (`ADDON_ACTION_FORBIDDEN`).
+- Help's Discord row uses the Discord mark from addon media instead of
+  the client's voice-chat icon.
+- Help's GitHub row uses the GitHub mark from addon media.
+- Clicking the Professions page body opens that profession. That click
+  no longer follows you onto Warband, Settings, or other pages.
+- Spare knowledge on a finished specialization tree stays off Today,
+  Dashboard, and Warband. The profession page still shows the leftover
+  count, without inviting a spend that cannot happen.
+- Professions and gold farms default to this expansion. Settings → Goals
+  (and the Professions page) can switch to All expansions, or focus a
+  single older one, so a Cataclysm mount farm does not sit next to
+  Midnight work. The list is newest expansion first. All expansions still
+  tracks weeklies and treasures; leftover points on a finished tree stay
+  off Today. Reputation starts on this expansion; Settings → Reputation
+  can rank older factions.
+
 # 1.5.4
 
 - The left menu has **FAQ** and **Help** under Settings. FAQ answers why

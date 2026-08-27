@@ -66,6 +66,29 @@ local function RemainingKnowledge(skillLineID)
   return missing, spent
 end
 
+-- Leftover currency cannot go anywhere once every purchasable rank is bought.
+-- remaining == 0 with no spent ranks usually means the tree APIs have not loaded yet,
+-- so that is not treated as finished.
+function LS:ProfessionTreesFull(prof)
+  return type(prof) == "table" and prof.remaining == 0 and (prof.spent or 0) > 0
+end
+
+function LS:CanSpendKnowledge(prof)
+  return type(prof) == "table" and (prof.unspent or 0) > 0 and not self:ProfessionTreesFull(prof)
+end
+
+function LS:ProfessionKnowledgeCaption(prof)
+  if self:ProfessionTreesFull(prof) then
+    return string.format("%d spare  •  %d spent  •  specialization trees complete",
+      prof.unspent or 0, prof.spent or 0)
+  end
+  local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
+  if prof.spent then
+    return string.format("%d unspent  •  %d spent  •  %s", prof.unspent or 0, prof.spent, remaining)
+  end
+  return string.format("%d unspent  •  %s", prof.unspent or 0, remaining)
+end
+
 local function CountCompleted(quests, cap)
   local done = 0
   for _, questID in ipairs(quests or {}) do
@@ -240,10 +263,13 @@ function LS:ScanProfessions()
           currencyName = currencyName,
           remaining = remaining,
           tracked = sources ~= nil,
+          expansion = (sources and sources.expansion)
+            or (self.ExpansionFromLabel and self:ExpansionFromLabel(info.professionName))
+            or (isCurrent and self.CurrentExpansionName and self:CurrentExpansionName())
+            or nil,
         }
         if sources then
           local buckets = Tally(sources.objectives)
-          entry.expansion = sources.expansion
           entry.quests = buckets.quests
           entry.gathering = buckets.gathering
           entry.treasures = buckets.treasures
@@ -361,21 +387,38 @@ function LS:PrimaryProfessions()
   return out
 end
 
+function LS:ProfessionInFocus(prof)
+  if not prof then return false end
+  if prof.secondary then return true end
+  local focus = self:FocusExpansion()
+  if focus == "all" then return true end
+  if focus == "current" then return prof.isCurrent and true or false end
+  return self:NormalizeExpansionName(prof.expansion) == focus
+end
+
 function LS:VisibleProfessions()
-  if not (self.db and self.db.currentExpansionOnly) then
-    return self.professions
+  local all = self.professions or {}
+  local focus = self:FocusExpansion()
+  if focus == "all" then return all end
+  if focus == "current" then return self:CurrentExpansionProfessions() end
+  local out = {}
+  for _, prof in ipairs(all) do
+    if self:ProfessionInFocus(prof) then table.insert(out, prof) end
   end
-  return self:CurrentExpansionProfessions()
+  return out
 end
 
 -- Unspent knowledge, weekly tasks left, treasures left, professions where catch-up
 -- knowledge is already farmable, and the knowledge those weekly tasks are still worth.
 -- Dashboard and Warband always use the current expansion so leftover Khaz Algar
--- (or older) points do not look like work still to do this season.
+-- (or older) points do not look like work still to do this season. Spare points on a
+-- finished tree are omitted for the same reason: they cannot be spent.
 function LS:ProfessionSummary()
   local unspent, weeklyLeft, treasureLeft, catchUpReady, weeklyPoints = 0, 0, 0, 0, 0
   for _, prof in ipairs(self:CurrentExpansionProfessions()) do
-    unspent = unspent + (prof.unspent or 0)
+    if not self:ProfessionTreesFull(prof) then
+      unspent = unspent + (prof.unspent or 0)
+    end
     if prof.weekly then
       weeklyLeft = weeklyLeft + (prof.weekly.total - prof.weekly.done)
       weeklyPoints = weeklyPoints + prof.weekly.points
@@ -410,7 +453,7 @@ end
 function LS:GetProfessionRecommendations()
   local out = {}
   for _, prof in ipairs(self:VisibleProfessions()) do
-    if (prof.unspent or 0) > 0 then
+    if self:CanSpendKnowledge(prof) then
       table.insert(out, {
         id = "kp_spend_" .. prof.skillLineID,
         title = string.format("Spend %d knowledge on %s", prof.unspent, prof.name),
@@ -498,9 +541,9 @@ function LS:GetProfessionRecommendations()
       })
     end
 
-    -- Once the week's fixed sources are done, catch-up knowledge starts dropping and is
-    -- effectively uncapped, so it is worth surfacing on its own.
-    if prof.catchUp and prof.catchUp.ready then
+    -- Catch-up is extra knowledge. If the trees are already full it has nowhere
+    -- to go, so completionists can still track weeklies and treasures without a nag.
+    if prof.catchUp and prof.catchUp.ready and not self:ProfessionTreesFull(prof) then
       table.insert(out, {
         id = "kp_catchup_" .. prof.skillLineID,
         title = string.format("Farm catch-up knowledge for %s", prof.name),

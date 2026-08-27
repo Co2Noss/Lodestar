@@ -185,6 +185,7 @@ check("the sidebar is workspaces rather than content categories",
           and __LS.nav.LONGTERM ~= nil and __LS.nav.PROGRESS ~= nil
           and __LS.nav.IGNORED ~= nil and __LS.nav.COMPLETED ~= nil
           and __LS.nav.FAQ ~= nil and __LS.nav.HELP ~= nil
+          and __LS.nav.CHANGELOG ~= nil
           and __LS.nav.VAULT == nil and __LS.nav.PROFESSIONS == nil
       end)()""") is True)
 check("sidebar sections are higher-level workspaces",
@@ -205,6 +206,7 @@ check("collapsed nav shows an icon instead of the full name",
       and s.eval("__LS.nav.DASHBOARD.icon and __LS.nav.DASHBOARD.icon.texture") is not None
       and s.eval("__LS.nav.WARBAND.icon and __LS.nav.WARBAND.icon.texture or ''").lower().find("spell_fire_fire") != -1
       and s.eval("__LS.nav.FAQ.icon and __LS.nav.FAQ.icon.texture or ''").lower().find("knowledgebase") != -1
+      and s.eval("__LS.nav.CHANGELOG.icon and __LS.nav.CHANGELOG.icon.texture or ''").lower().find("inv_misc_note_06") != -1
       and s.eval("__LS.nav.HELP.icon and __LS.nav.HELP.icon.texture or ''").lower().find("inv_misc_book_09") != -1)
 s.exec("__LS.nav.TODAY.scripts.OnEnter(__LS.nav.TODAY)")
 check("hovering a collapsed nav icon names the workspace",
@@ -214,6 +216,7 @@ s.timers()
 check("expanding the sidebar restores labels",
       s.eval("__LS.nav.TODAY.text:GetText()") == "Today's Plan"
       and s.eval("__LS.nav.FAQ.text:GetText()") == "FAQ"
+      and s.eval("__LS.nav.CHANGELOG.text:GetText()") == "Changelog"
       and s.eval("__LS.nav.HELP.text:GetText()") == "Help"
       and s.eval("__LS.sidebar:GetWidth()") == 180)
 check("the welcome page is not shown again",
@@ -330,14 +333,35 @@ s.exec("__LS:ShowPage('SETTINGS')")
 s.timers()
 settings = s.texts()
 check("Settings opens on Goals", s.eval("__LS:SettingsTab()[1]") == "GOALS")
-check("the seven settings tabs are on the strip",
+check("the six settings tabs are on the strip",
       all(name in settings for name in
-          ["Goals", "Optional Addons", "Reputation", "Appearance", "Compact", "Layout", "Changelog"]),
+          ["Goals", "Optional Addons", "Reputation", "Appearance", "Compact", "Layout"]),
       settings)
 check("Goals does not bury colors underneath it",
       "Click a color to change it" not in settings and "Accent" not in settings, settings)
 check("Goals does not bury addon options",
       "Gold prices" not in settings and "Waypoints" not in settings, settings)
+check("Goals has an expansion focus on this expansion by default",
+      "Expansion focus" in settings and "Midnight (current)" in settings, settings)
+s.exec("__LS:ScanReputations()")
+focus_order = s.eval("""(function()
+  local labels = __LS:FocusExpansionChoices()
+  return table.concat(labels, "|")
+end)()""")
+check("expansion focus lists this expansion, then all, then older expansions newest first",
+      focus_order.startswith("Midnight (current)|All expansions|The War Within|Dragonflight"),
+      focus_order)
+s.exec("""
+  table.insert(__LS.profile.repRows, { kind = "expansion", name = "Guild" })
+  table.insert(__LS.profile.repRows, { kind = "expansion", name = "Other" })
+""")
+junk = s.eval("""(function()
+  local labels = __LS:FocusExpansionChoices()
+  return table.concat(labels, "|")
+end)()""")
+check("expansion focus omits reputation headers that are not expansions",
+      "Guild" not in junk and "Other" not in junk, junk)
+s.exec("__LS:ScanReputations()")
 s.click("Optional Addons")
 check("Optional Addons is remembered", s.eval("__LS:SettingsTab()[1]") == "ADDONS")
 addons = s.texts()
@@ -359,10 +383,13 @@ check("a loaded addon reports as loaded",
       end)()""") is True)
 s.exec("TomTom = nil")
 s.click("Changelog")
-check("Changelog is remembered", s.eval("__LS:SettingsTab()[1]") == "CHANGELOG")
+check("Changelog is its own workspace under Settings",
+      s.eval("__LS.page") == "CHANGELOG")
 log = s.texts()
+check("Changelog is not a Settings tab",
+      "Optional Addons" not in log, log)
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.4", "1.5.31", "1.5.3", "1.5.21", "1.5.2"]), log)
+      all(name in log for name in ["1.5.5", "1.5.4", "1.5.31", "1.5.3", "1.5.21"]), log)
 gap = s.eval("""(function()
   local ys, seen = {}, {}
   local function visit(frame, depth)
@@ -383,6 +410,10 @@ gap = s.eval("""(function()
 end)()""")
 check("changelog bullets sit closer than a blank line", gap < 24, gap)
 
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("leaving Changelog does not steal the Settings tab",
+      s.eval("__LS:SettingsTab()[1]") == "ADDONS")
 s.click("Appearance")
 check("Appearance is remembered", s.eval("__LS:SettingsTab()[1]") == "APPEARANCE")
 settings = s.texts()
@@ -501,8 +532,8 @@ check("Help has Discord and GitHub support with icons",
             local t = r.texture
             if type(t) == "string" then
               local lower = t:lower()
-              if lower:find("ui-chaticon-share", 1, true) then found.discord = true end
-              if lower:find("helpicon-openticket", 1, true) then found.github = true end
+              if lower:find("discord.tga", 1, true) then found.discord = true end
+              if lower:find("github.tga", 1, true) then found.github = true end
             end
           end
           for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
@@ -793,6 +824,18 @@ s.exec("""
     return prices[id]
   end } } }
 """)
+gold_current = s.eval("""(function()
+  local out = {}
+  for _, r in ipairs(__LS:GetGoldRecommendations()) do table.insert(out, r.title) end
+  return table.concat(out, "\\n")
+end)()""")
+check("current expansion gold farms rank by default",
+      "Herb Midnight" in gold_current, gold_current)
+check("older gold farms stay quiet while focused on this expansion",
+      "Herb Khaz Algar" not in gold_current
+      and "Dark Whelplings" not in gold_current
+      and "Frostweave" not in gold_current, gold_current)
+s.exec("__LS:SetFocusExpansion('all')")
 gold = s.eval("""(function()
   local out = {}
   for _, r in ipairs(__LS:GetGoldRecommendations()) do table.insert(out, r.title) end
@@ -836,6 +879,7 @@ s.exec("""
   end
   __LS.db.goals.GOLD = false
   Auctionator = nil
+  __LS:SetFocusExpansion("current")
 """)
 check("a world slot below the cap is not called maxed",
       "Maxed" not in (s.eval("""(function()
@@ -886,7 +930,7 @@ s.exec("""
 """)
 check("the plan still groups into categories", s.eval("#(select(1, __LS:GetCategories()))") > 0)
 for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "PROGRESS", "IGNORED", "COMPLETED",
-             "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "FAQ", "HELP", "WELCOME", "DETAILS"]:
+             "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "CHANGELOG", "FAQ", "HELP", "WELCOME", "DETAILS"]:
     s.exec(f"__LS:ShowPage('{name}')")
     s.timers()
     check(f"the {name} page renders", len(s.texts()) > 0)
@@ -1320,11 +1364,11 @@ check("Dashboard unspent knowledge ignores older expansions",
       s.eval("__LS:UnspentKnowledge()") == 0)
 check("Warband unspent knowledge matches the Dashboard",
       s.eval("__LS:GetWarbandTotals().unspentKnowledge") == 0)
-s.exec("__LS.db.currentExpansionOnly = false")
+s.exec("__LS:SetFocusExpansion('all')")
 check("the Dashboard total stays on this expansion while older trees are visible",
       s.eval("__LS:UnspentKnowledge()") == 0
       and s.eval("#__LS:VisibleProfessions()") > s.eval("#__LS:CurrentExpansionProfessions()"))
-s.exec("__LS.db.currentExpansionOnly = true")
+s.exec("__LS:SetFocusExpansion('current')")
 s.exec("__LS:ScanProfessions(); __LS:SaveSnapshot()")
 s.exec("__LS:ShowPage('PROFESSIONS')")
 s.timers()
@@ -1345,6 +1389,20 @@ s.click("Open Herbalism")
 check("the Open button opens that profession",
       s.eval("OpenedTradeSkills[#OpenedTradeSkills]") == 2823,
       s.eval("table.concat(OpenedTradeSkills, ',')"))
+s.exec("OpenedTradeSkills = {}")
+s.click("Warband")
+check("leaving Professions does not keep a click that opens the profession window",
+      s.eval("__LS.page") == "WARBAND"
+      and s.eval("__LS.bodyChild.scripts.OnMouseUp") is None)
+s.exec("""
+  if __LS.bodyChild and __LS.bodyChild.scripts and __LS.bodyChild.scripts.OnMouseUp then
+    __LS.bodyChild.scripts.OnMouseUp(__LS.bodyChild)
+  end
+""")
+check("clicking Warband does not open a profession window",
+      s.eval("#OpenedTradeSkills") == 0, s.eval("table.concat(OpenedTradeSkills, ',')"))
+s.exec("__LS:ShowPage('PROFESSIONS')")
+s.timers()
 s.click("Fishing")
 fish = s.texts()
 check("a secondary profession shows skill instead of a knowledge tree",
@@ -1362,6 +1420,89 @@ levels = s.eval("""(function()
 end)()""")
 check("an unmaxed secondary profession is recommended for leveling",
       "Fishing" in levels and "Cooking" in levels and "Archaeology" in levels, levels)
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if not p.secondary then
+      p.unspent = 313
+      p.spent = 175
+      p.remaining = 0
+    end
+  end
+""")
+check("maxed specialization trees do not recommend spending leftover knowledge",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_spend_", 1, true) then return r.title end
+        end
+      end)()""") is None)
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if not p.secondary then
+      p.catchUp = { ready = true }
+    end
+  end
+  __LS:SetFocusExpansion("all")
+""")
+check("All expansions still does not nag leftover points on a finished tree",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_spend_", 1, true) then return r.title end
+        end
+      end)()""") is None)
+check("All expansions still tracks treasures on a finished tree",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_treasure_", 1, true) then return true end
+        end
+      end)()""") is True)
+check("catch-up knowledge stays quiet once the trees are full",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_catchup_", 1, true) then return r.title end
+        end
+      end)()""") is None)
+s.exec("__LS:SetFocusExpansion('current')")
+check("Dashboard unspent knowledge ignores leftover points on a finished tree",
+      s.eval("__LS:UnspentKnowledge()") == 0)
+s.exec("__LS:ShowPage('PROFESSIONS')")
+s.timers()
+s.click("Alchemy")
+maxed_tree = s.texts()
+check("a finished tree shows spare points without inviting a spend",
+      "specialization trees complete" in maxed_tree
+      and "313 spare" in maxed_tree
+      and "0 to finish the tree" not in maxed_tree, maxed_tree)
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if not p.secondary then
+      p.unspent = 5
+      p.spent = 0
+      p.remaining = 0
+    end
+  end
+""")
+check("unloaded trees still invite a spend",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_spend_", 1, true) then return true end
+        end
+      end)()""") is True)
+s.exec("""
+  for _, p in ipairs(__LS.professions) do
+    if not p.secondary then
+      p.unspent = 20
+      p.spent = 50
+      p.remaining = 10
+    end
+  end
+""")
+check("unspent knowledge still ranks while a tree has ranks left",
+      s.eval("""(function()
+        for _, r in ipairs(__LS:GetProfessionRecommendations()) do
+          if (r.id or ""):find("kp_spend_", 1, true) then return true end
+        end
+      end)()""") is True)
+s.exec("__LS:ScanProfessions()")
 check("midnight tailoring tracks eight world treasures plus vendor books",
       s.eval("""(function()
         local n = 0
@@ -1378,6 +1519,37 @@ check("midnight skinning tracks eight world treasures plus vendor books",
         end
         return n
       end)()""") == 11)
+s.exec("""
+  table.insert(__LS.professions, {
+    skillLineID = 5134, parentID = 171, name = "Cataclysm Alchemy",
+    expansion = "Cataclysm", isCurrent = false, secondary = false,
+    unspent = 0, remaining = 5, spent = 10, skill = 75, maxSkill = 75,
+  })
+  __LS:SetFocusExpansion("Cataclysm")
+""")
+check("a focused older expansion hides this expansion's professions",
+      s.eval("""(function()
+        for _, p in ipairs(__LS:VisibleProfessions()) do
+          if p.isCurrent and not p.secondary then return p.name end
+        end
+      end)()""") is None)
+check("a focused older expansion still shows that expansion's profession",
+      s.eval("""(function()
+        for _, p in ipairs(__LS:VisibleProfessions()) do
+          if p.expansion == "Cataclysm" then return p.name end
+        end
+      end)()""") == "Cataclysm Alchemy")
+s.exec("__LS:ShowPage('PROFESSIONS')")
+s.timers()
+cata = s.texts()
+check("the professions page can focus an older expansion",
+      "Cataclysm Alchemy" in cata and "Cataclysm" in cata, cata)
+s.exec("""
+  for i = #__LS.professions, 1, -1 do
+    if __LS.professions[i].skillLineID == 5134 then table.remove(__LS.professions, i) end
+  end
+  __LS:SetFocusExpansion("current")
+""")
 
 # --- waypoints ----------------------------------------------------------
 print()
@@ -2279,7 +2451,9 @@ check("an uncollected dungeon mount is still farmable any time",
 
 s.exec("__LS.db.goals.REPUTATION = true")
 s.exec("__LS:ScanReputations()")
-check("reputation stays quiet until the player picks expansions or factions",
+check("this expansion is on for reputation by default",
+      s.eval("__LS.db.repExpansions.Midnight") is True)
+check("older reputations stay quiet until that expansion is ranked",
       s.eval("#__LS:GetReputationRecommendations()") == 0)
 s.exec("__LS:SetRepExpansion('The War Within', true)")
 rep = s.eval("""(function()
@@ -2970,13 +3144,23 @@ s.exec("""
 s.timers()
 s.click("Add · Guild")
 guild = s.texts()
-check("Guild edit lists the emblem toggle, not live roster counts",
-      "Emblem" in guild and "Silvermoon Regulars" not in guild
+check("Guild edit lists emblem and rank toggles, not live roster counts",
+      "Emblem" in guild and "Rank" in guild
+      and "Silvermoon Regulars" not in guild
+      and "Officer" not in guild
       and "4 / 228 online" not in guild, guild)
 s.click("Done editing")
 guild = s.texts()
-check("Guild shows the name and who is online",
-      "Silvermoon Regulars" in guild and "4 / 228 online" in guild, guild)
+check("Guild shows the name, rank, and who is online",
+      "Silvermoon Regulars" in guild and "Officer" in guild
+      and "4 / 228 online" in guild, guild)
+s.click("Edit dashboard")
+s.click("Rank")
+s.click("Done editing")
+guild = s.texts()
+check("Guild rank can be turned off",
+      "Silvermoon Regulars" in guild and "4 / 228 online" in guild
+      and "Officer" not in guild, guild)
 s.exec("""
   OpenedCommunities = false
   __LS:OpenCommunities()

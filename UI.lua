@@ -19,6 +19,7 @@ local workspaces = {
   { name = "ACCOUNT", items = {
       { "WARBAND", "Warband", "Interface\\Icons\\Spell_Fire_Fire" },
       { "SETTINGS", "Settings", "Interface\\Icons\\INV_Misc_Gear_01" },
+      { "CHANGELOG", "Changelog", "Interface\\Icons\\INV_Misc_Note_06" },
       { "FAQ", "FAQ", "Interface\\HelpFrame\\HelpIcon-KnowledgeBase" },
       { "HELP", "Help", "Interface\\Icons\\INV_Misc_Book_09" },
     } },
@@ -644,6 +645,8 @@ function LS:ShowPage(page)
     self:WarbandPage()
   elseif page == "SETTINGS" then
     self:Settings()
+  elseif page == "CHANGELOG" then
+    self:ChangelogPage()
   elseif page == "FAQ" then
     self:FAQPage()
   elseif page == "HELP" then
@@ -735,6 +738,8 @@ function LS:Body(topOffset)
 
   local child = self.bodyChild
   child:SetWidth(width)
+  child:EnableMouse(false)
+  child:SetScript("OnMouseUp", nil)
   -- Leave the last height in place until finish. Collapsing to 1px (or calling
   -- SetScrollChild again) zeroes max scroll and snaps the view to the top.
   for _, kid in ipairs({ child:GetChildren() }) do
@@ -1075,7 +1080,9 @@ function LS:UnspentKnowledge()
   end
   local n = 0
   for _, prof in ipairs(self.CurrentExpansionProfessions and self:CurrentExpansionProfessions() or self.professions or {}) do
-    n = n + (prof.unspent or 0)
+    if not (self.ProfessionTreesFull and self:ProfessionTreesFull(prof)) then
+      n = n + (prof.unspent or 0)
+    end
   end
   return n
 end
@@ -1588,7 +1595,6 @@ end
 function LS:ProfessionsPage()
   local visible = self:VisibleProfessions()
   local hidden = #self.professions - #visible
-  local filterOn = self.db.currentExpansionOnly
 
   local tabs = {}
   local names = {}
@@ -1616,29 +1622,24 @@ function LS:ProfessionsPage()
     if selected.secondary and not selected.tracked then
       subtitle = string.format("Skill %d / %d", selected.skill or 0, selected.maxSkill or 0)
     else
-      local remaining = selected.remaining and (selected.remaining .. " to finish the tree") or "tree size unknown"
-      if selected.spent then
-        subtitle = string.format("%d unspent  •  %d spent  •  %s", selected.unspent or 0, selected.spent, remaining)
-      else
-        subtitle = string.format("%d unspent  •  %s", selected.unspent or 0, remaining)
-      end
+      subtitle = self:ProfessionKnowledgeCaption(selected)
     end
   elseif #self.professions > 0 then
-    subtitle = "Nothing for the current expansion. Switch the filter to see your older professions."
+    subtitle = string.format("Nothing for %s. Switch the expansion focus to see your other professions.",
+      self:FocusExpansionLabel())
   else
     subtitle = "Open a profession window once so the client sends its data."
   end
   self:Heading("Professions", subtitle)
 
-  local filter = button(self.content, filterOn and "Current expansion only" or "All expansions", 190, 26)
-  filter:SetPoint("TOPRIGHT", 0, -4)
-  if filterOn then highlight(filter) end
-  filter:SetScript("OnMouseUp", function()
-    self.db.currentExpansionOnly = not filterOn
+  local labels, values = self:FocusExpansionChoices()
+  local drop = self:Dropdown(self.content, 220, self:FocusExpansionLabel(), labels, function(choice)
+    self:SetFocusExpansion(values[choice] or "current")
     self:ShowPage("PROFESSIONS")
   end)
-  if hidden > 0 then
-    filter.text:SetText(string.format("Current expansion only  •  %d hidden", hidden))
+  drop:SetPoint("TOPRIGHT", 0, -4)
+  if hidden > 0 and self:FocusExpansion() ~= "all" then
+    drop.text:SetText(string.format("%s  •  %d hidden", self:FocusExpansionLabel(), hidden))
   end
 
   if chosen then
@@ -1679,12 +1680,16 @@ function LS:ProfessionCard(parent, prof, y, width)
       add("This character is at the skill cap.")
     end
   else
-    local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
-    if prof.spent then
-      add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %d spent  •  %s",
-        prof.unspent or 0, prof.spent, remaining))
+    if self:ProfessionTreesFull(prof) then
+      add("Knowledge: " .. self:ProfessionKnowledgeCaption(prof))
     else
-      add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
+      local remaining = prof.remaining and (prof.remaining .. " to finish the tree") or "tree size unknown"
+      if prof.spent then
+        add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %d spent  •  %s",
+          prof.unspent or 0, prof.spent, remaining))
+      else
+        add(string.format("Knowledge: |cff62d26f%d unspent|r  •  %s", prof.unspent or 0, remaining))
+      end
     end
   end
 
@@ -1728,7 +1733,7 @@ function LS:ProfessionCard(parent, prof, y, width)
   card:SetSize(width, height)
   card:SetPoint("TOPLEFT", 0, y)
   paint(card)
-  if (prof.unspent or 0) > 0 then
+  if self:CanSpendKnowledge(prof) then
     card:SetBackdropBorderColor(unpack(self.colors.accent))
   end
 
@@ -1754,7 +1759,7 @@ function LS:ProfessionCard(parent, prof, y, width)
     local b = button(card, action[1], btnW, 26)
     b:SetPoint("BOTTOMLEFT", 12 + (i - 1) * (btnW + 8), 8)
     paint(b, "panel")
-    if action[2] and (prof.unspent or 0) > 0 then highlight(b) end
+    if action[2] and self:CanSpendKnowledge(prof) then highlight(b) end
     b:SetScript("OnMouseUp", function()
       if LS.OpenProfessionWindow then LS:OpenProfessionWindow(prof, action[2]) end
     end)
@@ -1957,11 +1962,10 @@ end
 local settingsTabs = {
   { "GOALS", "Goals", "Tell Lodestar what matters. The plan follows these goals." },
   { "ADDONS", "Optional Addons", "Price sources, waypoints, and other addons Lodestar can use." },
-  { "REPUTATION", "Reputation", "Which expansions, categories and factions to rank." },
+  { "REPUTATION", "Reputation", "Which expansions, categories and factions to rank. This expansion is on by default." },
   { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
   { "COMPACT", "Compact", "The small always-on window." },
   { "LAYOUT", "Layout", "Where the window sits, and what Lodestar has remembered." },
-  { "CHANGELOG", "Changelog", "What changed in the last five versions." },
 }
 
 function LS:SettingsTab()
@@ -2006,7 +2010,7 @@ function LS:Settings()
   if nest and self.bodyScroll and self.bodyScroll.SetFrameLevel then
     self.bodyScroll:SetFrameLevel((nest:GetFrameLevel() or 1) + 2)
   end
-  local width = (chosen[1] == "REPUTATION" or chosen[1] == "CHANGELOG") and body.width or math.min(420, body.width)
+  local width = chosen[1] == "REPUTATION" and body.width or math.min(420, body.width)
   local y = 0
   if chosen[1] == "GOALS" then
     y = self:SettingsGoals(body, width, y)
@@ -2018,8 +2022,6 @@ function LS:Settings()
     y = self:SettingsAppearance(body, width, y)
   elseif chosen[1] == "COMPACT" then
     y = self:SettingsCompact(body, width, y)
-  elseif chosen[1] == "CHANGELOG" then
-    y = self:SettingsChangelog(body, width, y)
   else
     y = self:SettingsWindow(body, width, y)
   end
@@ -2046,10 +2048,26 @@ function LS:SettingsGoals(body, width, y)
     y = y - 38
   end
 
+  y = y - 8
+  local focusHeading = text(body, width, 13)
+  focusHeading:SetPoint("TOPLEFT", 0, y)
+  focusHeading:SetTextColor(unpack(self.colors.accent))
+  focusHeading:SetText("Expansion focus")
+  y = y - 24
+
+  local labels, values = self:FocusExpansionChoices()
+  local drop = self:Dropdown(body, width, self:FocusExpansionLabel(), labels, function(choice)
+    self:SetFocusExpansion(values[choice] or "current")
+    self:ShowPage("SETTINGS")
+  end)
+  drop:SetPoint("TOPLEFT", 0, y)
+  y = y - 42
+
   local goalNote = text(body, width, 10)
   goalNote:SetPoint("TOPLEFT", 0, y)
-  goalNote:SetText("With every goal off there is nothing to rank, so Today will be empty. Which reputations to rank is chosen on the Reputation tab. Price sources and waypoints live on Optional Addons.")
-  y = y - 36
+  if goalNote.SetWordWrap then goalNote:SetWordWrap(true) end
+  goalNote:SetText("Professions and gold farms follow this. This expansion is the default. Pick All expansions to track older weeklies and treasures; leftover points on a finished tree still stay off Today. Pick a single older expansion for something like a Cataclysm mount. Reputation starts on this expansion; the Reputation tab can rank older factions. With every goal off there is nothing to rank, so Today will be empty.")
+  y = y - 52
   return y
 end
 
@@ -2172,6 +2190,13 @@ function LS:SettingsAddons(body, width, y)
   return y
 end
 
+function LS:ChangelogPage()
+  self:Heading("Changelog", "What changed in the last five versions.")
+  local body = self:Body(70)
+  local y = self:SettingsChangelog(body, body.width, 0)
+  body:finish(math.max(40, -y + 10))
+end
+
 function LS:SettingsChangelog(body, width, y)
   local function drop(fs, gap)
     local h = 14
@@ -2211,7 +2236,7 @@ function LS:SettingsReputation(body, width, y)
   if self.ScanReputations then self:ScanReputations() end
   local intro = text(body, width, 11)
   intro:SetPoint("TOPLEFT", 0, y)
-  intro:SetText("Nothing is assumed. Turn on an expansion, a category, or a single faction. Lodestar ranks the ones that are not finished and stays quiet about the rest.")
+  intro:SetText("This expansion is on by default. Open another tab to rank older factions, or turn this one off. Lodestar ranks the ones that are not finished and stays quiet about the rest.")
   y = y - 40
 
   if self:HasRepSelection() and not self.db.goals.REPUTATION then
@@ -2491,12 +2516,13 @@ end
 
 function LS:CopySupportLink(url, what)
   if type(url) ~= "string" or url == "" then return end
-  local copied = CopyToClipboard and pcall(CopyToClipboard, url)
-  if copied then
-    print("|cff59d8c9Lodestar|r copied the " .. (what or "link") .. ". Paste it in a browser.")
-  else
+  if not CopyToClipboard then
     print("|cff59d8c9Lodestar|r " .. url)
+    return
   end
+  -- Protected: must run from the click, not through pcall.
+  CopyToClipboard(url)
+  print("|cff59d8c9Lodestar|r copied the " .. (what or "link") .. ". Paste it in a browser.")
 end
 
 function LS:FAQPage()
@@ -2579,18 +2605,24 @@ function LS:HelpPage()
       self:CopySupportLink(link.url, link.copied or link.name)
     end)
 
-    local badge = card:CreateTexture(nil, "ARTWORK")
-    badge:SetSize(36, 36)
-    badge:SetPoint("LEFT", 12, 0)
-    if badge.SetColorTexture then
-      local c = link.color or self.colors.accent
-      badge:SetColorTexture(c[1], c[2], c[3], 1)
+    local art = card:CreateTexture(nil, "ARTWORK")
+    if link.cover then
+      art:SetSize(36, 36)
+      art:SetPoint("LEFT", 12, 0)
+      PaintNavIcon(art, link.icon)
+    else
+      local badge = card:CreateTexture(nil, "ARTWORK")
+      badge:SetSize(36, 36)
+      badge:SetPoint("LEFT", 12, 0)
+      if badge.SetColorTexture then
+        local c = link.color or self.colors.accent
+        badge:SetColorTexture(c[1], c[2], c[3], 1)
+      end
+      art:SetSize(22, 22)
+      art:SetPoint("CENTER", badge, "CENTER", 0, 0)
+      PaintNavIcon(art, link.icon)
+      if art.SetVertexColor then art:SetVertexColor(1, 1, 1, 1) end
     end
-    local art = card:CreateTexture(nil, "OVERLAY")
-    art:SetSize(22, 22)
-    art:SetPoint("CENTER", badge, "CENTER", 0, 0)
-    PaintNavIcon(art, link.icon)
-    if art.SetVertexColor then art:SetVertexColor(1, 1, 1, 1) end
 
     local title = text(card, width - 210, 13)
     title:SetPoint("TOPLEFT", 58, -12)

@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.5.4](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.4)
+**Latest release:** [v1.5.5](https://github.com/Co2Noss/Lodestar/releases/tag/v1.5.5)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 
@@ -47,11 +47,12 @@ From there it builds a plan. The left menu is workspaces (Dashboard, planning, t
 - **Progress** — activities you tracked. Compact mode shows the same list.
 - **Gold making** — gathering you have trained, cloth from humanoids, and a few pet farms, priced from TSM, Auctionator, or RECrystallize. Settings → Optional Addons picks the source.
 - **Warband** — every character Lodestar has seen on the account, with vault and knowledge status. Track or untrack alts when more than one character is saved.
-- **Settings** — Goals, Optional Addons, Reputation, Appearance, Compact, Layout, and Changelog on their own tabs.
+- **Settings** — Goals, Optional Addons, Reputation, Appearance, Compact, and Layout on their own tabs.
+- **Changelog** — the last five versions.
 - **FAQ** — why something is missing, and what Lodestar is not.
 - **Help** — commands, debug isolation, and copy-to-clipboard links to Discord and GitHub.
 
-Each recommendation shows **priority** and **score**. Priority is High, Medium, or Low. Unspent knowledge and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
+Each recommendation shows **priority** and **score**. Priority is High, Medium, or Low. Unspent knowledge (while a tree still has ranks to buy) and weekly lockouts are High. Gathering and unfinished secondaries are Medium. Treasures, HandyNotes rares, catch-up, dungeon mount farms, and unfinished reputations are Low because they wait. Score still decides the order.
 
 There is no time-budget slider. Lodestar ranks everything that matches your goals instead of hiding whatever does not fit a session length.
 

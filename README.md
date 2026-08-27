@@ -65,7 +65,7 @@ page never interrupts an upgrade.
 
 After you pick goals, a short tip tour covers the window. **Next** is the next tip. **Skip**
 hides the rest. Returning players only see tips for features added since they last played.
-Settings → Changelog has the last five versions.
+Changelog in the left menu has the last five versions.
 
 ## Pages
 
@@ -82,7 +82,8 @@ Dashboard; Progress is the tracked list.
 - **Progress** — activities you tracked, in score order. Compact mode shows the same list. Track or Untrack from Details.
 - **Ignored Tasks** / **Completed Tasks** — restore cards you hid or marked done.
 - **Warband** — every character Lodestar has seen, with vault and knowledge status. When more than one character is saved, each alt can be tracked or untracked so it drops out of totals and warband gold without being forgotten.
-- **Settings** — split into Goals, Optional Addons, Reputation, Appearance, Compact, Layout and Changelog, so each group is a click rather than a scroll. The last tab you were on is remembered.
+- **Settings** — split into Goals, Optional Addons, Reputation, Appearance, Compact, and Layout, so each group is a click rather than a scroll. The last tab you were on is remembered.
+- **Changelog** — the last five versions. The full notes are on GitHub.
 - **FAQ** — why something is missing, and what Lodestar is not. Goals start off, gold needs a price source, rares need HandyNotes plus a notes pack, and so on.
 - **Help** — commands, the window, debug isolation, and copy-to-clipboard links to [Discord](https://discord.gg/a7hrHavcwq) and [GitHub issues](https://github.com/Co2Noss/Lodestar/issues).
 
@@ -124,8 +125,8 @@ has a house GUID.
 **Battle Pets** shows unique pets and your battle team from the journal. Click the
 tile to open the pet journal (click again to close it); click a slotted pet to summon it.
 **Calendar** lists this week and next from the client's calendar, including guild events
-and invites; click opens the calendar, click again closes it. **Guild** shows the guild name with the emblem
-centered under it; click opens Communities, click again closes it. **Delver's Journey** and **Preyhunter's Journey** show this
+and invites; click opens the calendar, click again closes it. **Guild** shows the guild name, your rank, and who is online, with the emblem
+centered under it; click opens Communities, click again closes it. Edit dashboard can hide the rank. **Delver's Journey** and **Preyhunter's Journey** show this
 season's rank from the client with a bar toward the next rank; click opens Journeys, click again closes it.
 Tiles fill the chrome they sit in. Hover for tooltips: Mythic+ uses your player tooltip
 (shift refreshes it), currencies use the same tooltip as the currency tab.
@@ -229,14 +230,21 @@ slotted pet to summon it.
 
 Only professions this character has trained are listed, filtered to the current expansion by
 default: the two primaries, plus Cooking, Fishing and Archaeology when those slots are filled.
-Dashboard and Warband unspent-knowledge totals use that same filter, so leftover points from
-older expansions do not look like work still to do this season.
+Settings → Goals (and the Professions page) can switch to **All expansions**, or focus a
+single older expansion, so a Cataclysm craft does not sit next to Midnight knowledge.
+All expansions still tracks weeklies and treasures; leftover points on a finished tree stay
+off Today, Dashboard, and Warband.
+Dashboard and Warband unspent-knowledge totals stay on this expansion, so leftover points from
+older expansions do not look like work still to do this season. Spare points after every
+specialization rank is bought are omitted too: they have nowhere to go, so Today does not
+rank a spend.
 Skill level, unspent knowledge, points already spent and remaining tree cost come from live
 APIs and are always accurate. The Open button opens the profession window; professions with a
-knowledge tree also have a Specializations button. Cooking, Fishing and Archaeology have no
-knowledge tree, so the page shows skill, and Today recommends leveling them until they are
-at the cap. Recipe lists and specialization builds stay in the profession window; Lodestar
-ranks what is still worth doing, then Specializations opens the live tree.
+knowledge tree also have a Specializations button. That button is highlighted only while
+points can still be spent. Cooking, Fishing and Archaeology have no knowledge tree, so the
+page shows skill, and Today recommends leveling them until they are at the cap. Recipe lists
+and specialization builds stay in the profession window; Lodestar ranks what is still worth
+doing, then Specializations opens the live tree.
 
 Knowledge is split by what it actually asks of you:
 
@@ -283,17 +291,18 @@ game. Add a row there when a drop is worth a weekly check.
 ## Reputation
 
 The Reputation goal ranks factions from the live reputation list, grouped by expansion and
-category. Settings → Reputation gives each expansion its own tab, then the categories and
-factions under it. Nothing is assumed: turn on an expansion, a category, or a single
-faction. Exalted standings and capped renown stay off the plan. Paragon chests that are
+category. This expansion is on by default. Settings → Reputation gives each expansion its own
+tab, then the categories and factions under it, so you can rank older factions or turn this
+one off. Exalted standings and capped renown stay off the plan. Paragon chests that are
 waiting still appear.
 
 ## Gold making
 
 The Gold making goal ranks gathering you have trained, cloth from humanoids, and a few pet
-farms that never expire. Herbalism, Mining and Skinning each get Midnight and Khaz Algar
-loops. Tailors get Midnight and Khaz Algar cloth; anyone can farm older cloth such as
-Frostweave and Netherweave. Prices come from **TSM**, **Auctionator** or **RECrystallize**.
+farms that never expire. Those farms follow the expansion focus: this expansion by default,
+All expansions, or a single older one. Herbalism, Mining and Skinning each have Midnight and
+Khaz Algar loops. Tailors have Midnight and Khaz Algar cloth; anyone can farm older cloth
+such as Frostweave and Netherweave. Prices come from **TSM**, **Auctionator** or **RECrystallize**.
 Lodestar does not invent an auction house. Settings → Optional Addons lets you pick the source: Auto
 uses the first of those addons that is loaded. If none is loaded, or the one you picked is
 not, Lodestar stays quiet about gold.

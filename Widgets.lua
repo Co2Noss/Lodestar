@@ -758,8 +758,9 @@ end
 function LS:GuildSummary()
   local inGuild = SafeExtra(IsInGuild)
   if not inGuild then return { inGuild = false } end
-  local name = SafeExtra(GetGuildInfo, "player")
+  local name, rankName = SafeExtra(GetGuildInfo, "player")
   if type(name) ~= "string" or name == "" then name = nil end
+  if type(rankName) ~= "string" or rankName == "" then rankName = nil end
   SafeExtra(C_GuildInfo and C_GuildInfo.GuildRoster)
   local total, online = SafeExtra(GetNumGuildMembers)
   total = tonumber(total)
@@ -787,7 +788,7 @@ function LS:GuildSummary()
       end
     end
   end
-  return { inGuild = true, name = name, online = online or 0, total = total or 0 }
+  return { inGuild = true, name = name, rank = rankName, online = online or 0, total = total or 0 }
 end
 
 function LS:OpenCommunities()
@@ -2221,6 +2222,7 @@ local function RegisterExtraWidgets()
       if tip.AddLine then
         if info.inGuild then
           if info.name then tip:AddLine(info.name) end
+          if info.rank then tip:AddLine(info.rank) end
           tip:AddLine(string.format("%d / %d online", info.online or 0, info.total or 0))
         else
           tip:AddLine("Not in a guild.")
@@ -2231,14 +2233,17 @@ local function RegisterExtraWidgets()
     render = function(self, parent, width, height)
       if self.dashboardEdit then
         return self:PaintWidgetSettings(parent, width, "guild", "What this tile shows.", {
+          { "rank", "Rank", true },
           { "emblem", "Emblem", true },
         })
       end
       local w = self.widgets
       height = height or 80
       local info = self:GuildSummary()
+      local showRank = info.inGuild and info.rank and self:WidgetOptOn("guild", "rank", true)
+      local y = -4
       local line = w.text(parent, width - 24, 12)
-      line:SetPoint("TOP", 0, -4)
+      line:SetPoint("TOP", 0, y)
       if line.SetJustifyH then line:SetJustifyH("CENTER") end
       if self.colors then line:SetTextColor(unpack(self.colors.accent)) end
       if info.inGuild then
@@ -2246,8 +2251,18 @@ local function RegisterExtraWidgets()
       else
         line:SetText("Not in a guild")
       end
+      y = y - 16
+      if showRank then
+        local rank = w.text(parent, width - 24, 10)
+        rank:SetPoint("TOP", 0, y)
+        if rank.SetJustifyH then rank:SetJustifyH("CENTER") end
+        if self.colors then rank:SetTextColor(unpack(self.colors.muted)) end
+        rank:SetText(info.rank)
+        if self.FitText then self:FitText(rank, width - 24, 1) end
+        y = y - 14
+      end
       local meta = w.text(parent, width - 24, 10)
-      meta:SetPoint("TOP", 0, -20)
+      meta:SetPoint("TOP", 0, y)
       if meta.SetJustifyH then meta:SetJustifyH("CENTER") end
       if self.colors then meta:SetTextColor(unpack(self.colors.muted)) end
       if info.inGuild then
@@ -2261,16 +2276,16 @@ local function RegisterExtraWidgets()
       end
       local size = 0
       if self:WidgetOptOn("guild", "emblem", true) then
-      size = math.max(32, math.min(52, math.floor(math.min(width - 24, (height or 80) - 44))))
+      size = math.max(32, math.min(52, math.floor(math.min(width - 24, (height or 80) + y - 8))))
       local emblem = parent:CreateTexture(nil, "ARTWORK")
       emblem:SetSize(size, size)
-      emblem:SetPoint("TOP", 0, -38)
+      emblem:SetPoint("TOP", 0, y - 18)
       local bg = parent:CreateTexture(nil, "BACKGROUND")
       bg:SetSize(size, size)
-      bg:SetPoint("TOP", 0, -38)
+      bg:SetPoint("TOP", 0, y - 18)
       local border = parent:CreateTexture(nil, "OVERLAY")
       border:SetSize(size, size)
-      border:SetPoint("TOP", 0, -38)
+      border:SetPoint("TOP", 0, y - 18)
       local painted
       if info.inGuild and SetLargeGuildTabardTextures then
         painted = pcall(SetLargeGuildTabardTextures, "player", emblem, bg, border)
@@ -2286,7 +2301,7 @@ local function RegisterExtraWidgets()
       hit:SetScript("OnMouseUp", function()
         if self.OpenCommunities then self:OpenCommunities() end
       end)
-      return math.max(38 + size, height)
+      return math.max(-(y - 18) + size, height)
     end,
   })
 
