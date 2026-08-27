@@ -22,6 +22,8 @@ module.exports = {
     issues: "https://github.com/Co2Noss/Lodestar/issues",
     releases: "https://github.com/Co2Noss/Lodestar/releases",
     paypal: "http://paypal.me/Co2Noss",
+    kofi: "https://ko-fi.com/co2noss",
+    sponsors: "https://github.com/sponsors/Co2Noss",
   },
   githubRepo: process.env.GITHUB_REPO || "Co2Noss/Lodestar",
   githubToken: process.env.GITHUB_TOKEN || "",

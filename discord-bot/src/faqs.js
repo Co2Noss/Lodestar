@@ -183,6 +183,16 @@ const FAQS = [
       "If you are not sure Lodestar is the addon erroring, `/ls debug` isolates it.",
     ].join("\n"),
   },
+  {
+    id: "donate",
+    title: "Support the project",
+    keywords: ["donate", "paypal", "ko-fi", "kofi", "sponsor", "pull request"],
+    body: [
+      "Optional. [PayPal](http://paypal.me/Co2Noss), [Ko-fi](https://ko-fi.com/co2noss), or [GitHub Sponsors](https://github.com/sponsors/Co2Noss).",
+      "Pull requests: [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar). Open an issue first if you are not sure the change is wanted.",
+      "Answering questions here on Discord is as useful as a patch.",
+    ].join("\n"),
+  },
 ];
 
 function findFaq(query) {
@@ -249,7 +259,10 @@ function linksEmbed() {
       { name: "GitHub", value: links.github },
       { name: "Wiki", value: links.wiki },
       { name: "Issues", value: links.issues },
-      { name: "Discord", value: config.invite }
+      { name: "Discord", value: config.invite },
+      { name: "PayPal", value: links.paypal },
+      { name: "Ko-fi", value: links.kofi },
+      { name: "GitHub Sponsors", value: links.sponsors }
     );
 }
 

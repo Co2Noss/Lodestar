@@ -37,6 +37,8 @@ Questions and install help belong on [Discord](https://discord.gg/a7hrHavcwq) (`
 ## Donate
 
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](http://paypal.me/Co2Noss)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/co2noss)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Co2Noss)
 
 Lodestar answers one question: what is the best use of your next hour in World of Warcraft?
 

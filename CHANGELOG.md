@@ -1,5 +1,8 @@
 # Unreleased
 
+- README, CurseForge, and the wiki carry Ko-fi and GitHub Sponsors next
+  to PayPal. Those links stay off the in-game UI.
+
 # 1.5.5
 
 - Changelog is its own left-menu page, under Settings and above FAQ,

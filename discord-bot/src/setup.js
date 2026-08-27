@@ -297,7 +297,7 @@ function channelSpecs(guild, roles) {
     { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild, roles) },
     { key: "announcements", name: "📣announcements", aliases: ["announcements"], parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
     { key: "releases", name: "📦releases", aliases: ["releases"], parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
-    { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal.", overwrites: membersRead(guild, roles) },
+    { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki, PayPal, Ko-fi, Sponsors.", overwrites: membersRead(guild, roles) },
     { key: "get-help", name: "🎫get-help", aliases: ["get-help"], parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
     { key: "faq", name: "❓faq", aliases: ["faq"], parent: "support", type: ChannelType.GuildText, topic: "Answers that do not need a ticket.", overwrites: membersRead(guild, roles) },
     {

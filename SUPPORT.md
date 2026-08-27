@@ -31,3 +31,13 @@ The same details as a Discord ticket. A `/ls debug` result (still happens vs gon
 | `/ls reset` | Wipe saved settings and reload |
 
 Download: [CurseForge](https://www.curseforge.com/wow/addons/lodestar-guide) · [GitHub releases](https://github.com/Co2Noss/Lodestar/releases)
+
+## Help the project
+
+Donations, pull requests, and answering questions on Discord all help. Those links stay on GitHub, CurseForge, and Discord — not inside the addon.
+
+- [PayPal](http://paypal.me/Co2Noss)
+- [Ko-fi](https://ko-fi.com/co2noss)
+- [GitHub Sponsors](https://github.com/sponsors/Co2Noss)
+- Pull requests: [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
+- [Discord](https://discord.gg/a7hrHavcwq)

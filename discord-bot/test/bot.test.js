@@ -25,6 +25,7 @@ describe("faqs", () => {
     assert.equal(findFaq("/ls debug").id, "debug");
     assert.equal(findFaq("auctionator").id, "gold");
     assert.equal(findFaq("handynotes").id, "rares");
+    assert.equal(findFaq("paypal").id, "donate");
   });
 
   it("returns null for noise", () => {
