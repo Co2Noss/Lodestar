@@ -116,6 +116,9 @@ describe("emoji pack", () => {
       const file = path.join(__dirname, "..", "emojis", `${name}.png`);
       assert.ok(fs.existsSync(file), file);
       assert.ok(fs.statSync(file).size < 256 * 1024);
+      const png = fs.readFileSync(file);
+      // PNG must have an alpha channel so Discord does not paint a white box.
+      assert.equal(png[25], 6, `${name} should be RGBA`);
     }
   });
 });
