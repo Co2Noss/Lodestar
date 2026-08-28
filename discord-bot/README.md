@@ -40,7 +40,7 @@ npm start
 4. Drag the **Lodestar Support** bot role above Developer, Moderator, Support, and Bot in Server Settings → Roles.
 5. Slash commands appear within a few seconds. Rebuild later with `/setup`.
 
-The process must stay running. When it stops, the bot goes offline and tickets stop working. A VPS, Railway, Fly.io, or a home machine is enough. `Dockerfile` is in this folder if you prefer a container.
+Panel message IDs live in `data/state.json` (override the folder with `STATE_DIR`). Keep it between runs — in Docker, mount `/app/data` — otherwise the bot has to rediscover its panels by scanning the channel. The process must stay running. When it stops, the bot goes offline and tickets stop working. A VPS, Railway, Fly.io, or a home machine is enough. `Dockerfile` is in this folder if you prefer a container.
 
 ## CurseForge
 

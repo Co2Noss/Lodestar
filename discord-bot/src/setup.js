@@ -296,7 +296,6 @@ function channelSpecs(guild, roles) {
     { key: "rules", name: "📜rules", aliases: ["rules"], parent: "info", type: ChannelType.GuildText, topic: "How this server works.", overwrites: everyoneRead(guild) },
     { key: "silence-enforced", name: "🍯silence-enforced", aliases: ["silence-enforced"], parent: "info", type: ChannelType.GuildText, topic: "Do not type here. Spam bots that do are softbanned.", overwrites: honeypotOverwrites(guild, roles) },
     { key: "announcements", name: "📣announcements", aliases: ["announcements"], parent: "info", type: announceType, topic: "Lodestar news from staff.", overwrites: membersRead(guild, roles) },
-    { key: "releases", name: "📦releases", aliases: ["releases"], parent: "info", type: announceType, topic: "Addon releases and hotfixes.", overwrites: membersRead(guild, roles) },
     { key: "links", name: "🔗links", aliases: ["links"], parent: "info", type: ChannelType.GuildText, topic: "CurseForge, GitHub, wiki.", overwrites: membersRead(guild, roles) },
     { key: "support-us", name: "💛support-us", aliases: ["support-us", "donate", "supportus"], parent: "info", type: ChannelType.GuildText, topic: "Donate, open a pull request, or help people here.", overwrites: membersRead(guild, roles) },
     { key: "get-help", name: "🎫get-help", aliases: ["get-help"], parent: "support", type: ChannelType.GuildText, topic: "Open a private ticket with Support.", overwrites: membersRead(guild, roles) },
@@ -584,6 +583,54 @@ function faqPanel(guild) {
   return { embeds: [embed], components: [row] };
 }
 
+function panelSignature(payload) {
+  const embed = payload && payload.embeds && payload.embeds[0];
+  const title = embed ? (embed.data ? embed.data.title : embed.title) : null;
+  if (title) return `title:${title}`;
+  const row = payload && payload.components && payload.components[0];
+  const components = row ? (row.components || (row.data && row.data.components) || []) : [];
+  const ids = components
+    .map((c) => (c.data ? c.data.custom_id : c.custom_id || c.customId))
+    .filter(Boolean);
+  if (ids.length) return `custom_id:${ids[0]}`;
+  return payload && payload.content ? `content:${payload.content}` : null;
+}
+
+function messageSignature(message) {
+  const embed = message.embeds && message.embeds[0];
+  if (embed && embed.title) return `title:${embed.title}`;
+  const row = message.components && message.components[0];
+  const ids = row ? (row.components || []).map((c) => c.customId).filter(Boolean) : [];
+  if (ids.length) return `custom_id:${ids[0]}`;
+  return message.content ? `content:${message.content}` : null;
+}
+
+// State can be lost (fresh container, cleared data/), so fall back to finding our
+// own earlier panel in the channel instead of posting a duplicate.
+async function findExistingPanel(channel, payload) {
+  const signature = panelSignature(payload);
+  if (!signature) return null;
+  const me = channel.client.user.id;
+  const pools = [];
+  try {
+    pools.push(await channel.messages.fetchPinned());
+  } catch {
+    // no pin access
+  }
+  try {
+    pools.push(await channel.messages.fetch({ limit: 50 }));
+  } catch {
+    // no history access
+  }
+  for (const pool of pools) {
+    const hit = [...pool.values()]
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+      .find((m) => m.author.id === me && messageSignature(m) === signature);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 async function replaceBotMessage(channel, key, payload, guildId) {
   if (!channel || !channel.isTextBased()) return;
   const saved = state.guildState(guildId).g.messages[key];
@@ -593,8 +640,16 @@ async function replaceBotMessage(channel, key, payload, guildId) {
       await existing.edit(payload);
       return existing;
     } catch {
-      // posted message is gone; send a new one
+      // posted message is gone; fall through
     }
+  }
+  const found = await findExistingPanel(channel, payload);
+  if (found) {
+    await found.edit(payload);
+    state.patch(guildId, (g) => {
+      g.messages[key] = found.id;
+    });
+    return found;
   }
   const sent = await channel.send(payload);
   try {

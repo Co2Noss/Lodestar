@@ -3,7 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const FILE = path.join(__dirname, "..", "data", "state.json");
+const DIR = process.env.STATE_DIR || path.join(__dirname, "..", "data");
+const FILE = path.join(DIR, "state.json");
 
 function load() {
   try {
