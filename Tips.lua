@@ -92,6 +92,16 @@ LS.TIPS = {
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.6",
+    notes = {
+      "Each Mythic+ dungeon icon now carries that dungeon's own rating under its key level.",
+      "The Currencies tile fits more in: smaller rows, and an amount column measured from the amounts themselves rather than a fixed share of the tile",
+      "**Fixed:** picking currencies in Settings did nothing at all when the Currencies tile was not on the dashboard, because the picks are stored on the tile. The page now says so and offers to add the tile.",
+      "Settings → **Backup & Share** exports your setup as a string you can paste into Lodestar on another install.",
+      "Dragging a tile onto another one now trades places with it, and says which tile is in the way when they do not.",
+    },
+  },
+  {
     version = "1.5.62",
     notes = {
       "Lodestar counts which tiles and goals get used, so the ones nobody uses can be fixed or dropped.",
@@ -128,18 +138,6 @@ LS.CHANGELOG = {
       "Spare knowledge on a finished tree stays off Today. All expansions still tracks weeklies and treasures.",
       "Professions and gold default to this expansion. Settings → Goals can switch to All expansions or focus an older one. Reputation starts on this expansion.",
       "Clicking the Professions page no longer opens a profession window on other pages.",
-    },
-  },
-  {
-    version = "1.5.4",
-    notes = {
-      "FAQ and Help sit under Settings. Help copies Discord and GitHub support links to the clipboard.",
-      "The main window does not capture the keyboard. Escape closes it. Compact stays up while it is open.",
-      "The collapsed left menu shows workspace icons and still shows the version at the bottom.",
-      "/lodestar opens and closes the window the same way /ls does.",
-      "Noisy client events no longer rebuild the whole window. Dashboard tiles refresh in place.",
-      "Clicking a Mythic+ dungeon teleport closes the main window after the spell fires.",
-      "The minimap button stays on the minimap edge when you drag it. Settings → Appearance can unlock it.",
     },
   },
 }

@@ -1,4 +1,4 @@
-# Unreleased
+# 1.6
 
 - Each Mythic+ dungeon icon now carries that dungeon's own rating under its key level,
   in smaller text and coloured by what the rating is worth rather than by the key level
