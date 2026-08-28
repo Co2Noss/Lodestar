@@ -394,6 +394,8 @@ position are saved. Escape closes the main window; compact mode stays up.
 - `/ls compact single`
 - `/ls debug` — disable every other addon and reload, so you can tell if an error is Lodestar
 - `/ls debug off` — turn those addons back on (this character only)
+- `/ls analytics` — print every usage number Lodestar has recorded this session
+- `/ls analytics off` / `/ls analytics on` — stop or resume recording them
 - `/ls reset`
 
 ## Waypoints
@@ -455,6 +457,25 @@ or BigWigs would replace theirs and break what it left out.
 | [LibStub](https://www.wowace.com/projects/libstub) | Library versioning | Public domain |
 | [LibDeflate](https://github.com/SafeteeWoW/LibDeflate) | Compression LibOpenRaid requires | zlib |
 | [LibOpenRaid](https://github.com/Tercioo/Open-Raid-Library) | Answering guild keystone requests | LGPL v2.1 |
+| [WagoAnalyticsShim](https://github.com/wagoio/WagoAnalyticsShim) | Usage counts, when the Wago App is sharing | MIT |
+
+## Usage data
+
+Lodestar counts which parts of itself get used, so a tile or goal nobody touches can be
+fixed or dropped instead of maintained on a guess. It records the names of Lodestar's own
+tiles, goals, settings and pages, plus which optional addons are loaded. It never records
+your character, realm, guild, or anything you typed.
+
+Sending is the [Wago App](https://addons.wago.io/)'s job, not Lodestar's. Without that app
+installed and data sharing turned on in it, nothing is transmitted: the numbers stay in
+memory on your machine and are discarded when you log out.
+
+Because of that, **Settings → Optional Addons → Usage data** only appears when the Wago App
+is actually collecting. A switch over something that is not happening would imply data is
+leaving when it is not. Where it does appear, turning it off stops Lodestar counting at all.
+
+`/ls analytics` prints everything that would be sent, so none of the above has to be taken
+on trust. `/ls analytics off` and `/ls analytics on` are the same switch as the setting.
 
 ## License
 

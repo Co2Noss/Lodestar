@@ -259,16 +259,21 @@ end
 function LS:SendKeystoneReply(channel, target)
   local message = self:KeystoneAnnouncement()
   local blocked, why = self:ChatSendBlocked()
+  -- Counted by outcome. How often a reply is answered locally instead of in the
+  -- channel is the measure of how much the 12.0 chat lockdown costs this feature.
   if blocked then
     -- Say it here rather than dropping it, so the answer is still copyable and it
     -- is obvious the command was heard.
     self:PrintKeystoneLocally(message, why)
+    if self.Count then self:Count("keystone.blocked") end
     return message, false
   end
   if not Send(message, channel, target) then
     self:PrintKeystoneLocally(message)
+    if self.Count then self:Count("keystone.failed") end
     return message, false
   end
+  if self.Count then self:Count("keystone.answered." .. tostring(channel)) end
   return message, true
 end
 

@@ -470,6 +470,7 @@ function LS:DashboardAdd(id)
   local placed = { id = id, x = x, y = y, w = w, h = h }
   self:ClampDashboardRect(placed)
   table.insert(self:DashboardLayout(), placed)
+  if self.Count then self:Count("widget.added." .. tostring(id)) end
   if fitted then
     print("|cff59d8c9Lodestar|r Added " .. self:WidgetTitle(spec)
       .. " at " .. placed.w .. " × " .. placed.h .. ", the room left on the canvas.")
@@ -481,6 +482,7 @@ function LS:DashboardRemove(id)
   for i, entry in ipairs(layout) do
     if entry.id == id then
       table.remove(layout, i)
+      if self.Count then self:Count("widget.removed." .. tostring(id)) end
       return
     end
   end

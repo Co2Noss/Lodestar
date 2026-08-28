@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.61"
+LS.version = "1.5.62"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -51,6 +51,10 @@ LS.defaults = {
   -- Answering !keys is on, but every channel is a separate choice. A guild that
   -- already has a keystone addon does not want a second reply, while the same
   -- player may still want it in party.
+  -- Anonymous counts of which tiles and goals get used, so the dead ones can be found.
+  -- Turning this off stops Lodestar recording at all; see Analytics.lua for what is
+  -- collected, or /ls analytics for the actual contents.
+  analytics = true,
   keystone = {
     reply = true,
     channels = {
@@ -101,7 +105,11 @@ end
 
 function LS:SetPageTab(page, id)
   self.db.pageTab = self.db.pageTab or {}
+  local was = self.db.pageTab[page]
   self.db.pageTab[page] = id
+  if was ~= id and self.Count then
+    self:Count("tab." .. tostring(page) .. "." .. tostring(id))
+  end
 end
 
 local function migrate(db)
@@ -638,6 +646,9 @@ events:SetScript("OnEvent", function(_, event, arg, ...)
       LS:OpenFull("WELCOME")
     end
     LS:DebugAnnounce()
+    -- After RefreshState, so the snapshot describes a scanned character rather than
+    -- an empty one, and after the print so nothing here can delay the login message.
+    if LS.StartAnalytics then pcall(LS.StartAnalytics, LS) end
     return
   end
   if event == "PLAYER_ENTERING_WORLD" then
@@ -686,6 +697,11 @@ SlashCmdList.LODESTAR = function(msg)
   elseif msg == "compact single" then
     LS:SetCompactSingle(not LS.db.compact.single)
     print("|cff59d8c9Lodestar|r compact single recommendation: " .. (LS.db.compact.single and "on" or "off"))
+  elseif msg == "analytics" then
+    LS:PrintAnalytics()
+  elseif msg == "analytics off" or msg == "analytics on" then
+    LS:SetAnalytics(msg == "analytics on")
+    print("|cff59d8c9Lodestar|r usage data: " .. (LS:AnalyticsOn() and "on" or "off"))
   elseif msg == "debug" or msg:match("^debug%s") then
     LS:DebugCommand(msg:match("^debug%s*(.*)$"))
   elseif msg == "reset" then

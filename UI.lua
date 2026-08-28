@@ -617,6 +617,12 @@ function LS:ShowPage(page)
     if self.ShowCurrentTip then self:ShowCurrentTip() end
     return
   end
+  -- Only on a real move. Settings toggles repaint by calling ShowPage with the page
+  -- they are already on, and counting those would measure clicks on toggles rather
+  -- than how often anyone opens the page.
+  if self.page ~= page and self.Count then
+    self:Count("page." .. tostring(page))
+  end
   self.page = page
   self.coachMarks = {}
   self:Clear()
@@ -2280,7 +2286,52 @@ function LS:SettingsAddons(body, width, y)
   y = y - 56
 
   y = self:SettingsKeystone(body, width, y)
+  y = self:SettingsAnalytics(body, width, y)
   return y
+end
+
+-- Usage data is the player's call, so the toggle says what is collected and offers the
+-- full contents rather than asking anyone to trust a summary.
+--
+-- Hidden unless the Wago App is actually collecting. For everyone else this setting
+-- governs nothing that leaves the machine, and a privacy control that does not control
+-- anything is worse than no control: it invites someone to turn off a thing that was
+-- never happening, and implies data is leaving when it is not. /ls analytics still
+-- works, so the numbers stay inspectable either way.
+function LS:SettingsAnalytics(body, width, y)
+  if not self:AnalyticsSharing() then return y end
+
+  local heading = text(body, width, 13)
+  heading:SetPoint("TOPLEFT", 0, y)
+  heading:SetTextColor(unpack(self.colors.accent))
+  heading:SetText("Usage data")
+  y = y - 24
+
+  local on = self:AnalyticsOn()
+  local toggle = button(body, on and "ON  •  Share anonymous usage data" or "OFF  •  Share anonymous usage data", width, 30)
+  toggle:SetPoint("TOPLEFT", 0, y)
+  if on then
+    highlight(toggle)
+  else
+    paint(toggle, "panel")
+  end
+  toggle:SetScript("OnMouseUp", function()
+    self:SetAnalytics(not on)
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 38
+
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+  note:SetText("Which tiles and goals get used, so the ones nobody uses can be fixed or dropped. Never your name, realm, guild, or anything you typed. The Wago App is sharing data on this machine, so turning this off is what stops Lodestar's share of it. /ls analytics prints all of it.")
+  y = y - 46
+
+  local show = button(body, "Show what is collected", 200, 28)
+  show:SetPoint("TOPLEFT", 0, y)
+  paint(show, "panel")
+  show:SetScript("OnMouseUp", function() self:PrintAnalytics() end)
+  return y - 38
 end
 
 -- Answering !keys is a chat setting, not a tile setting, so it lives here where every

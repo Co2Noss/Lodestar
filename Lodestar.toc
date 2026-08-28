@@ -1,9 +1,18 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.5.61
-## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI, RaiderIO, GW2_UI, W2UI, nibRealUI, Aurora, AllTheThings, CanIMogIt
+## Version: 1.5.62
+## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI, RaiderIO, GW2_UI, W2UI, nibRealUI, Aurora, AllTheThings, CanIMogIt, WagoAnalytics
 ## SavedVariables: LodestarDB, LodestarDebugDB
+
+# Anonymous usage counts, so tiles and goals nobody uses can be found and fixed.
+#
+# Dormant until the line below is uncommented with the project ID from the addon's Wago
+# page, with Analytics enabled there. Even then nothing leaves the machine unless the
+# player installed the Wago App and turned data sharing on in it. Players keep their own
+# switch in Settings, and /ls analytics prints everything Lodestar would send.
+#
+## X-Wago-ID: rN4kwdGD
 
 # Embedded so Lodestar can answer keystone requests from other addons on its own.
 # Guilds of WoW, Details, and anything else on LibOpenRaid read guild keys this way.
@@ -23,7 +32,11 @@ Libs\LibOpenRaid\ThingsToMantain_Cata.lua
 Libs\LibOpenRaid\ThingsToMantain_Pandaria.lua
 Libs\LibOpenRaid\ThingsToMantain_Midnight.lua
 
+# A stub that no-ops unless the Wago App installed the real collector.
+Libs\WagoAnalytics\Shim.lua
+
 Core.lua
+Analytics.lua
 PlayerData.lua
 Knowledge.lua
 Waypoints.lua

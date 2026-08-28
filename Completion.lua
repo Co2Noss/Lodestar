@@ -181,6 +181,11 @@ function LS:MarkCompleted(id, activity)
   self.db.completedBlock[id] = nil
   local snap = Snapshot(activity or self:ProfessionCompletionActivity(id) or self:FindActivity(id))
   if snap then self.db.completedSnapshot[id] = snap end
+  -- The category, never the task ID: categories are Lodestar's own vocabulary, while
+  -- an ID can name a specific quest or profession on this character.
+  if self.Count then
+    self:Count("task.done." .. tostring(snap and snap.category or "Other"))
+  end
 end
 
 function LS:UnmarkCompleted(id)
@@ -193,6 +198,11 @@ function LS:UnmarkCompleted(id)
     self.db.completedBlock[id] = true
   end
   if self.db.completedSnapshot then self.db.completedSnapshot[id] = nil end
+  -- Undo of an auto-completion is the interesting one: it means Lodestar decided
+  -- something was finished and the player disagreed.
+  if self.Count then
+    self:Count(wasAuto and "task.undoAuto" or "task.undo")
+  end
 end
 
 function LS:ClearCompletedFlags()

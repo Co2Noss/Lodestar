@@ -1,5 +1,18 @@
 # Unreleased
 
+# 1.5.62
+
+- Lodestar counts which of its own tiles, goals, pages, and settings actually get
+  used, so the parts nobody touches can be fixed or dropped rather than kept on a
+  guess. It records Lodestar's own names and which optional addons are loaded, and
+  never your character, realm, guild, or anything you typed.
+- Sending is the Wago App's job, not Lodestar's: without that app installed and
+  sharing turned on in it, the numbers never leave your machine. The **Settings →
+  Optional Addons → Usage data** switch only appears when that app is actually
+  collecting, since a privacy control over something that is not happening only
+  suggests it is. `/ls analytics` prints the whole payload either way, so none of
+  this has to be taken on trust.
+
 # 1.5.61
 
 ## Keystones

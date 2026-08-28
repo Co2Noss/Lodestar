@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
+    "Core.lua", "Analytics.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
     "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -393,7 +393,7 @@ log = s.texts()
 check("Changelog is not a Settings tab",
       "Optional Addons" not in log, log)
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.61", "1.5.6", "1.5.5", "1.5.4", "1.5.31"]), log)
+      all(name in log for name in ["1.5.62", "1.5.61", "1.5.6", "1.5.5", "1.5.4"]), log)
 # Spacing between bullets, not distance between them: a bullet that wraps is taller
 # without being further from its neighbour, and only the spacing is the layout choice.
 gap = s.eval("""(function()
@@ -4189,6 +4189,149 @@ check("the window sits above nameplates",
       s.eval('__LS.frame.frameStrata') == "HIGH")
 check("compact sits above nameplates",
       s.eval('__LS.compact and __LS.compact.frameStrata') == "HIGH")
+
+# Usage analytics -------------------------------------------------------------
+
+s = Session(saved="{ welcomed = true, goals = { ENDGAME = true, GOLD = true } }")
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+
+check("recording works with no Wago App installed",
+      s.eval("__LS:AnalyticsSink()") is None)
+check("a goal that is on is recorded on",
+      s.eval("__LS.analytics.switches['goal.ENDGAME']") is True)
+# The whole point of the false cases: Wago only counts a session towards a switch's
+# rate if that session recorded the switch, so writing only the true ones would
+# report every goal as universally popular.
+check("a goal that is off is recorded off, not omitted",
+      s.eval("__LS.analytics.switches['goal.PVP']") is False)
+check("goals on are counted",
+      s.eval("__LS.analytics.counters['goals.on']") == 2)
+check("a tile on the dashboard is recorded on",
+      s.eval("__LS.analytics.switches['widget.stats']") is True)
+check("a tile nobody uses is recorded off rather than going missing",
+      s.eval("__LS.analytics.switches['widget.housing']") is False)
+check("the version is recorded",
+      s.eval("__LS.analytics.switches['version.' .. __LS.version]") is True)
+check("keystone channels are recorded",
+      s.eval("__LS.analytics.switches['keystone.channel.GUILD']") is True)
+
+# No character, realm, guild, or typed text may appear anywhere in the payload.
+s.exec("""
+  GuildName = "Secret Cabal"
+  __LS:AnalyticsSnapshot()
+""")
+report = s.eval("table.concat(__LS:AnalyticsReport(), '\\n')")
+check("nothing recorded names the character, realm, or guild",
+      not any(word in report for word in ["Testchar", "Testrealm", "Secret Cabal"]), report)
+
+opened = s.eval("__LS.analytics.counters['page.SETTINGS'] or 0")
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("opening a page counts as a visit",
+      s.eval("__LS.analytics.counters['page.SETTINGS']") == opened + 1)
+# Settings toggles repaint by calling ShowPage with the page already showing, so
+# counting every call would measure toggle clicks instead of visits.
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("repainting the same page is not a second visit",
+      s.eval("__LS.analytics.counters['page.SETTINGS']") == opened + 1)
+
+s.exec("__LS:DashboardRemove('stats'); __LS:DashboardAdd('housing')")
+check("removing a tile is counted",
+      s.eval("__LS.analytics.counters['widget.removed.stats']") == 1)
+check("adding a tile is counted",
+      s.eval("__LS.analytics.counters['widget.added.housing']") == 1)
+
+s.exec("__LS:SetAnalytics(false); __LS:Count('page.TODAY')")
+check("turning it off stops recording",
+      s.eval("__LS.analytics.counters['page.TODAY'] or 0") == 0)
+check("turning it off is remembered",
+      s.eval("__LS.db.analytics") is False)
+s.exec("__LS:SetAnalytics(true)")
+check("turning it back on resumes recording",
+      s.eval("__LS:AnalyticsOn()") is True)
+
+s.exec('EnableWagoAnalytics("rN4kwdGD")')
+s.exec("__LS.analyticsSink = nil; __LS:SetPageTab('SETTINGS', 'ADDONS'); __LS:OpenFull('SETTINGS')")
+s.timers()
+check("Settings offers a usage data toggle once the Wago App is sharing",
+      "Share anonymous usage data" in s.texts(), s.texts())
+s.click("Show what is collected")
+check("the report can be printed in full",
+      "goal.ENDGAME" in s.printed(), s.printed())
+
+# With the Wago App present the same calls reach the collector.
+s = Session(saved="{ welcomed = true, goals = { ENDGAME = true } }")
+s.exec('EnableWagoAnalytics("abc123")')
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+check("the collector receives switches when the Wago App is sharing",
+      s.eval("(function() for _, e in ipairs(WagoSent) do if e.name == 'goal.ENDGAME' and e.value == true then return true end end end)()") is True)
+check("counters reach the collector as increments",
+      s.eval("""(function()
+        __LS:Count('page.TODAY', 2)
+        for _, e in ipairs(WagoSent) do
+          if e.name == 'page.TODAY' and e.kind == 'increment' and e.value == 2 then return true end
+        end
+      end)()""") is True)
+check("a total is set rather than incremented",
+      s.eval("(function() for _, e in ipairs(WagoSent) do if e.name == 'goals.on' and e.kind == 'set' then return true end end end)()") is True)
+
+# Without an ID nothing registers.
+s = Session(saved="{ welcomed = true }")
+s.exec("InstallWagoShim(nil)")
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+check("no Wago ID means nothing is ever sent",
+      s.eval("#WagoSent") == 0 and s.eval("__LS:AnalyticsSink()") is None)
+
+# The common case: Lodestar ships the Shim and an ID, and the player has no Wago App.
+# The Shim still hands back a table, so "we have a sink" must not be read as sharing.
+s = Session(saved="{ welcomed = true, goals = { ENDGAME = true } }")
+s.exec('InstallWagoShim("rN4kwdGD")')
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+check("the Shim's no-op stub is not mistaken for a collector",
+      s.eval("__LS:AnalyticsSharing()") is False)
+check("nothing is sent without the Wago App", s.eval("#WagoSent") == 0)
+s.exec("__LS:SetPageTab('SETTINGS', 'ADDONS'); __LS:OpenFull('SETTINGS')")
+s.timers()
+# A privacy toggle over a thing that is not happening reads as a confession that it is.
+check("the usage data setting is hidden when nothing can be collected",
+      "Share anonymous usage data" not in s.texts())
+check("Settings still renders the rest of the tab",
+      "Mythic+ keys" in s.texts())
+s.exec("SlashCmdList.LODESTAR('analytics')")
+check("/ls analytics still explains that nothing is leaving the machine",
+      "kept in memory only" in s.printed(), s.printed())
+
+# An X-Wago-ID line left in the .toc with nothing after it reads as an empty string,
+# which is truthy, so it would otherwise register that as the project ID.
+s = Session(saved="{ welcomed = true }")
+s.exec('EnableWagoAnalytics("   ")')
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+check("a blank Wago ID is treated as not configured",
+      s.eval("#WagoSent") == 0 and s.eval("__LS:AnalyticsSink()") is None)
+
+# A collector that throws must not take page views or chat handlers down with it.
+s = Session(saved="{ welcomed = true }")
+s.exec('EnableWagoAnalytics("abc123", true)')
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+check("a collector that errors is dropped instead of breaking the addon",
+      s.eval("__LS.analyticsSink") is False)
+s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('SETTINGS')")
+s.timers()
+check("recording carries on locally after the collector is dropped",
+      s.eval("__LS.analytics.counters['page.SETTINGS']") >= 1)
 
 print()
 if failures:

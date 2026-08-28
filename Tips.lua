@@ -92,6 +92,14 @@ LS.TIPS = {
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.5.62",
+    notes = {
+      "Lodestar counts which tiles and goals get used, so the ones nobody uses can be fixed or dropped.",
+      "It never records your character, realm, guild, or anything you typed. /ls analytics prints all of it.",
+      "Nothing is sent unless you run the Wago App with data sharing on. Without it the counts stay on your machine.",
+    },
+  },
+  {
     version = "1.5.61",
     notes = {
       "Guilds of WoW, Details, and REKeys see your key without Astral Keys installed.",
@@ -134,14 +142,6 @@ LS.CHANGELOG = {
       "The minimap button stays on the minimap edge when you drag it. Settings → Appearance can unlock it.",
     },
   },
-  {
-    version = "1.5.31",
-    notes = {
-      "Housing asks the client for house info so the tile does not say No house while the Housing Dashboard shows one.",
-      "Mythic+ dungeon teleports match Path of the Rookery to The Rookery and expand spellbook flyouts. Click is a SecureActionButton.",
-      "Opening Mythic+ Dungeons hides the dashboard tooltip and no longer paints a dark box over the tab.",
-    },
-  },
 }
 
 -- In-game FAQ. Keep this in step with the wiki FAQ page.
@@ -177,6 +177,10 @@ LS.FAQ = {
   {
     q = "Does my guild's keystone list see my key?",
     a = "Yes, without Astral Keys or Details. Guilds of WoW, Details, and REKeys ask LibOpenRaid for the guild's keys, and Lodestar embeds that library so your client answers for itself. Lodestar sends nothing on its own; the library replies when another client asks, on login, and when a run ends. Only the key, dungeon, class, and rating go out.",
+  },
+  {
+    q = "What usage data does Lodestar collect?",
+    a = "Which of its own tiles, goals, pages and settings you use, and which optional addons are loaded, so parts nobody uses can be fixed or dropped instead of guessed about. Never your character, realm, guild, or anything you typed. Nothing is sent at all unless you installed the Wago App and turned data sharing on there; without it these numbers stay on your machine and go away when you log out. If that app is sharing, Settings → Optional Addons → Usage data turns Lodestar's share of it off. /ls analytics prints the lot either way.",
   },
   {
     q = "Where do I change what a tile shows?",

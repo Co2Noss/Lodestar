@@ -656,7 +656,67 @@ C_AddOns = {
     local a = findAddon(name)
     if a then a.enabled = 2 end
   end,
+  GetAddOnMetadata = function(_, field)
+    return WagoID and field == "X-Wago-ID" and WagoID or nil
+  end,
 }
+
+-- Wago Analytics.
+--
+-- The distinction the real Shim makes and a naive fake does not: RegisterAddon returns
+-- a table whether or not anyone is collecting. Without the Wago App it is a stub whose
+-- methods silently do nothing. Lodestar ships the Shim, so that stub is what the vast
+-- majority of installs get, and a fake that returned nil there would let "is anyone
+-- collecting" bugs pass.
+WagoSent = {}
+WagoID = nil
+WagoAnalytics = nil
+
+-- The Shim and LibStub, both of which Lodestar bundles, so this is every install.
+function InstallWagoShim(id)
+  WagoID = id
+  LibStub = {
+    GetLibrary = function(_, name)
+      if name ~= "WagoAnalytics" then return end
+      return {
+        RegisterAddon = function(_, addon)
+          if not C_AddOns.GetAddOnMetadata(addon, "X-Wago-ID") then return false end
+          if WagoAnalytics then return WagoAnalytics:Register(WagoID) end
+          -- The Shim's no-op stub: a table, and it swallows everything.
+          return setmetatable({}, { __index = {
+            IncrementCounter = function() end,
+            DecrementCounter = function() end,
+            SetCounter = function() end,
+            Switch = function() end,
+            Error = function() end,
+            Breadcrumb = function() end,
+          } })
+        end,
+      }
+    end,
+  }
+end
+
+-- The Wago App on top of that: installed, and sharing data.
+function EnableWagoAnalytics(id, broken)
+  WagoSent = {}
+  InstallWagoShim(id or "test-id")
+  local sink = {
+    Switch = function(_, name, on)
+      if broken then error("wago exploded") end
+      table.insert(WagoSent, { kind = "switch", name = name, value = on })
+    end,
+    IncrementCounter = function(_, name, by)
+      if broken then error("wago exploded") end
+      table.insert(WagoSent, { kind = "increment", name = name, value = by })
+    end,
+    SetCounter = function(_, name, value)
+      if broken then error("wago exploded") end
+      table.insert(WagoSent, { kind = "set", name = name, value = value })
+    end,
+  }
+  WagoAnalytics = { Register = function() return sink end }
+end
 
 C_TradeSkillUI = {
   GetAllProfessionTradeSkillLines = function() return { 2871, 2823, 2757, 185, 356, 794 } end,
