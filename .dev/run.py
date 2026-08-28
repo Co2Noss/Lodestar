@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
+    "Core.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
     "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -90,9 +90,11 @@ class Session:
           if not __eventFrame then error("no event frame was registered") end
         """)
 
-    def fire(self, event, arg=None):
+    def fire(self, event, arg=None, arg2=None):
         payload = f'"{arg}"' if arg else "nil"
-        self.lua.execute(f"__eventFrame.scripts.OnEvent(nil, '{event}', {payload})")
+        extra = f', "{arg2}"' if arg2 else ""
+        self.lua.execute(
+            f"__eventFrame.scripts.OnEvent(nil, '{event}', {payload}{extra})")
         self.timers()
 
     def timers(self):
@@ -333,9 +335,10 @@ s.exec("__LS:ShowPage('SETTINGS')")
 s.timers()
 settings = s.texts()
 check("Settings opens on Goals", s.eval("__LS:SettingsTab()[1]") == "GOALS")
-check("the six settings tabs are on the strip",
+check("every settings tab is on the strip",
       all(name in settings for name in
-          ["Goals", "Optional Addons", "Reputation", "Appearance", "Compact", "Layout"]),
+          ["Goals", "Currencies", "Optional Addons", "Reputation", "Appearance",
+           "Compact", "Layout"]),
       settings)
 check("Goals does not bury colors underneath it",
       "Click a color to change it" not in settings and "Accent" not in settings, settings)
@@ -390,24 +393,31 @@ log = s.texts()
 check("Changelog is not a Settings tab",
       "Optional Addons" not in log, log)
 check("Changelog shows the last five versions",
-      all(name in log for name in ["1.5.6", "1.5.5", "1.5.4", "1.5.31", "1.5.3"]), log)
+      all(name in log for name in ["1.5.61", "1.5.6", "1.5.5", "1.5.4", "1.5.31"]), log)
+# Spacing between bullets, not distance between them: a bullet that wraps is taller
+# without being further from its neighbour, and only the spacing is the layout choice.
 gap = s.eval("""(function()
-  local ys, seen = {}, {}
+  local rows, seen = {}, {}
   local function visit(frame, depth)
     if depth > 18 or seen[frame] or frame.shown == false then return end
     seen[frame] = true
     for _, r in ipairs(frame.regions or {}) do
       local t = r.text_value
       if type(t) == "string" and t:find("•", 1, true) == 1 and r.points and r.points[1] then
-        table.insert(ys, tonumber(r.points[1][3]) or 0)
+        table.insert(rows, { y = tonumber(r.points[1][3]) or 0, h = r:GetStringHeight() })
       end
     end
     for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
   end
   visit(__LS.frame, 0)
-  table.sort(ys, function(a, b) return a > b end)
-  if #ys < 2 then return 999 end
-  return math.abs(ys[1] - ys[2])
+  table.sort(rows, function(a, b) return a.y > b.y end)
+  if #rows < 2 then return 999 end
+  local tightest = 999
+  for i = 1, #rows - 1 do
+    local spacing = math.abs(rows[i].y - rows[i + 1].y) - (rows[i].h or 0)
+    if spacing < tightest then tightest = spacing end
+  end
+  return tightest
 end)()""")
 check("changelog bullets sit closer than a blank line", gap < 24, gap)
 
@@ -2806,10 +2816,277 @@ mythic = s.texts()
 check("Mythic+ edit lists score, dungeon, and teleport toggles, not the live score",
       "Score" in mythic and "Dungeons" in mythic and "Teleport" in mythic
       and "Honor 47" not in mythic, mythic)
+check("Mythic+ edit can turn the key line off and points at Settings for the reply",
+      "Your key" in mythic and "!keys replies are in Settings." in mythic, mythic)
+# The note wraps on a half-width tile; the toggles have to start below all of it.
+check("a wrapped tile note does not have the toggles printed on top of it",
+      s.eval("""(function()
+        local note, first
+        local function visit(frame, depth)
+          if depth > 14 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.text_value == "What this tile shows. !keys replies are in Settings." then
+              note = r
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do
+            if c.text and c.text.text_value == "Score" then first = c end
+            visit(c, depth + 1)
+          end
+        end
+        visit(__LS.frame, 0)
+        if not note or not first then return "missing" end
+        local noteTop = note.points[1] and note.points[1][3] or 0
+        local noteBottom = noteTop - note:GetStringHeight()
+        local btnTop = first.points[1] and first.points[1][3] or 0
+        if note:GetStringHeight() <= 12 then return "did not wrap" end
+        return btnTop <= noteBottom
+      end)()""") is True, s.eval("""(function()
+        local note
+        local function visit(frame, depth)
+          if depth > 14 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.text_value == "What this tile shows. !keys replies are in Settings." then note = r end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        return note and note:GetStringHeight() or "no note"
+      end)()"""))
 s.click("Done editing")
 mythic = s.texts()
 check("Mythic+ shows the client's overall dungeon score",
       "1800" in mythic and "Mythic+" in mythic, mythic)
+
+# --- keystone without Astral Keys ----------------------------------------
+print("-- keystone --")
+check("no keystone says so rather than leaving a blank line",
+      "No Current Keystone" in mythic and "Nothing in your bags" in mythic, mythic)
+check("no keystone has no label",
+      s.eval("(__LS:KeystoneLabel())") is None)
+s.exec("OwnedKeystone = { mapID = 403, level = 12 }; __LS:ShowPage('DASHBOARD')")
+s.timers()
+mythic = s.texts()
+check("the Mythic+ tile labels the key rather than leaving a bare dungeon name",
+      "Current Keystone" in mythic and "The Rookery +12" in mythic, mythic)
+check("the keystone label comes from the client, not Astral Keys",
+      s.eval("(__LS:KeystoneLabel())") == "The Rookery +12",
+      s.eval("(__LS:KeystoneLabel())"))
+s.exec("""
+  OwnedKeystone = nil
+  BagContents[0] = { [1] = { hyperlink = "|cffa335ee|Hkeystone:180653:2:9:10:9:152:0|h[Keystone: Temple of the Jade Serpent (9)]|h|r" } }
+""")
+check("a keystone still reads from bags when the client has not answered yet",
+      s.eval("(__LS:KeystoneLabel())") == "Temple of the Jade Serpent +9",
+      s.eval("(__LS:KeystoneLabel())"))
+
+# The item in the bags carries the real affixes, so that is what gets linked.
+KEY_LINK = "|cffa335ee|Hkeystone:180653:2:9:10:9:152:0|h[Keystone: Temple of the Jade Serpent (9)]|h|r"
+s.exec("OwnedKeystone = { mapID = 2, level = 9 }")
+check("the clickable link comes from the keystone item itself",
+      s.eval("__LS:KeystoneLink()") == KEY_LINK, s.eval("__LS:KeystoneLink()"))
+s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("the !keys reply links the key so it is hoverable and clickable",
+      s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: " + KEY_LINK,
+      s.eval("ChatSent[1] and ChatSent[1].msg"))
+s.exec("__LS:FillKeystoneTooltip(GameTooltip)")
+check("hovering the key shows the real item tooltip",
+      s.eval("GameTooltip.hyperlink") == KEY_LINK, s.eval("GameTooltip.hyperlink"))
+s.exec("ChatLinked = nil; ChatEditActive = true")
+check("clicking the key puts it in the chat box",
+      s.eval("__LS:LinkKeystoneToChat()") is True
+      and s.eval("ChatLinked") == KEY_LINK, s.eval("ChatLinked"))
+s.exec("ChatLinked = nil; ChatEditActive = false")
+check("clicking with the chat box closed opens it and still links",
+      s.eval("__LS:LinkKeystoneToChat()") is True
+      and s.eval("ChatLinked") == KEY_LINK, s.eval("ChatLinked"))
+s.exec("""
+  OwnedKeystone = { mapID = 403, level = 12 }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("a bag link for a different key is not linked as the current one",
+      s.eval("__LS:KeystoneLink()") is None, s.eval("__LS:KeystoneLink()"))
+s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("a key with no link still answers in plain text rather than staying silent",
+      s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: The Rookery +12",
+      s.eval("ChatSent[1] and ChatSent[1].msg"))
+s.exec("BagContents[0] = nil; OwnedKeystone = { mapID = 403, level = 12 }; ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("!keys in guild chat answers with the key from the client",
+      s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: The Rookery +12"
+      and s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD",
+      s.eval("ChatSent[1] and ChatSent[1].msg"))
+check("a repeated !keys inside the throttle window does not answer twice",
+      s.eval("#ChatSent") == 1)
+s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_WHISPER", "!keys", "Friend")
+check("!keys in a whisper answers the asker, not the guild",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "WHISPER"
+      and s.eval("ChatSent[1] and ChatSent[1].target") == "Friend")
+s.exec("ChatSent = {}")
+s.fire("CHAT_MSG_GUILD", "what keys does everyone have", "Someone")
+check("ordinary chat is not treated as a command",
+      s.eval("#ChatSent") == 0)
+s.exec("ChatSent = {}; OwnedKeystone = nil; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_PARTY", "!keys", "Someone")
+check("no key answers with no keystone instead of staying silent",
+      s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: no keystone",
+      s.eval("ChatSent[1] and ChatSent[1].msg"))
+s.exec("""
+  ChatSent = {}
+  TimeNow = TimeNow + 60
+  OwnedKeystone = { mapID = 403, level = 12 }
+  __LS:SetKeystoneReply(false)
+""")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
+check("turning the reply off stops Lodestar answering !keys",
+      s.eval("#ChatSent") == 0)
+s.exec("""
+  __LS:SetKeystoneReply(true)
+  ChatSent = {}
+  TimeNow = TimeNow + 60
+  __LS:SetKeystoneChannel("GUILD", false)
+""")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("a guild that does not want the reply can turn just that channel off",
+      s.eval("#ChatSent") == 0)
+s.fire("CHAT_MSG_PARTY", "!keys", "Someone")
+check("turning guild off leaves party answering",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "PARTY",
+      s.eval("ChatSent[1] and ChatSent[1].channel"))
+s.exec('ChatSent = {}; TimeNow = TimeNow + 60; __LS:SetKeystoneChannel("PARTY", false)')
+s.fire("CHAT_MSG_PARTY_LEADER", "!keys", "Someone")
+check("party leader follows the party channel setting",
+      s.eval("#ChatSent") == 0)
+
+# The game blocks addon chat in dungeons, raids, encounters and PvP matches. Sending
+# anyway is a protected-function error, so ask first and answer locally instead.
+s.exec("""
+  __LS:SetKeystoneChannel("GUILD", true)
+  __LS:SetKeystoneChannel("PARTY", true)
+  ChatSent = {}
+  Printed = {}
+  TimeNow = TimeNow + 60
+  ChatLockdown = true
+""")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("a chat lockdown does not turn into a blocked-function error",
+      s.eval("#ChatSent") == 0)
+check("the key is still answered locally, with the reason",
+      s.eval("""(function()
+        for _, line in ipairs(Printed) do
+          if line:find("The Rookery +12", 1, true)
+             and line:find("blocking addon chat", 1, true) then return true end
+        end
+        return false
+      end)()""") is True, s.eval("table.concat(Printed, ' | ')"))
+# AreOutgoingAddonChatMessagesRestricted is about SendAddonMessage comms and reads
+# true on an ordinary realm. Gating replies on it silenced !keys on every channel.
+check("the addon-comms realm flag is not mistaken for a chat restriction",
+      s.eval("C_ChatInfo.AreOutgoingAddonChatMessagesRestricted()") is True)
+s.exec("ChatLockdown = false; ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_PARTY", "!keys", "Someone")
+check("party still answers on a realm where that flag is set",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "PARTY",
+      s.eval("ChatSent[1] and ChatSent[1].channel"))
+s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("answers resume once the restriction lifts",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD",
+      s.eval("ChatSent[1] and ChatSent[1].channel"))
+# On a restricted map the chat text itself is a secret value. Doing string work on
+# one is an error, so it has to be checked before the command is parsed at all.
+s.exec("ChatSent = {}; TimeNow = TimeNow + 60; SecretChatText = '!keys'")
+check("secret chat text is left alone instead of erroring the handler",
+      s.eval("""(function()
+        local ok = pcall(function()
+          __LS:HandleChatCommand("CHAT_MSG_GUILD", "!keys", "Someone")
+        end)
+        return ok and #ChatSent == 0
+      end)()""") is True)
+s.exec("SecretChatText = nil; ChatSent = {}; TimeNow = TimeNow + 60")
+s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+check("readable chat text is still answered",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD")
+s.exec('ChatSent = {}; TimeNow = TimeNow + 60; __LS:SetKeystoneChannel("PARTY", false)')
+s.exec("""
+  __LS:SetKeystoneChannel("GUILD", true)
+  __LS:SetKeystoneChannel("PARTY", true)
+  __LS:SetPageTab("SETTINGS", "ADDONS")
+  __LS:ShowPage("SETTINGS")
+""")
+s.timers()
+keys_settings = s.texts()
+check("Settings lists every channel the !keys reply can answer on",
+      all(name in keys_settings for name in ["Mythic+ keys", "Guild", "Officer", "Party", "Raid", "Instance", "Whisper"]),
+      keys_settings)
+check("Settings names the key it can currently see",
+      "The Rookery +12" in keys_settings, keys_settings)
+s.click("ON  •  Guild")
+check("clicking a channel in Settings turns that channel off",
+      s.eval('__LS:KeystoneChannelOn("GUILD")') is False)
+check("turning a channel off leaves the others alone",
+      s.eval('__LS:KeystoneChannelOn("PARTY")') is True)
+s.click("OFF  •  Guild")
+check("clicking it again turns the channel back on",
+      s.eval('__LS:KeystoneChannelOn("GUILD")') is True)
+s.click("ON  •  Answer !keys in chat")
+off_texts = s.texts()
+check("turning the reply off hides the channel list",
+      "Lodestar stays quiet when someone types !keys" in off_texts
+      and "ON  •  Whisper" not in off_texts, off_texts)
+s.click("OFF  •  Answer !keys in chat")
+
+# --- sharing the key with guild tools through LibOpenRaid -------------------
+# The libraries are not loaded headless, so this is the client that does not have
+# them: it must degrade quietly rather than erroring on a nil LibStub.
+check("no keystone sharing when the library is missing",
+      s.eval("__LS:OpenRaidLib()") is None
+      and s.eval("__LS:KeystoneSharingOn()") is False)
+s.exec("__LS:ShowPage('SETTINGS')")
+s.timers()
+check("Settings says so instead of claiming guild tools can see the key",
+      "Keystone sharing with guild tools is unavailable" in s.texts(), s.texts())
+s.exec("""
+  LibStub = {
+    libs = { ["LibOpenRaid-1.0"] = { RequestKeystoneDataFromGuild = function() return true end } },
+  }
+  function LibStub:GetLibrary(major, silent) return self.libs[major] end
+  __LS:ShowPage("SETTINGS")
+""")
+s.timers()
+check("the embedded library is picked up when it is loaded",
+      s.eval("__LS:KeystoneSharingOn()") is True)
+check("Settings names the tools that can read the key",
+      "Guilds of WoW" in s.texts() and "Details" in s.texts(), s.texts())
+check("Lodestar does not send keystone data itself, the library answers",
+      s.eval("__LS.AnnounceKeystoneChange") is None)
+s.exec("LibStub = nil")
+check("a broken LibStub is not allowed to error out of Lodestar",
+      s.eval("""(function()
+        LibStub = setmetatable({}, { __index = function() error("boom") end })
+        local ok = pcall(function() return __LS:KeystoneSharingOn() end)
+        LibStub = nil
+        return ok
+      end)()""") is True)
+
+# Later checks read aura expiry against the clock, so hand it back unchanged.
+s.exec("""
+  TimeNow = 1000
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+s.exec('__LS:SetWidgetOpt("raiderio", "key", false); __LS:ShowPage("DASHBOARD")')
+s.timers()
+mythic = s.texts()
+check("turning the key line off hides it from the tile",
+      "The Rookery +12" not in mythic, mythic)
+s.exec('__LS:SetWidgetOpt("raiderio", "key", true); __LS:ShowPage("DASHBOARD")')
+s.timers()
+mythic = s.texts()
 s.exec("""
   RaiderIO = {
     GetProfile = function()
@@ -3096,6 +3373,8 @@ check("Currencies default to this expansion",
         local rows = __LS:TrackedCurrencies()
         return #rows == 1 and rows[1].name == "Midnight Test Coin" and rows[1].quantity == 42
       end)()""") is True)
+s.click("Done editing")
+s.timers()
 check("tracked currencies use the client's icon",
       s.eval("(__LS:TrackedCurrencies()[1] or {}).icon") == 464076
       and s.eval("""(function()
@@ -3116,7 +3395,26 @@ check("tracked currencies use rarity colour",
         local r, g, b = __LS:QualityColor(4)
         return math.abs((r or 0) - 0.64) < 0.01 and math.abs((b or 0) - 0.93) < 0.01
       end)()""") is True)
-s.click("Old Expansion Coin")
+# The list is far longer than a tile, so the tile sends you to Settings for it.
+s.click("Edit dashboard")
+s.timers()
+currency_tile = s.texts()
+check("the Currencies tile does not try to list every currency",
+      "Choose currencies" in currency_tile
+      and "Tracking 1 of 2 currencies" in currency_tile, currency_tile)
+check("the tile says where the list went",
+      "Settings → Currencies" in currency_tile, currency_tile)
+s.click("Choose currencies")
+s.timers()
+check("the tile button opens Settings on the Currencies tab",
+      s.eval("__LS.page") == "SETTINGS"
+      and s.eval("__LS:SettingsTab()[1]") == "CURRENCIES")
+currency_page = s.texts()
+check("Settings lists every currency, grouped by expansion",
+      all(name in currency_page for name in
+          ["Midnight", "The War Within", "ON  •  Midnight Test Coin",
+           "OFF  •  Old Expansion Coin"]), currency_page)
+s.click("OFF  •  Old Expansion Coin")
 check("Currencies can track a currency from another expansion",
       s.eval("""(function()
         local rows = __LS:TrackedCurrencies()
@@ -3125,6 +3423,21 @@ check("Currencies can track a currency from another expansion",
         return names:find("Midnight Test Coin", 1, true) ~= nil
            and names:find("Old Expansion Coin", 1, true) ~= nil
       end)()""") is True)
+check("picking from Settings keeps you on the Currencies tab",
+      s.eval("__LS:SettingsTab()[1]") == "CURRENCIES")
+s.click("ON  •  Midnight Test Coin")
+check("a currency can be untracked from Settings too",
+      s.eval('__LS:CurrencyTracked(90001)') is False
+      and s.eval('__LS:CurrencyTracked(90002)') is True)
+s.click("Track this expansion")
+check("Track this expansion drops back to the default rather than freezing a list",
+      s.eval("__LS:WidgetOpts('currency').ids") is None
+      and s.eval("""(function()
+        local rows = __LS:TrackedCurrencies()
+        return #rows == 1 and rows[1].name == "Midnight Test Coin"
+      end)()""") is True)
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
 s.exec("""
   CharacterFrame.shown = false
   TokenFrame.shown = false
@@ -3525,6 +3838,22 @@ check("missing enchants paint a red border on that slot",
         end
         return visit(__LS.frame, 0)
       end)()""") is True)
+check("item levels sit on a dimmed icon, not a black box over the gear art",
+      s.eval("""(function()
+        local shades, boxes = 0, 0
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.ilvlShade then
+              -- The whole icon is dimmed, so the shade is square and covers it.
+              if r.w and r.h and r.w == r.h then shades = shades + 1 else boxes = boxes + 1 end
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        return shades > 0 and boxes == 0
+      end)()""") is True)
 check("the tile names the missing enchant and socket",
       "No enchant" in ilvl and "No socket" in ilvl, ilvl)
 check("missing flags sit in a list beside the icons",
@@ -3746,6 +4075,21 @@ ready_hit = s.eval("""(function()
 end)()""")
 check("Readiness slots are secure item buttons, not UseContainerItem from Lua",
       ready_hit == "SecureActionButtonTemplate|item|0 1", ready_hit)
+check("stack counts sit on a dimmed icon, not a black box in the corner",
+      s.eval("""(function()
+        local shades, boxes = 0, 0
+        local function visit(frame, depth)
+          if depth > 16 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.countShade then
+              if r.w and r.h and r.w == r.h then shades = shades + 1 else boxes = boxes + 1 end
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        return shades > 0 and boxes == 0
+      end)()""") is True)
 s.exec("UsedContainerItem = nil")
 s.click("Food")
 check("clicking Food eats the feast from bags",

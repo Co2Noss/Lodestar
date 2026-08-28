@@ -578,7 +578,16 @@ function LS:PaintWidgetSettings(parent, width, id, note, rows)
     line:SetPoint("TOPLEFT", 12, y)
     if self.colors then line:SetTextColor(unpack(self.colors.muted)) end
     line:SetText(note)
-    y = y - 18
+    -- A note wraps on a narrow tile, so step past what it actually took rather
+    -- than one line's worth. Assuming one line printed the toggles on top of it.
+    local noteH = 12
+    if line.GetStringHeight then
+      local ok, measured = pcall(line.GetStringHeight, line)
+      measured = ok and tonumber(measured)
+      if measured and measured > 0 then noteH = measured end
+    end
+    line:SetHeight(noteH)
+    y = y - (math.ceil(noteH) + 8)
   end
   local btnW = 88
   local col = 0

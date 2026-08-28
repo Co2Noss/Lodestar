@@ -1,9 +1,28 @@
 ## Interface: 120100
 ## Title: Lodestar
 ## Notes: Find what matters. Ignore the rest.
-## Version: 1.5.6
+## Version: 1.5.61
 ## OptionalDeps: TradeSkillMaster, Auctionator, RECrystallize, TomTom, HandyNotes, ElvUI, RaiderIO, GW2_UI, W2UI, nibRealUI, Aurora, AllTheThings, CanIMogIt
 ## SavedVariables: LodestarDB, LodestarDebugDB
+
+# Embedded so Lodestar can answer keystone requests from other addons on its own.
+# Guilds of WoW, Details, and anything else on LibOpenRaid read guild keys this way.
+Libs\LibStub\LibStub.lua
+Libs\LibDeflate\LibDeflate.lua
+Libs\LibOpenRaid\LibOpenRaid.lua
+Libs\LibOpenRaid\Functions.lua
+Libs\LibOpenRaid\GetPlayerInformation.lua
+Libs\LibOpenRaid\Deprecated.lua
+Libs\LibOpenRaid\ThingsToMantain_WarWithin.lua
+Libs\LibOpenRaid\ThingsToMantain_Dragonflight.lua
+Libs\LibOpenRaid\ThingsToMantain_Shadowlands.lua
+Libs\LibOpenRaid\ThingsToMantain_Wrath.lua
+Libs\LibOpenRaid\ThingsToMantain_Era.lua
+Libs\LibOpenRaid\ThingsToMantain_BurningCrusade.lua
+Libs\LibOpenRaid\ThingsToMantain_Cata.lua
+Libs\LibOpenRaid\ThingsToMantain_Pandaria.lua
+Libs\LibOpenRaid\ThingsToMantain_Midnight.lua
+
 Core.lua
 PlayerData.lua
 Knowledge.lua
@@ -22,6 +41,7 @@ Catalog.lua
 Mounts.lua
 Collections.lua
 Completion.lua
+Keystone.lua
 Reputation.lua
 Gold.lua
 Scoring.lua

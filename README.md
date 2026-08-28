@@ -58,6 +58,18 @@ Lodestar works on its own. These addons unlock extra behaviour if they are loade
 - **RealUI** — Auto follows RealUI / Aurora when loaded. The RealUI theme reads `Aurora.Color` when Aurora is there.
 - **Great Vault Key Info** — Champion/Hero ranks on slots in the client's Great Vault window. Lodestar does not copy those season tables; Dashboard hover uses named keys and reward item levels the client already has.
 
+### Sharing your key with guild tools
+
+Guild keystone tools — [Guilds of WoW](https://guildsofwow.com), Details, REKeys — do not
+look for Lodestar by name. They ask **LibOpenRaid** for the guild's keys, and every client
+running that library answers with its own. Lodestar embeds it, so a guildie running any of
+them sees your key **without you installing Astral Keys or Details**.
+
+Lodestar sends no keystone traffic of its own. The library answers when another client
+asks, when you log in, and when a Mythic+ run ends. Only your keystone level, dungeon,
+class, and rating go out — the same fields every other client on that library sends.
+Settings → Optional Addons says whether sharing is active.
+
 ## First login
 
 Lodestar asks what you care about before it recommends anything. Every goal starts off, the
@@ -103,13 +115,23 @@ click Done editing to see the data again. Drag a tile to move it; drag the right
 corner to resize it horizontally or vertically. Tiles cannot overlap; Compact up
 packs them to the top. Dragging lifts the tile, leaves a ghost in its old cell, and
 marks empty rooms with a bordered plus so you can see where it can land.
+
+One list was too long for a tile: **Settings → Currencies** picks what the Currencies
+tile tracks, grouped by expansion, with **Track this expansion** to return to the
+default. Editing that tile shows the count and a button through to the list.
 The default layout is Overview, Jump, Professions, and Next, each starting at half
 width — the same size as WoW Token and the other addable tiles. Tiles that need another
 addon stay out of the add list until that addon is loaded: rares need HandyNotes plus a notes pack.
 Mythic+, Gold, Currencies, PvP, Item Level, Readiness, Housing, Battle Pets, Calendar, Guild, Delver's Journey, and Preyhunter's Journey are always available. Mythic+ uses
 the client's overall dungeon score (Raider.IO colours it when loaded). Click the tile to
 open the client's Mythic+ Dungeons tab; click again to close it. Click a dungeon with
-its Keystone Hero teleport in your spellbook to go there; the main window closes. Gold sums
+its Keystone Hero teleport in your spellbook to go there; the main window closes. Below the
+dungeons the tile shows Current Keystone: the dungeon and level, coloured by key level.
+That comes from the client, so Astral Keys is not required. Hover it for the keystone
+tooltip and click to link the key in chat. Edit mode can hide that line. Answering `!keys`
+is set in Settings → Optional Addons, where guild, officer, party, raid, instance, and
+whisper are each their own toggle, and the reply links the key so others can hover it.
+Gold sums
 characters Lodestar has seen, plus the warband bank when the client reports it; hover lists each character. Currencies start on
 this expansion and use the client's rarity colour; edit mode toggles what to track
 (and hides live amounts until you click Done editing). Click
@@ -422,6 +444,19 @@ and those files are always marked alpha.
 `.dev/run.py` loads every file into a stubbed client, fires the real login events and clicks
 through the UI to check behaviour without launching the game. It needs `lupa`.
 
+## Embedded libraries
+
+Complete upstream copies, under `Libs/`. They are shipped whole on purpose: LibStub
+hands out one copy of a library per session, so a trimmed copy loading before Details
+or BigWigs would replace theirs and break what it left out.
+
+| Library | Used for | License |
+| --- | --- | --- |
+| [LibStub](https://www.wowace.com/projects/libstub) | Library versioning | Public domain |
+| [LibDeflate](https://github.com/SafeteeWoW/LibDeflate) | Compression LibOpenRaid requires | zlib |
+| [LibOpenRaid](https://github.com/Tercioo/Open-Raid-Library) | Answering guild keystone requests | LGPL v2.1 |
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
+Embedded libraries keep their own licenses, listed above.

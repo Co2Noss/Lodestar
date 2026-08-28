@@ -129,7 +129,21 @@ local function region(self, kind)
   function r.SetText(s, v) s.text_value = v end
   function r.GetText(s) return s.text_value end
   function r.SetTextColor(s, ...) s.color = { ... } end
-  function r.GetStringHeight(s) return 12 end
+  function r.SetFont(s, _, size, flags)
+    s.fontSize = tonumber(size) or s.fontSize
+    s.fontFlags = flags
+  end
+  -- Rough wrapping so layout bugs show up headless: a long note in a narrow tile
+  -- really does take more than one line, and callers have to step past all of it.
+  function r.GetStringHeight(s)
+    local size = s.fontSize or 12
+    local body = s.text_value
+    if type(body) ~= "string" or body == "" then return size end
+    local width = s.w
+    if type(width) ~= "number" or width <= 0 then return size end
+    local perLine = math.max(1, math.floor(width / (size * 0.5)))
+    return size * math.max(1, math.ceil(#body / perLine))
+  end
   function r.SetJustifyH(s, v) s.justifyH = v end
   function r.SetJustifyV(s, v) s.justifyV = v end
   function r.SetShadowColor(s, ...) s.shadowColor = { ... } end
@@ -247,6 +261,46 @@ function print(...)
   local parts = {}
   for i = 1, select("#", ...) do parts[i] = tostring(select(i, ...)) end
   table.insert(Printed, table.concat(parts, " "))
+end
+
+ChatSent = {}
+
+-- The modern call. The bare SendChatMessage global is the deprecated shim that a
+-- live client only defines while loadDeprecationFallbacks is set, so it is left out
+-- here: anything that still reaches for it should show up as a failure.
+ChatLockdown = false
+C_ChatInfo = {
+  SendChatMessage = function(msg, channel, _, target)
+    if ChatLockdown then error("ADDON_ACTION_BLOCKED: SendChatMessage") end
+    table.insert(ChatSent, { msg = msg, channel = channel, target = target })
+  end,
+  InChatMessagingLockdown = function() return ChatLockdown and true or false end,
+  -- Reads true on an ordinary realm while player chat works fine, because it
+  -- describes SendAddonMessage comms. Anything that gates a chat reply on it is
+  -- wrong, so the default here is the value that catches that mistake.
+  AreOutgoingAddonChatMessagesRestricted = function() return true end,
+}
+
+-- 12.0 secret values. Chat text on a restricted map arrives as one of these, and
+-- touching it from addon code is an error rather than a nil.
+SecretChatText = nil
+function canaccessvalue(v)
+  return not (SecretChatText ~= nil and v == SecretChatText)
+end
+function issecretvalue(v)
+  return SecretChatText ~= nil and v == SecretChatText
+end
+
+ChatLinked = nil
+ChatEditActive = false
+ChatFrame1EditBox = { shown = false }
+function ChatEdit_ActivateChat()
+  ChatEditActive = true
+end
+function ChatEdit_InsertLink(link)
+  if not ChatEditActive then return false end
+  ChatLinked = link
+  return true
 end
 
 Clipboard = nil
@@ -1006,7 +1060,14 @@ SeasonBestForMap = {}
 OverallDungeonScore = 0
 MythicPlusRating = { currentSeasonScore = 0, runs = {} }
 
+OwnedKeystone = nil
 C_MythicPlus = {
+  GetOwnedKeystoneChallengeMapID = function()
+    return OwnedKeystone and OwnedKeystone.mapID
+  end,
+  GetOwnedKeystoneLevel = function()
+    return OwnedKeystone and OwnedKeystone.level
+  end,
   GetRunHistory = function()
     return {
       { level = 7, completed = true, mapChallengeModeID = 403 },
@@ -1444,6 +1505,7 @@ C_WeeklyRewards = {
   end,
 }
 
-GetTime = function() return 1000 end
+TimeNow = 1000
+GetTime = function() return TimeNow end
 time = os.time
 date = os.date

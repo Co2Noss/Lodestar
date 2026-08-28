@@ -1972,6 +1972,7 @@ end
 
 local settingsTabs = {
   { "GOALS", "Goals", "Tell Lodestar what matters. The plan follows these goals." },
+  { "CURRENCIES", "Currencies", "Pick which currencies the Currencies tile tracks." },
   { "ADDONS", "Optional Addons", "Price sources, waypoints, and other addons Lodestar can use." },
   { "REPUTATION", "Reputation", "Which expansions, categories and factions to rank. This expansion is on by default." },
   { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
@@ -2025,6 +2026,8 @@ function LS:Settings()
   local y = 0
   if chosen[1] == "GOALS" then
     y = self:SettingsGoals(body, width, y)
+  elseif chosen[1] == "CURRENCIES" then
+    y = self:SettingsCurrencies(body, width, y)
   elseif chosen[1] == "ADDONS" then
     y = self:SettingsAddons(body, width, y)
   elseif chosen[1] == "REPUTATION" then
@@ -2037,6 +2040,66 @@ function LS:Settings()
     y = self:SettingsWindow(body, width, y)
   end
   body:finish(-y + 10)
+end
+
+-- The currency list runs to dozens of entries, which is more than a dashboard tile can
+-- show. Tile settings still live on the tile; only this list is here, because the tile
+-- could only ever display the first handful of it.
+function LS:SettingsCurrencies(body, width, y)
+  local catalog = self:CurrencyCatalog()
+
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+  note:SetText("Pick what the Currencies tile tracks. With nothing picked it follows this expansion, so it keeps up on its own when the next one lands.")
+  y = y - 32
+
+  if #catalog == 0 then
+    local none = text(body, width, 11)
+    none:SetPoint("TOPLEFT", 0, y)
+    none:SetText("The client has not sent a currency list yet. Open the currency tab once, then come back.")
+    return y - 30
+  end
+
+  local reset = button(body, "Track this expansion", 200, 30)
+  reset:SetPoint("TOPLEFT", 0, y)
+  paint(reset, "panel")
+  reset:SetScript("OnMouseUp", function()
+    self:ResetTrackedCurrencies()
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 40
+
+  -- Headers come through the catalog as expansion groups, so the long list stays
+  -- readable instead of being one flat run of names.
+  local lastGroup
+  for _, row in ipairs(catalog) do
+    if row.group and row.group ~= lastGroup then
+      lastGroup = row.group
+      local heading = text(body, width, 12)
+      heading:SetPoint("TOPLEFT", 0, y)
+      heading:SetTextColor(unpack(self.colors.accent))
+      heading:SetText(row.group)
+      y = y - 22
+    end
+
+    local on = self:CurrencyTracked(row.id)
+    local toggle = button(body, (on and "ON  •  " or "OFF  •  ") .. row.name, width, 28)
+    toggle:SetPoint("TOPLEFT", 0, y)
+    if on then
+      highlight(toggle)
+    else
+      toggle.text:SetTextColor(0.62, 0.65, 0.7, 1)
+    end
+    local currencyID, wasOn = row.id, on
+    toggle:SetScript("OnMouseUp", function()
+      self:SetCurrencyTracked(currencyID, not wasOn)
+      self:ShowPage("SETTINGS")
+    end)
+    y = y - 32
+  end
+
+  return y - 10
 end
 
 function LS:SettingsGoals(body, width, y)
@@ -2215,7 +2278,88 @@ function LS:SettingsAddons(body, width, y)
     colNote:SetText("Install All The Things to rank mounts, appearances, achievements, and watched quests you track there. Install Can I Mog It to nudge learnable appearances already in your bags.")
   end
   y = y - 56
+
+  y = self:SettingsKeystone(body, width, y)
   return y
+end
+
+-- Answering !keys is a chat setting, not a tile setting, so it lives here where every
+-- channel fits. The Mythic+ tile only decides whether it draws your key.
+function LS:SettingsKeystone(body, width, y)
+  local heading = text(body, width, 13)
+  heading:SetPoint("TOPLEFT", 0, y)
+  heading:SetTextColor(unpack(self.colors.accent))
+  heading:SetText("Mythic+ keys")
+  y = y - 24
+
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  local label = self.KeystoneLabel and self:KeystoneLabel()
+  if label then
+    note:SetText("Lodestar reads your keystone from the client, so Astral Keys is not needed. Right now it sees " .. label .. ". If another keystone addon is also answering, turn a channel off here to avoid two replies.")
+  else
+    note:SetText("Lodestar reads your keystone from the client, so Astral Keys is not needed. It sees no keystone right now. If another keystone addon is also answering, turn a channel off here to avoid two replies.")
+  end
+  y = y - 42
+
+  local on = self:KeystoneReplyOn()
+  local master = button(body, (on and "ON  •  " or "OFF  •  ") .. "Answer !keys in chat", width, 32)
+  master:SetPoint("TOPLEFT", 0, y)
+  if on then
+    highlight(master)
+  else
+    master.text:SetTextColor(0.62, 0.65, 0.7, 1)
+  end
+  master:SetScript("OnMouseUp", function()
+    self:SetKeystoneReply(not self:KeystoneReplyOn())
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 38
+
+  if not on then
+    local off = text(body, width, 10)
+    off:SetPoint("TOPLEFT", 0, y)
+    if self.colors then off:SetTextColor(unpack(self.colors.muted)) end
+    off:SetText("Lodestar stays quiet when someone types !keys. The Mythic+ tile still shows your key.")
+    return y - 30
+  end
+
+  -- Half-width so the six channels read as one group rather than a long stack.
+  local colW = math.floor((width - 8) / 2)
+  local col = 0
+  for _, entry in ipairs(self.KEYSTONE_CHANNELS or {}) do
+    local channel, name = entry[1], entry[2]
+    local channelOn = self:KeystoneChannelOn(channel)
+    local toggle = button(body, (channelOn and "ON  •  " or "OFF  •  ") .. name, colW, 28)
+    toggle:SetPoint("TOPLEFT", col * (colW + 8), y)
+    if channelOn then
+      highlight(toggle)
+    else
+      toggle.text:SetTextColor(0.62, 0.65, 0.7, 1)
+    end
+    toggle:SetScript("OnMouseUp", function()
+      self:SetKeystoneChannel(channel, not self:KeystoneChannelOn(channel))
+      self:ShowPage("SETTINGS")
+    end)
+    col = col + 1
+    if col >= 2 then
+      col = 0
+      y = y - 34
+    end
+  end
+  if col > 0 then y = y - 34 end
+
+  local sharing = text(body, width, 10)
+  sharing:SetPoint("TOPLEFT", 0, y)
+  if self.colors then sharing:SetTextColor(unpack(self.colors.muted)) end
+  if self.KeystoneSharingOn and self:KeystoneSharingOn() then
+    sharing:SetText("Guild tools that read keystones, such as Guilds of WoW, Details, and REKeys, can see this character's key through Lodestar. Nothing else about you is shared, and it only answers when one of them asks.")
+  else
+    sharing:SetText("Keystone sharing with guild tools is unavailable on this client.")
+  end
+  y = y - 34
+
+  return y - 10
 end
 
 function LS:ChangelogPage()

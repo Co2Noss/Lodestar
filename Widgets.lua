@@ -140,11 +140,13 @@ function LS:CurrencyCatalog()
   local expansion = GetExpansionLevel and GetExpansionLevel()
   local expansionName = expansion and _G["EXPANSION_NAME" .. tostring(expansion)]
   local inCurrent, seenHeader = false, false
+  local group
   for i = 1, n do
     local info = C_CurrencyInfo.GetCurrencyListInfo(i)
     if type(info) == "table" then
       if info.isHeader then
         seenHeader = true
+        group = info.name
         inCurrent = expansionName and info.name
           and info.name:find(expansionName, 1, true) and true or false
       elseif not info.isTypeUnused and info.discovered ~= false then
@@ -163,6 +165,7 @@ function LS:CurrencyCatalog()
             icon = info.iconFileID or info.icon,
             quality = info.quality,
             current = inCurrent or not seenHeader,
+            group = group,
           })
         end
       end
@@ -202,6 +205,43 @@ function LS:TrackedCurrencies()
     for i = 1, math.min(4, #catalog) do table.insert(out, LiveCurrency(catalog[i])) end
   end
   return out
+end
+
+-- Which currencies are ticked. No stored list means the default, this expansion.
+function LS:CurrencyTracked(id)
+  local opts = self:WidgetOpts("currency")
+  local chosen = opts.ids
+  if type(chosen) == "table" then
+    for _, entry in ipairs(chosen) do
+      if entry == id then return true end
+    end
+    return false
+  end
+  for _, row in ipairs(self:CurrencyCatalog()) do
+    if row.id == id then return row.current and true or false end
+  end
+  return false
+end
+
+-- Stored in catalog order rather than click order, so the tile does not reshuffle
+-- itself every time something is ticked.
+function LS:SetCurrencyTracked(id, on)
+  local catalog = self:CurrencyCatalog()
+  local selected = {}
+  for _, row in ipairs(catalog) do
+    selected[row.id] = self:CurrencyTracked(row.id)
+  end
+  selected[id] = on and true or false
+  local ids = {}
+  for _, row in ipairs(catalog) do
+    if selected[row.id] then table.insert(ids, row.id) end
+  end
+  self:SetWidgetOpt("currency", "ids", ids)
+end
+
+-- Back to the default: track this expansion, decided live rather than frozen now.
+function LS:ResetTrackedCurrencies()
+  self:SetWidgetOpt("currency", "ids", nil)
 end
 
 local function PaintCurrencyIcon(parent, icon, x, y, size)
@@ -329,6 +369,54 @@ local function PaintIconBorder(parent, art, size, r, g, b)
   edge(size, t, "BOTTOMLEFT")
   edge(t, size, "TOPLEFT")
   edge(t, size, "TOPRIGHT")
+end
+
+-- The key you are carrying, under the dungeon grid. Read from the client, so it does
+-- not need Astral Keys or any other keystone addon to be loaded. Hovering shows the
+-- real item tooltip and clicking links it, the same as the keystone in your bags.
+local KEY_LINE_H = 26
+
+local function PaintKeystoneLine(self, parent, width)
+  local w = self.widgets
+  local label, _, level = self:KeystoneLabel()
+
+  local caption = w.text(parent, width - 12, 9)
+  if caption.ClearAllPoints then caption:ClearAllPoints() end
+  caption:SetPoint("BOTTOM", 0, 15)
+  if caption.SetJustifyH then caption:SetJustifyH("CENTER") end
+  if self.colors then caption:SetTextColor(unpack(self.colors.muted)) end
+  caption:SetText(label and "Current Keystone" or "No Current Keystone")
+
+  local line = w.text(parent, width - 12, 11)
+  if line.ClearAllPoints then line:ClearAllPoints() end
+  line:SetPoint("BOTTOM", 0, 3)
+  if line.SetJustifyH then line:SetJustifyH("CENTER") end
+  if label then
+    line:SetText(label)
+    local r, g, b = self:KeyLevelColor(level)
+    if r then line:SetTextColor(r, g, b, 1) end
+  else
+    line:SetText("Nothing in your bags")
+    if self.colors then line:SetTextColor(unpack(self.colors.muted)) end
+  end
+
+  local hit = Hit(parent, 6, -(math.max(0, (parent:GetHeight() or KEY_LINE_H) - KEY_LINE_H)), width - 12, KEY_LINE_H)
+  if hit.ClearAllPoints then
+    hit:ClearAllPoints()
+    hit:SetPoint("BOTTOMLEFT", 6, 0)
+    hit:SetPoint("BOTTOMRIGHT", -6, 0)
+    hit:SetHeight(KEY_LINE_H)
+  end
+  hit.text = { text_value = label or "No keystone" }
+  self:HoverTip(hit, function(tip)
+    self:FillKeystoneTooltip(tip)
+  end)
+  hit:SetScript("OnMouseUp", function()
+    if self.HideWidgetTip then self:HideWidgetTip() end
+    if self:LinkKeystoneToChat() then return end
+    if self.OpenMythicPlus then self:OpenMythicPlus() end
+  end)
+  return line, hit
 end
 
 LS.GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
@@ -1094,10 +1182,11 @@ local function RegisterExtraWidgets()
     end,
     render = function(self, parent, width, height)
       if self.dashboardEdit then
-        return self:PaintWidgetSettings(parent, width, "raiderio", "What this tile shows.", {
+        return self:PaintWidgetSettings(parent, width, "raiderio", "What this tile shows. !keys replies are in Settings.", {
           { "score", "Score", true },
           { "dungeons", "Dungeons", true },
           { "teleport", "Teleport", true },
+          { "key", "Your key", true },
         })
       end
       local w = self.widgets
@@ -1113,8 +1202,10 @@ local function RegisterExtraWidgets()
         and self.MythicPlusTeleports and self:MythicPlusTeleports()) or {}
       local showScore = self:WidgetOptOn("raiderio", "score", true)
       local showMaps = self:WidgetOptOn("raiderio", "dungeons", true)
+      local showKey = self:WidgetOptOn("raiderio", "key", true)
       local score, source = self:MythicPlusScore()
       local scoreH = showScore and math.max(18, math.min(28, math.floor(height * 0.22))) or 0
+      local keyH = showKey and KEY_LINE_H or 0
       if showScore then
         local amount = w.text(parent, width, scoreH - 2)
         if amount.ClearAllPoints then amount:ClearAllPoints() end
@@ -1134,7 +1225,7 @@ local function RegisterExtraWidgets()
       end
       local maps = showMaps and self:SeasonDungeonMaps() or {}
       if #maps == 0 then
-        if not showScore then
+        if not showScore and not showKey then
           local hint = w.text(parent, width - 16, 10)
           hint:SetPoint("TOP", 0, -8)
           if hint.SetJustifyH then hint:SetJustifyH("CENTER") end
@@ -1147,13 +1238,14 @@ local function RegisterExtraWidgets()
           if self.colors then hint:SetTextColor(unpack(self.colors.muted)) end
           hint:SetText("This season's dungeons appear when the client sends them.")
         end
+        if showKey then PaintKeystoneLine(self, parent, width) end
         return height
       end
       local cols = math.min(4, math.max(1, #maps))
       local rows = math.ceil(#maps / cols)
       local gap = 4
       local innerW = math.max(1, width - 12)
-      local innerH = math.max(1, height - scoreH - 8)
+      local innerH = math.max(1, height - scoreH - keyH - 8)
       if parent.SetClipsChildren then parent:SetClipsChildren(true) end
       local size = math.max(12, math.min(
         math.floor((innerW - gap * (cols - 1)) / cols),
@@ -1253,6 +1345,7 @@ local function RegisterExtraWidgets()
         if dungeonName then art.mapName = dungeonName end
         if dungeonID then art.mapID = dungeonID end
       end
+      if showKey then PaintKeystoneLine(self, parent, width) end
       return height
     end,
   })
@@ -1328,47 +1421,36 @@ local function RegisterExtraWidgets()
     render = function(self, parent, width, height)
       local w = self.widgets
       height = height or 80
+      -- The full currency list is far longer than a tile, and a tile that shows the
+      -- first eight hides the rest with no way to reach them. The list gets a
+      -- settings page; the tile keeps a button to it.
       if self.dashboardEdit then
         local y = -4
         local note = w.text(parent, width - 24, 10)
         note:SetPoint("TOPLEFT", 12, y)
         if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
-        note:SetText("Toggle what to track. Default is this expansion.")
-        y = y - 18
-        local catalog = self:CurrencyCatalog()
-        local rows = self:TrackedCurrencies()
-        local opts = self:WidgetOpts("currency")
-        local chosen = opts.ids
-        local selected = {}
-        if type(chosen) == "table" then
-          for _, id in ipairs(chosen) do selected[id] = true end
+        local tracked = #self:TrackedCurrencies()
+        local total = #self:CurrencyCatalog()
+        if total > 0 then
+          note:SetText(string.format("Tracking %d of %d currencies. Default is this expansion.", tracked, total))
         else
-          for _, row in ipairs(rows) do selected[row.id] = true end
+          note:SetText("No currencies from the client yet.")
         end
-        local shown = 0
-        for _, row in ipairs(catalog) do
-          if shown >= 8 then break end
-          shown = shown + 1
-          local on = selected[row.id]
-          local currencyID, wasOn = row.id, on
-          local iconW = PaintCurrencyIcon(parent, row.icon, 12, y, 14)
-          local btnX = 12 + (iconW > 0 and iconW + 6 or 0)
-          local btn = w.button(parent, row.name, math.min(160, width - btnX - 12), 20, 10)
-          btn:SetPoint("TOPLEFT", btnX, y)
-          if on then w.highlight(btn) else w.paint(btn, "panel") end
-          local cr, cg, cb = self:QualityColor(row.quality)
-          if cr and btn.text then btn.text:SetTextColor(cr, cg, cb, 1) end
-          btn:SetScript("OnMouseUp", function()
-            local nextIds = {}
-            selected[currencyID] = not wasOn
-            for _, entry in ipairs(catalog) do
-              if selected[entry.id] then table.insert(nextIds, entry.id) end
-            end
-            self:SetWidgetOpt("currency", "ids", nextIds)
-            self:ShowPage("DASHBOARD")
-          end)
-          y = y - 24
-        end
+        y = y - 20
+
+        local open = w.button(parent, "Choose currencies", math.min(180, width - 24), 24, 11)
+        open:SetPoint("TOPLEFT", 12, y)
+        w.paint(open, "panel")
+        open:SetScript("OnMouseUp", function()
+          self:SetPageTab("SETTINGS", "CURRENCIES")
+          self:ShowPage("SETTINGS")
+        end)
+        y = y - 28
+
+        local where = w.text(parent, width - 24, 10)
+        where:SetPoint("TOPLEFT", 12, y)
+        if self.colors then where:SetTextColor(unpack(self.colors.muted)) end
+        where:SetText("Settings → Currencies")
         return height
       end
       local rows = self:TrackedCurrencies()
@@ -1595,17 +1677,21 @@ local function RegisterExtraWidgets()
         if (not piece.icon) and art.SetColorTexture and self.colors then
           art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
         end
+        if art.SetDrawLayer then art:SetDrawLayer("ARTWORK", 0) end
         if piece.missingEnchant then
           local wr, wg, wb = self:MissingEnchantColor()
           PaintIconBorder(parent, art, size, wr, wg, wb)
         end
         if piece.ilvl then
           local fontSize = math.max(8, math.min(14, math.floor(size * 0.42)))
-          local plate = parent:CreateTexture(nil, "OVERLAY")
-          plate:SetSize(math.max(10, math.floor(size * 0.78)), math.max(8, math.floor(size * 0.42)))
-          plate:SetPoint("CENTER", art, "CENTER", 0, 0)
-          if plate.SetDrawLayer then plate:SetDrawLayer("OVERLAY", 1) end
-          if plate.SetColorTexture then plate:SetColorTexture(0, 0, 0, 0.55) end
+          -- Dim the whole icon so the item level sits on the same field on every
+          -- piece. A smaller plate read as a black box on top of the gear art.
+          local shade = parent:CreateTexture(nil, "ARTWORK")
+          shade:SetSize(size, size)
+          shade:SetPoint("TOPLEFT", art, "TOPLEFT", 0, 0)
+          if shade.SetDrawLayer then shade:SetDrawLayer("ARTWORK", 1) end
+          if shade.SetColorTexture then shade:SetColorTexture(0, 0, 0, 0.35) end
+          shade.ilvlShade = true
           local num = w.text(parent, size, fontSize)
           if num.ClearAllPoints then num:ClearAllPoints() end
           num:SetPoint("CENTER", art, "CENTER", 0, 0)
@@ -1754,6 +1840,7 @@ local function RegisterExtraWidgets()
         if (not row.icon) and art.SetColorTexture and self.colors then
           art:SetColorTexture(unpack(self.colors.panel or self.colors.card))
         end
+        if art.SetDrawLayer then art:SetDrawLayer("ARTWORK", 0) end
         if row.up then
           local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
           PaintIconBorder(parent, art, size, a[1], a[2], a[3])
@@ -1768,11 +1855,14 @@ local function RegisterExtraWidgets()
         end
         if row.count and row.count > 1 then
           local fontSize = math.max(8, math.min(16, math.floor(size * 0.28)))
-          local plate = parent:CreateTexture(nil, "OVERLAY")
-          plate:SetSize(math.max(10, math.floor(size * 0.62)), math.max(8, math.floor(size * 0.36)))
-          plate:SetPoint("BOTTOMRIGHT", art, "BOTTOMRIGHT", 0, 0)
-          if plate.SetDrawLayer then plate:SetDrawLayer("OVERLAY", 1) end
-          if plate.SetColorTexture then plate:SetColorTexture(0, 0, 0, 0.55) end
+          -- Dim the whole icon rather than backing the count with a plate, which
+          -- read as a black box in the corner of the art.
+          local shade = parent:CreateTexture(nil, "ARTWORK")
+          shade:SetSize(size, size)
+          shade:SetPoint("TOPLEFT", art, "TOPLEFT", 0, 0)
+          if shade.SetDrawLayer then shade:SetDrawLayer("ARTWORK", 1) end
+          if shade.SetColorTexture then shade:SetColorTexture(0, 0, 0, 0.35) end
+          shade.countShade = true
           local num = w.text(parent, size, fontSize)
           if num.ClearAllPoints then num:ClearAllPoints() end
           num:SetPoint("BOTTOMRIGHT", art, "BOTTOMRIGHT", -1, 1)
@@ -1780,6 +1870,8 @@ local function RegisterExtraWidgets()
           if num.SetFont then
             num:SetFont(self:ThemeFont(), fontSize, "OUTLINE")
           end
+          if num.SetShadowColor then num:SetShadowColor(0, 0, 0, 1) end
+          if num.SetShadowOffset then num:SetShadowOffset(1, -1) end
           num:SetText(tostring(row.count))
           if self.colors then num:SetTextColor(unpack(self.colors.text)) end
         end

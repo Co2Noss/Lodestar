@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.6"
+LS.version = "1.5.61"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -48,6 +48,20 @@ LS.defaults = {
   tokenHistory = {},
   goldHistory = {},
   seenTips = {},
+  -- Answering !keys is on, but every channel is a separate choice. A guild that
+  -- already has a keystone addon does not want a second reply, while the same
+  -- player may still want it in party.
+  keystone = {
+    reply = true,
+    channels = {
+      GUILD = true,
+      OFFICER = true,
+      PARTY = true,
+      RAID = true,
+      INSTANCE_CHAT = true,
+      WHISPER = true,
+    },
+  },
 }
 
 local function merge(a, b)
@@ -547,11 +561,21 @@ for _, name in ipairs({
       "HOUSE_LEVEL_CHANGED",
       "TRACKED_HOUSE_CHANGED",
       "VIEW_HOUSES_LIST_RECIEVED",
+      "CHALLENGE_MODE_COMPLETED",
+      "CHAT_MSG_GUILD",
+      "CHAT_MSG_OFFICER",
+      "CHAT_MSG_PARTY",
+      "CHAT_MSG_PARTY_LEADER",
+      "CHAT_MSG_RAID",
+      "CHAT_MSG_RAID_LEADER",
+      "CHAT_MSG_INSTANCE_CHAT",
+      "CHAT_MSG_INSTANCE_CHAT_LEADER",
+      "CHAT_MSG_WHISPER",
     }) do
   pcall(events.RegisterEvent, events, name)
 end
 
-events:SetScript("OnEvent", function(_, event, arg)
+events:SetScript("OnEvent", function(_, event, arg, ...)
   if event == "ADDON_LOADED" then
     if arg == addonName then
       LodestarDB = merge(LS.defaults, LodestarDB)
@@ -562,6 +586,16 @@ events:SetScript("OnEvent", function(_, event, arg)
     return
   end
   if not LS.db then return end
+  -- Chat answers a question, so it never triggers a rescan or a repaint.
+  if event:sub(1, 9) == "CHAT_MSG_" then
+    if LS.HandleChatCommand then LS:HandleChatCommand(event, arg, ...) end
+    return
+  end
+  -- A finished key means the old one is gone, so the tile has to catch up.
+  if event == "CHALLENGE_MODE_COMPLETED" then
+    if LS.RefreshDashboardLive then LS:RefreshDashboardLive({ "raiderio" }) end
+    return
+  end
   -- Combat only changes how compact mode is displayed, so it skips the rescan entirely.
   if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
     if LS.CompactCombat then LS:CompactCombat(event == "PLAYER_REGEN_DISABLED") end

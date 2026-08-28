@@ -79,10 +79,29 @@ LS.TIPS = {
       return not (self.DashboardHas and self:DashboardHas("delvesjourney"))
     end,
   },
+  {
+    id = "currency_settings",
+    title = "Pick your currencies",
+    body = "The currency list is longer than a tile can show, so it lives on Settings → Currencies, grouped by expansion. Leave it alone and the Currencies tile follows this expansion on its own.",
+    page = "SETTINGS",
+    settingsTab = "CURRENCIES",
+    highlight = "tab:CURRENCIES",
+  },
 }
 
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
+  {
+    version = "1.5.61",
+    notes = {
+      "Guilds of WoW, Details, and REKeys see your key without Astral Keys installed.",
+      "The Mythic+ tile shows your current keystone. Hover it, or click to link it.",
+      "!keys answers with the key linked. Settings picks which channels answer.",
+      "!keys no longer errors, and stays quiet where the game blocks chat.",
+      "Item level and Readiness numbers sit on a dimmed icon, not a black box.",
+      "Settings → Currencies reaches every currency, past the tile's first eight.",
+    },
+  },
   {
     version = "1.5.6",
     notes = {
@@ -123,14 +142,6 @@ LS.CHANGELOG = {
       "Opening Mythic+ Dungeons hides the dashboard tooltip and no longer paints a dark box over the tab.",
     },
   },
-  {
-    version = "1.5.3",
-    notes = {
-      "Dashboard Readiness uses this expansion's food, flask, augment rune, and weapon oil from bags. Click a slot to use it.",
-      "Mythic+ dungeon icons teleport when that dungeon's Keystone Hero spell is in your spellbook.",
-      "Battle Pets is a goal. Locked slots, an empty team, and pet battle quests already in the log rank while that goal is on.",
-    },
-  },
 }
 
 -- In-game FAQ. Keep this in step with the wiki FAQ page.
@@ -154,6 +165,22 @@ LS.FAQ = {
   {
     q = "Why are there no rares?",
     a = "HandyNotes by itself has no coordinates. You need a notes pack (Midnight, Silvermoon, and many others). Lodestar ranks rares that pack is currently showing, not treasures or city marks.",
+  },
+  {
+    q = "Why did !keys not answer in guild chat?",
+    a = "The game blocks addons from sending chat while you are in a dungeon, raid, encounter or PvP match. Lodestar checks first, so instead of an error it prints the key to your own chat frame with the reason. You can still link it yourself from the Mythic+ tile.",
+  },
+  {
+    q = "Why does !keys say I have no key?",
+    a = "Lodestar reads your keystone from the client, not from another addon, so it answers !keys on its own. Settings → Optional Addons picks the channels it answers on. If another keystone addon already answers in your guild, turn that one channel off and keep the rest. The Mythic+ tile always names the key in your bags.",
+  },
+  {
+    q = "Does my guild's keystone list see my key?",
+    a = "Yes, without Astral Keys or Details. Guilds of WoW, Details, and REKeys ask LibOpenRaid for the guild's keys, and Lodestar embeds that library so your client answers for itself. Lodestar sends nothing on its own; the library replies when another client asks, on login, and when a run ends. Only the key, dungeon, class, and rating go out.",
+  },
+  {
+    q = "Where do I change what a tile shows?",
+    a = "Edit dashboard, then click the tile. Each tile shows its own toggles while you are editing. The one exception is the currency list, which is far longer than a tile: that lives on Settings → Currencies, and the tile has a button through to it.",
   },
   {
     q = "Why is PvP quiet?",

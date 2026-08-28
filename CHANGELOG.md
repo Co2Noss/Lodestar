@@ -1,5 +1,63 @@
 # Unreleased
 
+# 1.5.61
+
+## Keystones
+
+- Your Mythic+ key is now visible to guild tools that read keystones, including
+  **Guilds of WoW**, Details, and REKeys, without installing Astral Keys or
+  Details yourself. Those tools ask LibOpenRaid for the guild's keys and every
+  client running it answers with its own, so Lodestar embeds the library and
+  answers for you. Lodestar sends nothing on its own: the library replies when
+  asked, on login, and when a run ends. Settings → Optional Addons says whether
+  sharing is active.
+- Embeds LibStub, LibDeflate, and LibOpenRaid. These are the first libraries
+  Lodestar has shipped, and they are the complete upstream copies. A partial copy
+  would win the LibStub version race against Details or BigWigs and break their
+  cooldown tracking.
+- The Mythic+ tile shows **Current Keystone** under the dungeons, with the
+  dungeon and level coloured by key level. Lodestar reads that from the
+  client, so Astral Keys is not required. Hover it for the real keystone
+  tooltip, affixes and all, and click to link the key in chat.
+- Lodestar answers `!keys` with the keystone linked, so anyone can hover
+  or click it the same as a key linked from your bags. It says so plainly
+  when there is no key. One reply per channel per eight seconds.
+- Settings → Optional Addons picks which channels answer `!keys`: guild,
+  officer, party, raid, instance, and whisper are each their own toggle,
+  so a guild that already has a keystone addon can stay quiet there while
+  party still answers. Edit the Mythic+ tile to hide the key line.
+
+## Fixes for the 12.0 chat restrictions
+
+- `!keys` no longer throws "tried to call the protected function" and silently
+  fail to answer. Lodestar was calling the old `SendChatMessage` global, which
+  has been a deprecated shim since 11.2 and only exists while a CVar is set; it
+  now calls `C_ChatInfo.SendChatMessage` directly.
+- `!keys` also checks whether the game is blocking chat before answering.
+  Dungeons, raids, encounters, and PvP matches lock it down, so instead of an
+  error the key is printed to your own chat frame with the reason. It is still
+  copyable, and the Mythic+ tile still links it.
+- On restricted maps the game now hands addons chat text as a secret value, which
+  errors if addon code reads it. `!keys` checks before parsing, so a guild line on
+  such a map is ignored quietly rather than throwing from the event handler.
+
+## Dashboard
+
+- Item level numbers and Readiness stack counts no longer sit on a black box.
+  The icon is dimmed as a whole instead, the same fix the Mythic+ dungeon icons
+  got, so a number reads the same on bright and dark art without a rectangle
+  over the item.
+- Tile settings no longer print their toggles on top of the explanation above
+  them. The note stepped down one line's worth however many lines it actually
+  wrapped to, which showed up on narrow tiles such as Mythic+. It now measures
+  what it drew, and the Mythic+ note is shorter.
+- Settings → **Currencies** picks what the Currencies tile tracks. The tile could
+  only ever show the first eight, so anything past that was impossible to reach;
+  the full list is now grouped by expansion on its own page, with **Track this
+  expansion** to go back to the default. Editing the tile shows how many are
+  tracked and a button through to the list. Every other tile keeps its settings
+  on the tile, where they fit.
+
 # 1.5.6
 
 - README, CurseForge, and the wiki carry Ko-fi and GitHub Sponsors next
