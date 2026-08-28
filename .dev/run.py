@@ -14,7 +14,7 @@ ADDON = os.path.dirname(HERE)
 
 # Load order must match the .toc.
 FILES = [
-    "Core.lua", "Analytics.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
+    "Core.lua", "Analytics.lua", "Profile.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
     "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
     "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
 ]
@@ -2853,10 +2853,89 @@ check("a wrapped tile note does not have the toggles printed on top of it",
         visit(__LS.frame, 0)
         return note and note:GetStringHeight() or "no note"
       end)()"""))
+check("Mythic+ edit offers the per-dungeon rating",
+      "Rating per dungeon" in mythic, mythic)
 s.click("Done editing")
 mythic = s.texts()
 check("Mythic+ shows the client's overall dungeon score",
       "1800" in mythic and "Mythic+" in mythic, mythic)
+
+# Each dungeon's own rating, under its key level.
+s.exec("""
+  MythicPlusRating = { currentSeasonScore = 1800, runs = {
+    { challengeModeID = 403, mapScore = 295, bestRunLevel = 12,
+      bestRunDurationMS = 1704000, finishedSuccess = true },
+  } }
+  AffixScoresForMap = { [2] = { { score = 165.4, level = 7, durationSec = 1500, overTime = true } } }
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("a dungeon's rating comes from the client's rating summary",
+      s.eval("__LS:DungeonScore(403)") == 295)
+check("a dungeon the summary skips falls back to its affix score",
+      s.eval("__LS:DungeonScore(2)") == 165.4)
+check("run times read the way the client writes them",
+      s.eval("__LS:RunTimeText(1704000)") == "28:24", s.eval("__LS:RunTimeText(1704000)"))
+check("a dungeon with no run at all has no rating", s.eval("__LS:DungeonScore(999)") is None)
+
+mythic = s.texts()
+check("the tile paints each dungeon's rating under its key level",
+      "295" in mythic and "165" in mythic, mythic)
+check("the rating is smaller than the key level it sits under",
+      s.eval("""(function()
+        local level, rating
+        local function visit(frame, depth)
+          if depth > 14 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if r.text_value == "12" then level = r end
+            if r.text_value == "295" then rating = r end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        if not level or not rating then return "missing" end
+        return rating.fontSize < level.fontSize
+      end)()""") is True)
+check("the rating is coloured by what it is worth, not by the key level",
+      s.eval("""(function()
+        local a, b, c = __LS:MythicPlusScoreColor(295)
+        local d = __LS:KeyLevelColor(12)
+        return a ~= nil and a ~= d
+      end)()""") is True)
+s.exec("__LS:SetWidgetOpt('raiderio', 'dungeonScore', false); __LS:ShowPage('DASHBOARD')")
+s.timers()
+check("turning the per-dungeon rating off leaves only the key levels",
+      "295" not in s.texts() and "12" in s.texts(), s.texts())
+s.exec("__LS:SetWidgetOpt('raiderio', 'dungeonScore', true); __LS:ShowPage('DASHBOARD')")
+s.timers()
+
+# Hovering a dungeon says what the client's own dungeon tooltip says.
+s.exec("""
+  GameTooltip._lines = nil
+  GameTooltip._tip = nil
+  __dungeonTip = nil
+  local function visit(frame, depth)
+    if depth > 14 or not frame or __dungeonTip then return end
+    for _, c in ipairs(frame.children or {}) do
+      if c.text and c.text.text_value == "The Rookery" and c.scripts and c.scripts.OnEnter then
+        __dungeonTip = c
+      end
+      visit(c, depth + 1)
+    end
+  end
+  visit(__LS.frame, 0)
+  if __dungeonTip then __dungeonTip.scripts.OnEnter(__dungeonTip) end
+""")
+tip = s.eval("""(function()
+  local out = ''
+  for _, line in ipairs(GameTooltip._lines or {}) do out = out .. tostring(line) .. '\\n' end
+  return out
+end)()""")
+check("a dungeon icon can be hovered at all", s.eval("__dungeonTip ~= nil") is True)
+check("the dungeon tooltip names the dungeon", "The Rookery" in (tip or ""), tip)
+check("the dungeon tooltip gives its rating", "Rating: 295" in (tip or ""), tip)
+check("the dungeon tooltip gives the run that earned it",
+      "Best run: +12" in (tip or "") and "28:24" in (tip or ""), tip)
 
 # --- keystone without Astral Keys ----------------------------------------
 print("-- keystone --")
@@ -3361,7 +3440,8 @@ s.exec("""
     { name = "Old Expansion Coin", isHeader = false, quantity = 9,
       currencyTypesID = 90002, discovered = true, iconFileID = 132372 },
   }
-  Currencies[90001] = { quantity = 42, iconFileID = 464076, quality = 4 }
+  Currencies[90001] = { quantity = 42, iconFileID = 464076, quality = 4,
+    maxQuantity = 100, totalEarned = 42 }
   Currencies[90002] = { quantity = 9, iconFileID = 132372, quality = 1 }
   __LS:ShowPage("DASHBOARD")
 """)
@@ -3429,6 +3509,30 @@ s.click("ON  •  Midnight Test Coin")
 check("a currency can be untracked from Settings too",
       s.eval('__LS:CurrencyTracked(90001)') is False
       and s.eval('__LS:CurrencyTracked(90002)') is True)
+# A row can read as what you have, what you have out of the cap, or what is left.
+check("rows show the plain amount by default",
+      s.eval("__LS:CurrencyDisplay()") == "have"
+      and s.eval("""__LS:CurrencyAmountText({ quantity = 42, max = 100, totalEarned = 42 })""") == "42")
+s.click("OFF  •  How much you have, out of the cap")
+check("the cap mode is remembered", s.eval("__LS:CurrencyDisplay()") == "max")
+check("a capped currency reads as have out of cap",
+      s.eval("""__LS:CurrencyAmountText({ quantity = 42, max = 100, totalEarned = 42 })""") == "42 / 100")
+s.click("OFF  •  How much is left to earn")
+check("left to earn counts down from the cap",
+      s.eval("""__LS:CurrencyAmountText({ quantity = 42, max = 100, totalEarned = 42 })""") == "58 to go")
+check("a currency at its cap says so, rather than zero to go",
+      s.eval("""__LS:CurrencyAmountText({ quantity = 100, max = 100, totalEarned = 100 })""") == "Capped")
+check("a currency the client caps by total earned counts that, not what is held",
+      s.eval("""__LS:CurrencyAmountText({ quantity = 5, max = 100, totalEarned = 90,
+        earnedIsCapped = true })""") == "10 to go")
+check("an uncapped currency still shows its plain amount",
+      s.eval("__LS:CurrencyAmountText({ quantity = 9 })") == "9")
+check("a weekly cap stands in when there is no overall one",
+      s.eval("""__LS:CurrencyAmountText({ quantity = 900, weeklyMax = 500,
+        weeklyEarned = 200 }, "max")""") == "200 / 500")
+s.click("OFF  •  How much you have")
+check("it can be put back to the plain amount", s.eval("__LS:CurrencyDisplay()") == "have")
+
 s.click("Track this expansion")
 check("Track this expansion drops back to the default rather than freezing a list",
       s.eval("__LS:WidgetOpts('currency').ids") is None
@@ -3436,6 +3540,107 @@ check("Track this expansion drops back to the default rather than freezing a lis
         local rows = __LS:TrackedCurrencies()
         return #rows == 1 and rows[1].name == "Midnight Test Coin"
       end)()""") is True)
+# A tracked list longer than the tile scrolls, rather than running off the bottom where
+# the rows cannot be reached at all.
+s.exec("""
+  CurrencyList = { { name = "Midnight", isHeader = true } }
+  for i = 1, 20 do
+    local id = 91000 + i
+    table.insert(CurrencyList, { name = "Test Currency " .. i, isHeader = false,
+      quantity = i * 10, currencyTypesID = id, discovered = true })
+    Currencies[id] = { quantity = i * 10, quality = 1 }
+  end
+  local ids = {}
+  for i = 1, 20 do table.insert(ids, 91000 + i) end
+  __LS:SetWidgetOpt('currency', 'ids', ids)
+  __wasEditing = __LS.dashboardEdit
+  __LS:SetDashboardEdit(false)
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("a long list does not try to draw every row on a short tile",
+      s.eval("""(function()
+        local seen = 0
+        local function visit(frame, depth)
+          if depth > 14 or not frame then return end
+          for _, r in ipairs(frame.regions or {}) do
+            if type(r.text_value) == "string" and r.text_value:find("Test Currency", 1, true) then
+              seen = seen + 1
+            end
+          end
+          for _, c in ipairs(frame.children or {}) do visit(c, depth + 1) end
+        end
+        visit(__LS.frame, 0)
+        _G.__rowsDrawn = seen
+        return seen > 0 and seen < 20
+      end)()""") is True, s.eval("__rowsDrawn"))
+check("the tile says how many rows are out of sight",
+      "below · scroll" in s.texts(), s.texts())
+check("the list starts at the top", s.eval("__LS._currencyScroll") == 0)
+
+s.exec("""
+  __currencyTile = nil
+  for _, slot in ipairs(__LS.dashboardSlots or {}) do
+    if slot.id == 'currency' and slot.body and slot.body.mouseWheel then
+      __currencyTile = slot.body
+    end
+  end
+  if __currencyTile then __currencyTile.scripts.OnMouseWheel(__currencyTile, -1) end
+""")
+check("the tile takes the mouse wheel", s.eval("__currencyTile ~= nil") is True)
+check("scrolling down moves the list along", s.eval("__LS._currencyScroll") == 1)
+check("the list now says rows are above too",
+      "1 above" in s.texts(), s.texts())
+s.exec("for i = 1, 60 do __currencyTile.scripts.OnMouseWheel(__currencyTile, -1) end")
+check("scrolling stops at the last row rather than running past it",
+      s.eval("__LS._currencyScroll") == s.eval("20 - __rowsDrawn"),
+      (s.eval("__LS._currencyScroll"), s.eval("__rowsDrawn")))
+check("the end of the list says nothing is below it",
+      "below" not in s.texts(), s.texts())
+s.exec("for i = 1, 60 do __currencyTile.scripts.OnMouseWheel(__currencyTile, 1) end")
+check("scrolling back stops at the first row", s.eval("__LS._currencyScroll") == 0)
+
+# A list that fits needs no scrolling, and must not keep a stale offset.
+s.exec("""
+  __LS:SetWidgetOpt('currency', 'ids', { 91001, 91002 })
+  __LS:ShowPage("DASHBOARD")
+""")
+s.timers()
+check("a list that fits is not scrollable", s.eval("__LS._currencyScroll") == 0)
+check("a list that fits says nothing about scrolling",
+      "scroll" not in s.texts(), s.texts())
+s.exec("""
+  CurrencyList = {
+    { name = "Midnight", isHeader = true },
+    { name = "Midnight Test Coin", isHeader = false, quantity = 42,
+      currencyTypesID = 90001, discovered = true, iconFileID = 464076, quality = 4 },
+    { name = "The War Within", isHeader = true },
+    { name = "Old Expansion Coin", isHeader = false, quantity = 9,
+      currencyTypesID = 90002, discovered = true, iconFileID = 132372 },
+  }
+  __LS:ResetTrackedCurrencies()
+  __LS:SetDashboardEdit(__wasEditing)
+  __LS:ShowPage("SETTINGS")
+""")
+s.timers()
+
+# Picks are stored on the tile, so without the tile they would go nowhere. Rather than
+# accepting clicks that do nothing, the page says why and offers to add it.
+s.exec("__LS:DashboardRemove('currency'); __LS:ShowPage('SETTINGS')")
+s.timers()
+gone = s.texts()
+check("removing the tile explains why currencies cannot be picked",
+      "not on your dashboard" in gone, gone)
+check("no currency toggles are offered without the tile",
+      "Midnight Test Coin" not in gone, gone)
+check("an option set without the tile is refused rather than lost",
+      s.eval("__LS:SetWidgetOpt('currency', 'display', 'max')") is False)
+s.click("Add the Currencies tile")
+s.timers()
+check("the page offers to add the tile and does", s.eval("__LS:DashboardHas('currency')") is True)
+check("the currency list comes back with it",
+      "Midnight Test Coin" in s.texts(), s.texts())
+
 s.exec("__LS:ShowPage('DASHBOARD')")
 s.timers()
 s.exec("""
@@ -4332,6 +4537,282 @@ s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('SETTINGS')")
 s.timers()
 check("recording carries on locally after the collector is dropped",
       s.eval("__LS.analytics.counters['page.SETTINGS']") >= 1)
+
+# Placing tiles ----------------------------------------------------------------
+
+s = Session(saved="{ welcomed = true, goals = { ENDGAME = true } }")
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+s.exec("__LS:SetDashboardEdit(true); __LS:OpenFull('DASHBOARD')")
+s.timers()
+
+# Outside edit mode the canvas stops at the last tile, so the page does not scroll
+# through empty rows that only exist to drop tiles into.
+s.exec("__LS:ResetDashboardLayout(); __LS:DashboardCompactUp()")
+s.exec("__LS:SetDashboardEdit(false); __LS:OpenFull('DASHBOARD')")
+s.timers()
+used_h = s.eval("__LS.dashboardCanvas:GetHeight()")
+check("the canvas ends at the last tile when not editing",
+      abs(used_h - s.eval("__LS:DashboardVisibleRows()") * 48) < 1,
+      (used_h, s.eval("__LS:DashboardVisibleRows()")))
+check("that is shorter than the full grid",
+      used_h < s.eval("__LS:DashboardRows()") * 48, used_h)
+s.exec("__LS:SetDashboardEdit(true)")
+s.timers()
+check("editing gets the whole grid back, empty rows and all",
+      abs(s.eval("__LS.dashboardCanvas:GetHeight()") - s.eval("__LS:DashboardRows()") * 48) < 1,
+      s.eval("__LS.dashboardCanvas:GetHeight()"))
+s.exec("__LS:SetDashboardEdit(false)")
+s.timers()
+
+# Dropping a tile on another trades places, rather than sliding off to a free spot with
+# no explanation.
+s.exec("""
+  __LS:ResetDashboardLayout()
+  __LS:DashboardCompactUp()
+  __swapA, __swapB = nil, nil
+  local layout = __LS:DashboardLayout()
+  __swapA, __swapB = layout[1], layout[2]
+  __aWas = { x = __swapA.x, y = __swapA.y }
+  __bWas = { x = __swapB.x, y = __swapB.y }
+""")
+same_size = s.eval("__swapA.w == __swapB.w and __swapA.h == __swapB.h")
+check("the first two tiles are the same size, so a swap is possible", same_size is True)
+s.exec("__LS:DashboardPlace(__swapA.id, __bWas.x, __bWas.y)")
+check("a tile dropped on another takes its place",
+      s.eval("__swapA.x == __bWas.x and __swapA.y == __bWas.y") is True)
+check("the tile that was there moves to the one that displaced it",
+      s.eval("__swapB.x == __aWas.x and __swapB.y == __aWas.y") is True)
+check("a swap leaves nothing overlapping",
+      s.eval("""(function()
+        for _, a in ipairs(__LS:DashboardLayout()) do
+          if __LS:DashboardCollision(a.id, a.x, a.y, a.w, a.h) then return false end
+        end
+        return true
+      end)()""") is True)
+check("a swap that worked has nothing to explain", s.eval("__LS.dashboardNote") is None)
+
+# Tiles of different sizes cannot trade footprints, so that says so instead.
+s.exec("""
+  __LS:ResetDashboardLayout()
+  __LS:DashboardCompactUp()
+  local layout = __LS:DashboardLayout()
+  __wide, __small = layout[1], layout[2]
+  __LS:DashboardPlace(__wide.id, nil, nil, 12, __wide.h)
+  __LS.dashboardNote = nil
+  __smallWas = { x = __small.x, y = __small.y }
+  __LS:DashboardPlace(__small.id, __wide.x, __wide.y)
+""")
+note = s.eval("__LS.dashboardNote")
+check("a drop that cannot swap explains itself", isinstance(note, str) and len(note) > 0, note)
+check("the explanation names the tile in the way", "taken by" in (note or "") or "overlap" in (note or ""), note)
+check("the board is still valid after the refused swap",
+      s.eval("""(function()
+        for _, a in ipairs(__LS:DashboardLayout()) do
+          if __LS:DashboardCollision(a.id, a.x, a.y, a.w, a.h) then return false end
+        end
+        return true
+      end)()""") is True)
+s.exec("__LS:ResetDashboardLayout(); __LS:ShowPage('DASHBOARD')")
+s.timers()
+check("the explanation is shown once and then cleared", s.eval("__LS.dashboardNote") is None)
+
+s.exec("__LS:SetDashboardEdit(true); __LS:OpenFull('DASHBOARD')")
+s.timers()
+check("the dashboard says tiles can be dragged onto each other",
+      "trade places" in s.texts(), s.texts())
+check("the dashboard says empty canvas can be clicked",
+      "Click empty canvas to add a tile there" in s.texts(), s.texts())
+# The editing controls can sit above the tiles instead of under them, and say so where
+# they are rather than only in Settings.
+check("editing controls start above the tiles", s.eval("__LS:EditControlsTop()") is True)
+check("the controls offer to move themselves down",
+      "Move these to the bottom" in s.texts(), s.texts())
+def canvas_top():
+    return s.eval("""(function()
+      local p = __LS.dashboardCanvas.points
+      local last = p and p[#p]
+      return last and last[3] or 0
+    end)()""")
+
+check("the canvas is pushed down to make room for them", canvas_top() < 0, canvas_top())
+check("a widget can be added from up there",
+      "Great Vault  6" in s.texts(), s.texts())
+
+s.exec("__LS:SetEditControls('bottom')")
+s.timers()
+check("moving them under the tiles sticks", s.eval("__LS:EditControlsTop()") is False)
+check("the controls then offer to move back up",
+      "Move these to the top" in s.texts(), s.texts())
+check("the canvas goes back to the top of the page", canvas_top() == 0, canvas_top())
+check("the widget list is still there underneath",
+      "Great Vault  6" in s.texts(), s.texts())
+
+s.exec("__LS:SetEditControls('top')")
+s.timers()
+
+# Clicking bare canvas offers what fits there, and puts it where the click was.
+s.exec("__LS:ShowPage('DASHBOARD')")
+s.timers()
+# Cell size from the canvas itself: calling Body() here would rebuild the page and
+# throw away the very canvas being measured.
+s.exec("""
+  local canvas = __LS.dashboardCanvas
+  canvas.screenLeft, canvas.screenTop = 0, 600
+  __cellW = canvas:GetWidth() / 12
+  __cellH = canvas:GetHeight() / __LS:DashboardRows()
+""")
+check("the canvas takes clicks while editing", s.eval("__LS.dashboardCanvas.mouse") is True)
+
+free = s.eval("""(function()
+  for y = 0, __LS:DashboardRows() - 1 do
+    for x = 0, 11 do
+      if __LS:DashboardCellFree(x, y) then return x * 1000 + y end
+    end
+  end
+end)()""")
+freeX, freeY = int(free) // 1000, int(free) % 1000
+s.exec(f"__LS:OpenWidgetPicker(__LS.dashboardCanvas, {freeX}, {freeY}, __cellW, __cellH)")
+check("clicking empty canvas offers a list of widgets",
+      s.eval("__LS.widgetPicker ~= nil") is True and "Add here" in s.texts(), s.texts())
+
+s.exec(f"__LS:DashboardAddAt('rares', {freeX}, {freeY})")
+placed = s.eval("(function() for _, e in ipairs(__LS:DashboardLayout()) do if e.id == 'rares' then return e end end end)()")
+if placed is None:
+    # rares is gated on HandyNotes plugins, so use one that is always available.
+    s.exec(f"__LS:DashboardAddAt('warband', {freeX}, {freeY})")
+    placed = s.eval("(function() for _, e in ipairs(__LS:DashboardLayout()) do if e.id == 'warband' then return e end end end)()")
+check("a widget added by clicking lands at that spot",
+      placed is not None and placed["y"] == freeY, (freeX, freeY, placed and placed["y"]))
+
+check("the picker closes once something is chosen or the page repaints",
+      s.eval("(function() __LS:ShowPage('DASHBOARD') return __LS.widgetPicker end)()") is None)
+
+# Export and import -----------------------------------------------------------
+
+s = Session(saved="""{
+  welcomed = true,
+  goals = { ENDGAME = true, GOLD = true },
+  theme = "W2UI",
+  completed = { some_task = true },
+  dismissed = { other_task = true },
+  characters = { ["Testchar-Testrealm"] = { name = "Testchar", realm = "Testrealm" } },
+}""")
+s.fire("ADDON_LOADED", "Lodestar")
+s.fire("PLAYER_LOGIN")
+s.timers()
+
+share = s.eval("__LS:ExportProfile('share')")
+check("a share string is produced", isinstance(share, str) and share.startswith("LODESTAR:1:"), share)
+# The roster holds a name and realm for every alt, so a string built by dumping saved
+# variables would hand a stranger the lot.
+check("the share string does not carry the character roster",
+      "Testchar" not in share and "Testrealm" not in share, share)
+check("the share string leaves out progress",
+      "some_task" not in share and "other_task" not in share, share)
+
+backup = s.eval("__LS:ExportProfile('backup')")
+check("the backup string carries progress", "some_task" in backup, backup)
+check("the backup string still leaves out the character roster",
+      "Testchar" not in backup, backup)
+
+# A fresh install loads the string and comes back looking the same.
+s2 = Session(saved="{ welcomed = true }")
+s2.fire("ADDON_LOADED", "Lodestar")
+s2.fire("PLAYER_LOGIN")
+s2.timers()
+check("the other install starts without those goals",
+      s2.eval("__LS.db.goals.ENDGAME") is False)
+s2.exec(f'__ok, __err = __LS:ImportProfile({share!r})')
+check("the share string loads", s2.eval("__ok") is True, s2.eval("__err"))
+check("goals come across", s2.eval("__LS.db.goals.ENDGAME") is True
+      and s2.eval("__LS.db.goals.GOLD") is True)
+check("the theme comes across", s2.eval("__LS.db.theme") == "W2UI")
+check("progress is not created by a share string",
+      s2.eval("__LS.db.completed.some_task") is None)
+
+# The dashboard is the point of sharing one of these.
+s.exec("__LS:DashboardRemove('stats'); __LS:DashboardAdd('housing')")
+layout = s.eval("__LS:ExportProfile('share')")
+s2.exec(f'__LS:ImportProfile({layout!r})')
+check("the dashboard layout comes across",
+      s2.eval("__LS:DashboardHas('housing')") is True
+      and s2.eval("__LS:DashboardHas('stats')") is None)
+
+# Widget options ride along inside the layout, which is how currency picks travel.
+s.exec("""
+  __LS:DashboardAdd('currency')
+  __LS:SetWidgetOpt('currency', 'ids', { 2245, 3008 })
+""")
+picked = s.eval("__LS:ExportProfile('share')")
+s2.exec(f'__LS:ImportProfile({picked!r})')
+check("per-tile options ride along, which is how currency picks travel",
+      s2.eval("__LS:WidgetOpts('currency').ids[1]") == 2245
+      and s2.eval("__LS:WidgetOpts('currency').ids[2]") == 3008)
+
+# A layout can name a tile the other install cannot draw: HandyNotes gates rares, and
+# another addon can register tiles of its own. Importing holes would be worse.
+s2.exec("""
+  __imported, __err, __summary = __LS:ImportProfile("LODESTAR:1:R" .. __LS:SerializeProfile({
+    kind = "share",
+    db = { dashboard = { widgets = {
+      { id = "stats", x = 0, y = 0, w = 6, h = 4 },
+      { id = "not_a_real_widget", x = 6, y = 0, w = 6, h = 4 },
+    } } },
+  }))
+""")
+check("a tile this install cannot show is dropped rather than imported",
+      s2.eval("__summary.dropped") == 1 and s2.eval("__LS:DashboardHas('stats')") is True)
+
+# Nothing about an import string is trustworthy, so every shape of junk has to fail
+# as a message rather than an error.
+for bad, why in [("", "empty"), ("hello", "not ours"), ("LODESTAR:9:Rxx", "future format"),
+                 ("LODESTAR:1:R{{{{{{", "truncated"), ("LODESTAR:1:Rs99:short", "lying length"),
+                 ("LODESTAR:1:Qzz", "unknown encoding")]:
+    ok = s2.eval(f'(function() local ok, err = __LS:ImportProfile({bad!r}) return ok end)()')
+    err = s2.eval(f'(function() local ok, err = __LS:ImportProfile({bad!r}) return err end)()')
+    check(f"a {why} string is refused with a reason", ok is not True and isinstance(err, str), (ok, err))
+
+# Values have to survive the round trip exactly: colours are floats, and a rounded one
+# is a visibly different colour.
+s.exec("""
+  __LS.db.colors = { accent = { 0.3451, 0.827, 0.4, 1 } }
+  __LS.db.focusExpansion = "Khaz Algar"
+""")
+colors = s.eval("__LS:ExportProfile('share')")
+s2.exec(f'__LS:ImportProfile({colors!r})')
+check("float colour components survive exactly",
+      s2.eval("__LS.db.colors.accent[1]") == 0.3451
+      and s2.eval("__LS.db.colors.accent[2]") == 0.827)
+check("strings with spaces survive", s2.eval("__LS.db.focusExpansion") == "Khaz Algar")
+
+# With LibDeflate present the string is compressed and print-encoded instead.
+s.exec("EnableLibDeflate()")
+packed = s.eval("__LS:ExportProfile('share')")
+check("LibDeflate makes a compressed string", packed.startswith("LODESTAR:1:Z"), packed[:40])
+check("a compressed string carries nothing a chat box would mangle",
+      all(c in "0123456789abcdef" for c in packed[len("LODESTAR:1:Z"):]), packed[:80])
+s2.exec("EnableLibDeflate()")
+s2.exec(f'__LS.db.theme = "AUTO"; __LS:ImportProfile({packed!r})')
+check("a compressed string loads back", s2.eval("__LS.db.theme") == "W2UI")
+
+# Discord and the chat box wrap long strings, so a paste arrives with newlines in it.
+wrapped = "\n".join(packed[i:i + 60] for i in range(0, len(packed), 60))
+s2.exec(f'__LS.db.theme = "AUTO"; __LS:ImportProfile({wrapped!r})')
+check("a string that got line-wrapped on the way still loads",
+      s2.eval("__LS.db.theme") == "W2UI")
+
+# The tab itself.
+s.exec("__LS:SetPageTab('SETTINGS', 'PROFILE'); __LS:OpenFull('SETTINGS')")
+s.timers()
+check("Settings has a Backup & Share tab", "Backup & Share" in s.texts(), s.texts())
+s.exec("Clipboard = nil")
+s.click("Copy share string")
+check("the copy button puts the string on the clipboard",
+      isinstance(s.eval("Clipboard"), str) and s.eval("Clipboard").startswith("LODESTAR:"),
+      s.eval("Clipboard"))
+check("copying says so", "Copied the share string" in s.texts(), s.texts())
 
 print()
 if failures:

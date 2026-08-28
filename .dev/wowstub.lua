@@ -33,6 +33,20 @@ function methods.SetScript(self, key, fn)
   end
 end
 function methods.HookScript(self, key, fn) self.scripts[key] = fn end
+
+-- EditBox. Only what a paste-and-read box needs: the import path has to go through one
+-- of these because no API can read the clipboard for us.
+function methods.SetMultiLine(self, v) self.multiLine = v and true or false end
+function methods.SetAutoFocus(self, v) self.autoFocus = v and true or false end
+function methods.SetFontObject(self, v) self.fontObject = v end
+function methods.SetTextInsets(self) end
+function methods.SetFocus(self) self.focused = true end
+function methods.ClearFocus(self) self.focused = false end
+function methods.HasFocus(self) return self.focused and true or false end
+function methods.HighlightText(self) self.highlighted = true end
+function methods.SetText(self, v) self.text_value = v end
+function methods.GetText(self) return self.text_value or "" end
+function methods.SetCursorPosition(self) end
 function methods.GetScript(self, key) return self.scripts[key] end
 function methods.Show(self) self.shown = true end
 function methods.Hide(self) self.shown = false end
@@ -49,6 +63,10 @@ function methods.GetCenter(self)
   return self.centerX or ((self.w or 0) / 2), self.centerY or ((self.h or 0) / 2)
 end
 function methods.GetEffectiveScale(self) return self.effectiveScale or 1 end
+-- A screen position for the frame. Only the dashboard canvas sets these, so a click
+-- can be turned into a grid cell without pretending to lay the whole UI out.
+function methods.GetLeft(self) return self.screenLeft end
+function methods.GetTop(self) return self.screenTop end
 function methods.SetDontSavePosition(self, v) self.dontSavePosition = v and true or false end
 function methods.SetClampedToScreen(self, v) self.clampedToScreen = v and true or false end
 function methods.SetFrameLevel(self, v) self.frameLevel = v end
@@ -303,9 +321,33 @@ function ChatEdit_InsertLink(link)
   return true
 end
 
+-- Cursor and canvas geometry, so a click on bare dashboard can be resolved to a cell.
+-- CursorAt is what a test sets; the frame side reports a fixed origin and scale.
+CursorX, CursorY = 0, 0
+function GetCursorPosition()
+  return CursorX, CursorY
+end
+
 Clipboard = nil
 function CopyToClipboard(text)
   Clipboard = text
+end
+
+-- A stand-in for LibDeflate, which the harness does not load. Not real compression, but
+-- reversible and genuinely print-safe, so the compressed path is exercised rather than
+-- skipped: the hex encoding proves nothing survives that a chat box would mangle.
+function EnableLibDeflate()
+  LibDeflate = {
+    CompressDeflate = function(_, text) return "C<" .. text .. ">" end,
+    DecompressDeflate = function(_, packed) return packed:match("^C<(.*)>$") end,
+    EncodeForPrint = function(_, packed)
+      return (packed:gsub(".", function(c) return string.format("%02x", string.byte(c)) end))
+    end,
+    DecodeForPrint = function(_, s)
+      if s:match("[^0-9a-f]") or #s % 2 == 1 then return nil end
+      return (s:gsub("%x%x", function(h) return string.char(tonumber(h, 16)) end))
+    end,
+  }
 end
 
 UIParent = new("Frame", "UIParent")
@@ -671,6 +713,27 @@ C_AddOns = {
 WagoSent = {}
 WagoID = nil
 WagoAnalytics = nil
+
+-- LibDataBroker, as carried by ElvUI, Titan Panel and friends. Lodestar does not ship
+-- it, so this stands in for the display addon that does. Chained onto whatever LibStub
+-- is already there rather than replacing it.
+BrokerObjects = {}
+function InstallLDB()
+  BrokerObjects = {}
+  local ldb = {
+    NewDataObject = function(_, name, tbl)
+      BrokerObjects[name] = tbl
+      return tbl
+    end,
+  }
+  local prev = LibStub
+  LibStub = {
+    GetLibrary = function(selfLib, wanted, silent)
+      if wanted == "LibDataBroker-1.1" then return ldb end
+      if prev then return prev.GetLibrary(selfLib, wanted, silent) end
+    end,
+  }
+end
 
 -- The Shim and LibStub, both of which Lodestar bundles, so this is every install.
 function InstallWagoShim(id)
@@ -1119,6 +1182,7 @@ ChallengeMaps = {}
 SeasonBestForMap = {}
 OverallDungeonScore = 0
 MythicPlusRating = { currentSeasonScore = 0, runs = {} }
+AffixScoresForMap = {}
 
 OwnedKeystone = nil
 C_MythicPlus = {
@@ -1137,6 +1201,11 @@ C_MythicPlus = {
     }
   end,
   RequestMapInfo = function() end,
+  -- Per-dungeon affix scores, the fallback used when the client has not sent a rating
+  -- summary. Keyed by map, same shape the client returns.
+  GetSeasonBestAffixScoreInfoForMap = function(mapID)
+    return AffixScoresForMap and AffixScoresForMap[mapID]
+  end,
   GetSeasonBestForMap = function(mapID)
     local row = SeasonBestForMap[mapID]
     if row == nil then return end

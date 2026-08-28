@@ -459,6 +459,25 @@ or BigWigs would replace theirs and break what it left out.
 | [LibOpenRaid](https://github.com/Tercioo/Open-Raid-Library) | Answering guild keystone requests | LGPL v2.1 |
 | [WagoAnalyticsShim](https://github.com/wagoio/WagoAnalyticsShim) | Usage counts, when the Wago App is sharing | MIT |
 
+## Backup and sharing
+
+Settings → **Backup & Share** turns your setup into a string. Paste it into Lodestar on
+another install to rebuild it there.
+
+| String | Carries | For |
+| --- | --- | --- |
+| Share | Settings and dashboard layout | Handing your dashboard to someone else |
+| Backup | The same, plus finished, ignored, and tracked items | Moving your own install |
+
+Neither carries your characters. That table holds a name and realm for every alt you have
+logged in on, and it rebuilds itself the next time you log in on each, so a share string
+never has to contain it. The export is built from an explicit list of what to include, not
+a list of what to remove, so anything added to Lodestar later stays out until it is chosen.
+
+Loading replaces the settings the string covers, so copy a backup string first if you want
+a way back. A layout that names a tile your install cannot draw — one gated on HandyNotes,
+or added by an addon you do not have — has those tiles skipped, and says how many.
+
 ## Usage data
 
 Lodestar counts which parts of itself get used, so a tile or goal nobody touches can be

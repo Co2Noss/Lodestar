@@ -1,5 +1,46 @@
 # Unreleased
 
+- Each Mythic+ dungeon icon now carries that dungeon's own rating under its key level,
+  in smaller text and coloured by what the rating is worth rather than by the key level
+  above it. **Rating per dungeon** on the tile turns it off. Hovering a dungeon gives the
+  same facts the client's tooltip leads with: the rating, and the best run and its time.
+- The Currencies tile fits more in: smaller rows, and an amount column measured from the
+  amounts themselves rather than a fixed share of the tile, so long names keep their
+  room. When the list is longer than the tile it scrolls with the mouse wheel and says
+  how many rows are above and below, instead of the rest simply being unreachable.
+- Outside edit mode the dashboard canvas stops at your lowest tile, instead of leaving
+  empty rows and a scrollbar below it. Editing gets the full grid back, since that empty
+  space is where tiles get dropped.
+- Editing the dashboard, clicking empty canvas offers the tiles that will fit there
+  and puts the one you pick at that spot, instead of adding from the list underneath
+  and then dragging it up to where you meant.
+- Dragging a tile onto another one now trades places with it, when both fit in the
+  other's footprint. When they cannot, the dashboard says which tile is in the way and
+  what to do about it, instead of quietly sliding the tile somewhere you did not aim.
+- Currencies can show how much you have, how much you have out of the cap, or how much
+  is left to earn. Currencies the client publishes no cap for keep showing the plain
+  amount either way.
+- **Fixed:** picking currencies in Settings did nothing at all when the Currencies tile
+  was not on the dashboard, because the picks are stored on the tile. The page now says
+  so and offers to add the tile.
+- The editing controls (add, reset, compact) now sit above the tiles, where they are in
+  view the moment you press Edit dashboard rather than off the bottom of a tall
+  dashboard. A button beside them, or Settings → Layout, puts them back underneath.
+
+- Settings → **Backup & Share** exports your setup as a string you can paste into
+  Lodestar on another install. Two kinds, because they are different jobs: **Share**
+  carries settings and dashboard layout and is safe to hand to anyone, while
+  **Backup** adds what you have finished, ignored and tracked, for moving your own
+  install. Copy puts it straight on the clipboard; paste into the box and Load to
+  apply it.
+- Neither string ever carries your characters. That list holds a name and realm for
+  every alt, and it rebuilds itself as you log in on each one, so it costs nothing to
+  leave out. The export works from a list of what to include rather than a list of
+  what to strip, so a setting added later is left out until someone decides otherwise.
+- A shared layout can name a tile your install cannot draw, such as one gated on
+  HandyNotes or added by another addon. Those are skipped and counted rather than
+  imported as holes in the dashboard.
+
 # 1.5.62
 
 - Lodestar counts which of its own tiles, goals, pages, and settings actually get

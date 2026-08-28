@@ -72,6 +72,75 @@ function LS:SeasonBestKeyLevel(mapID)
   end
 end
 
+-- What one dungeon is worth, and the run that earned it. The client's own rating
+-- summary is asked first because that is where the number in Blizzard's tooltip comes
+-- from; Raider.IO is a fallback for anyone whose client has not sent the summary.
+function LS:DungeonScoreInfo(mapID)
+  mapID = tonumber(mapID)
+  if not mapID then return nil end
+
+  if C_PlayerInfo and C_PlayerInfo.GetPlayerMythicPlusRatingSummary then
+    local ok, summary = pcall(C_PlayerInfo.GetPlayerMythicPlusRatingSummary, "player")
+    if ok and type(summary) == "table" then
+      for _, run in ipairs(summary.runs or {}) do
+        local id = run.challengeModeID or run.mapChallengeModeID or run.mapID
+        if id == mapID then
+          return {
+            score = tonumber(run.mapScore or run.score),
+            level = tonumber(run.bestRunLevel or run.level),
+            durationMS = tonumber(run.bestRunDurationMS or run.durationMS),
+            timed = run.finishedSuccess ~= false,
+          }
+        end
+      end
+    end
+  end
+
+  if C_MythicPlus and C_MythicPlus.GetSeasonBestAffixScoreInfoForMap then
+    local ok, list = pcall(C_MythicPlus.GetSeasonBestAffixScoreInfoForMap, mapID)
+    if ok and type(list) == "table" then
+      local best
+      for _, row in ipairs(list) do
+        local score = tonumber(row.score)
+        if score and (not best or score > best.score) then
+          best = {
+            score = score,
+            level = tonumber(row.level),
+            durationMS = tonumber(row.durationSec) and tonumber(row.durationSec) * 1000,
+            timed = not row.overTime,
+          }
+        end
+      end
+      if best then return best end
+    end
+  end
+
+  local mplus = self:RaiderIOProfile()
+  for _, row in ipairs((mplus and mplus.sortedDungeons) or {}) do
+    local dungeon = row.dungeon or row
+    local id = dungeon.id or dungeon.mapId or dungeon.challengeMapId
+    if id == mapID then
+      local score = tonumber(row.score or dungeon.score)
+      if score then
+        return { score = score, level = tonumber(row.level or dungeon.level) }
+      end
+    end
+  end
+end
+
+function LS:DungeonScore(mapID)
+  local info = self:DungeonScoreInfo(mapID)
+  return info and info.score
+end
+
+-- mm:ss, the way the client writes a run time.
+function LS:RunTimeText(durationMS)
+  local ms = tonumber(durationMS)
+  if not ms or ms <= 0 then return nil end
+  local total = math.floor(ms / 1000)
+  return string.format("%d:%02d", math.floor(total / 60), total % 60)
+end
+
 function LS:KeyLevelColor(level)
   if C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor then
     local ok, color = pcall(C_ChallengeMode.GetKeystoneLevelRarityColor, level)
@@ -166,6 +235,9 @@ function LS:CurrencyCatalog()
             quality = info.quality,
             current = inCurrent or not seenHeader,
             group = group,
+            max = tonumber(info.maxQuantity),
+            totalEarned = tonumber(info.totalEarned),
+            earnedIsCapped = info.useTotalEarnedForMaxQty and true or false,
           })
         end
       end
@@ -182,7 +254,74 @@ local function LiveCurrency(row)
   row.icon = live.iconFileID or live.icon or row.icon
   if live.quality ~= nil then row.quality = live.quality end
   if live.name and live.name ~= "" then row.name = live.name end
+  -- Caps, for the tile's other two display modes. Some currencies count what you have
+  -- against the cap and some count what you have ever earned, and getting that backwards
+  -- would show a full bar as empty.
+  row.max = tonumber(live.maxQuantity) or row.max
+  row.totalEarned = tonumber(live.totalEarned) or row.totalEarned
+  row.earnedIsCapped = live.useTotalEarnedForMaxQty and true or false
+  row.weeklyMax = tonumber(live.maxWeeklyQuantity) or row.weeklyMax
+  row.weeklyEarned = tonumber(live.quantityEarnedThisWeek) or row.weeklyEarned
   return row
+end
+
+-- The cap that is actually in play, and how far along it you are. Weekly caps only
+-- stand in when there is no overall one, because a weekly cap resets and an overall
+-- cap is the one you are saving toward.
+function LS:CurrencyCap(row)
+  if not row then return nil end
+  local max = tonumber(row.max) or 0
+  if max > 0 then
+    local have = row.quantity or 0
+    if row.earnedIsCapped and row.totalEarned then have = row.totalEarned end
+    return max, math.min(have, max)
+  end
+  local weekly = tonumber(row.weeklyMax) or 0
+  if weekly > 0 then
+    return weekly, math.min(tonumber(row.weeklyEarned) or 0, weekly), true
+  end
+  return nil
+end
+
+-- What the tile prints on the right of a currency row. Falls back to the plain amount
+-- whenever a cap is asked for but the client does not publish one, because "0 to go" on
+-- an uncapped currency would be a lie.
+function LS:CurrencyAmountText(row, mode)
+  local function big(n)
+    return BreakUpLargeNumbers and BreakUpLargeNumbers(n) or tostring(n)
+  end
+  mode = mode or self:CurrencyDisplay()
+  local plain = big(row.quantity or 0)
+  if mode == "have" then return plain end
+
+  local max, have = self:CurrencyCap(row)
+  if not max then return plain end
+  if mode == "max" then return big(have) .. " / " .. big(max) end
+  if mode == "earn" then
+    local left = max - have
+    if left <= 0 then return "Capped" end
+    return big(left) .. " to go"
+  end
+  return plain
+end
+
+local CURRENCY_DISPLAY = {
+  { "have", "How much you have" },
+  { "max", "How much you have, out of the cap" },
+  { "earn", "How much is left to earn" },
+}
+LS.currencyDisplayModes = CURRENCY_DISPLAY
+
+function LS:CurrencyDisplay()
+  local mode = self:WidgetOpts("currency").display
+  for _, entry in ipairs(CURRENCY_DISPLAY) do
+    if entry[1] == mode then return mode end
+  end
+  return "have"
+end
+
+function LS:SetCurrencyDisplay(mode)
+  return self:SetWidgetOpt("currency", "display", mode)
 end
 
 function LS:TrackedCurrencies()
@@ -1185,6 +1324,7 @@ local function RegisterExtraWidgets()
         return self:PaintWidgetSettings(parent, width, "raiderio", "What this tile shows. !keys replies are in Settings.", {
           { "score", "Score", true },
           { "dungeons", "Dungeons", true },
+          { "dungeonScore", "Rating per dungeon", true },
           { "teleport", "Teleport", true },
           { "key", "Your key", true },
         })
@@ -1203,6 +1343,7 @@ local function RegisterExtraWidgets()
       local showScore = self:WidgetOptOn("raiderio", "score", true)
       local showMaps = self:WidgetOptOn("raiderio", "dungeons", true)
       local showKey = self:WidgetOptOn("raiderio", "key", true)
+      local showDungeonScore = self:WidgetOptOn("raiderio", "dungeonScore", true)
       local score, source = self:MythicPlusScore()
       local scoreH = showScore and math.max(18, math.min(28, math.floor(height * 0.22))) or 0
       local keyH = showKey and KEY_LINE_H or 0
@@ -1256,6 +1397,9 @@ local function RegisterExtraWidgets()
       local x0 = math.floor((width - usedW) / 2)
       local y0 = -(scoreH + math.max(2, math.floor((innerH - usedH) / 2)))
       local fontSize = math.max(14, math.min(22, math.floor(size * 0.5)))
+      -- Deliberately smaller than the key level: two numbers the same size on one icon
+      -- read as one number split in half.
+      local ratingFont = math.max(9, math.min(13, math.floor(fontSize * 0.55)))
       for i, mapID in ipairs(maps) do
         local col = (i - 1) % cols
         local row = math.floor((i - 1) / cols)
@@ -1299,7 +1443,29 @@ local function RegisterExtraWidgets()
         elseif self.colors then
           num:SetTextColor(unpack(self.colors.muted))
         end
+
+        -- The dungeon's own rating, under the key level and smaller, so the level stays
+        -- the thing you read first. Coloured by what that rating is worth, which is a
+        -- different scale from the key level above it.
+        local info = self:DungeonScoreInfo(mapID)
+        if showDungeonScore and info and info.score and info.score > 0 and size >= 34 then
+          -- The level sits centred, so the rating starts below its baseline rather than
+          -- below the icon's middle, or the two would touch on a small tile.
+          local rating = w.text(parent, size, ratingFont)
+          if rating.ClearAllPoints then rating:ClearAllPoints() end
+          rating:SetPoint("TOP", art, "CENTER", 0, -math.floor(fontSize * 0.42))
+          if rating.SetJustifyH then rating:SetJustifyH("CENTER") end
+          rating:SetWidth(size)
+          if rating.SetFont then rating:SetFont(self:ThemeFont(), ratingFont, "OUTLINE") end
+          if rating.SetShadowColor then rating:SetShadowColor(0, 0, 0, 1) end
+          if rating.SetShadowOffset then rating:SetShadowOffset(1, -1) end
+          rating:SetText(tostring(math.floor(info.score + 0.5)))
+          local rr, rg, rb = self:MythicPlusScoreColor(info.score)
+          if rr then rating:SetTextColor(rr, rg, rb, 1) end
+        end
+
         local dungeonID, dungeonName, dungeonLevel = mapID, name, level
+        local dungeonInfo = info
         local port = self:WidgetOptOn("raiderio", "teleport", true) and ports[dungeonID]
         if port then
           local a = self.colors and self.colors.accent or { 0.35, 0.85, 0.79 }
@@ -1316,10 +1482,20 @@ local function RegisterExtraWidgets()
           if tip.ClearLines then tip:ClearLines() end
           tip:SetText(dungeonName or "Dungeon")
           if tip.AddLine then
+            -- The same three facts the client's own dungeon tooltip leads with: what
+            -- this dungeon is worth, and the run that earned it.
+            if dungeonInfo and dungeonInfo.score and dungeonInfo.score > 0 then
+              tip:AddLine("Rating: " .. tostring(math.floor(dungeonInfo.score + 0.5)))
+            end
             if dungeonLevel then
-              tip:AddLine("Best this season: +" .. tostring(dungeonLevel))
+              local time = dungeonInfo and self:RunTimeText(dungeonInfo.durationMS)
+              tip:AddLine("Best run: +" .. tostring(dungeonLevel)
+                .. (time and ("  " .. time) or ""))
+              if dungeonInfo and dungeonInfo.timed == false then
+                tip:AddLine("Over time, so it scored less than a timed run.")
+              end
             else
-              tip:AddLine("No timed run this season.")
+              tip:AddLine("No run this season.")
             end
             if port and port.name then
               tip:AddLine(port.name)
@@ -1460,17 +1636,54 @@ local function RegisterExtraWidgets()
         none:SetText("No currencies from the client yet.")
         return height
       end
-      local rowH = math.max(18, math.min(28, math.floor((height - 8) / math.max(1, #rows))))
-      local iconSize = math.max(14, math.min(22, rowH - 4))
+      -- Rows are sized to fit the tile, down to a floor that is still readable. Below
+      -- that the list scrolls instead of shrinking further or running off the bottom,
+      -- because a currency you cannot reach is the same as one you are not tracking.
+      local rowH = math.max(16, math.min(24, math.floor((height - 8) / math.max(1, #rows))))
+      local iconSize = math.max(12, math.min(20, rowH - 3))
+      local space = height - 8
+      local fits = math.max(1, math.floor(space / rowH))
+      local scrolling = #rows > fits
+      if scrolling then
+        -- One row's worth of space goes to the more-above/more-below line.
+        fits = math.max(1, math.floor((space - 12) / rowH))
+      end
+
+      local offset = 0
+      if scrolling then
+        offset = math.max(0, math.min(#rows - fits, math.floor(tonumber(self._currencyScroll) or 0)))
+        self._currencyScroll = offset
+        parent:EnableMouseWheel(true)
+        parent:SetScript("OnMouseWheel", function(_, delta)
+          local at = math.floor(tonumber(self._currencyScroll) or 0)
+          local want = math.max(0, math.min(#rows - fits, at - (tonumber(delta) or 0)))
+          if want == at then return end
+          self._currencyScroll = want
+          if self.RefreshDashboardLive then self:RefreshDashboardLive({ "currency" }) end
+        end)
+      else
+        self._currencyScroll = 0
+        parent:EnableMouseWheel(false)
+        parent:SetScript("OnMouseWheel", nil)
+      end
+
+      local shown = {}
+      for i = offset + 1, math.min(#rows, offset + fits) do
+        table.insert(shown, rows[i])
+      end
+
       local y = -4
-      for _, row in ipairs(rows) do
+      for _, row in ipairs(shown) do
         local iconW = PaintCurrencyIcon(parent, row.icon, 12, y, iconSize)
         local textX = 12 + (iconW > 0 and iconW + 6 or 0)
-        local qty = BreakUpLargeNumbers and BreakUpLargeNumbers(row.quantity) or tostring(row.quantity)
-        local qtyW = math.min(72, math.max(40, math.floor(width * 0.28)))
-        local nameW = math.max(40, width - textX - qtyW - 16)
-        local fontSize = math.max(11, math.min(14, rowH - 6))
-        local textY = y - math.floor((rowH - 14) / 2)
+        local qty = self:CurrencyAmountText(row)
+        -- The amount column is measured from the text rather than a fixed share of the
+        -- tile, so short amounts stop stealing room from the names beside them.
+        local fontSize = math.max(9, math.min(13, rowH - 6))
+        local qtyW = math.min(math.floor(width * 0.45),
+          math.max(34, math.ceil(#qty * fontSize * 0.62)))
+        local nameW = math.max(40, width - textX - qtyW - 14)
+        local textY = y - math.floor((rowH - fontSize - 2) / 2)
         local name = w.text(parent, nameW, fontSize)
         name:SetPoint("TOPLEFT", textX, textY)
         name:SetText(row.name)
@@ -1492,6 +1705,17 @@ local function RegisterExtraWidgets()
           if self.OpenCurrencies then self:OpenCurrencies() end
         end)
         y = y - rowH
+      end
+
+      if scrolling then
+        local above, below = offset, #rows - offset - #shown
+        local more = w.text(parent, width - 24, 9)
+        more:SetPoint("TOPLEFT", 12, y - 1)
+        if self.colors then more:SetTextColor(unpack(self.colors.muted)) end
+        local parts = {}
+        if above > 0 then table.insert(parts, above .. " above") end
+        if below > 0 then table.insert(parts, below .. " below") end
+        more:SetText(table.concat(parts, ", ") .. " · scroll")
       end
       return height
     end,

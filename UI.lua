@@ -1984,6 +1984,7 @@ local settingsTabs = {
   { "APPEARANCE", "Appearance", "How the window looks. Your colors override the theme." },
   { "COMPACT", "Compact", "The small always-on window." },
   { "LAYOUT", "Layout", "Where the window sits, and what Lodestar has remembered." },
+  { "PROFILE", "Backup & Share", "Carry your settings to another install, or hand your dashboard to someone else." },
 }
 
 function LS:SettingsTab()
@@ -2042,10 +2043,154 @@ function LS:Settings()
     y = self:SettingsAppearance(body, width, y)
   elseif chosen[1] == "COMPACT" then
     y = self:SettingsCompact(body, width, y)
+  elseif chosen[1] == "PROFILE" then
+    y = self:SettingsProfile(body, width, y)
   else
     y = self:SettingsWindow(body, width, y)
   end
   body:finish(-y + 10)
+end
+
+-- A box that can be pasted into. There is no API to read the clipboard, so importing
+-- has to go through a real EditBox the player pastes into; copying can use the client's
+-- own clipboard call, which is why exporting does not ask anyone to select text.
+function LS:ProfileBox(parent, width, height, y)
+  local frame = panel(parent)
+  frame:SetPoint("TOPLEFT", 0, y)
+  frame:SetSize(width, height)
+  paint(frame, "panel")
+
+  local box = CreateFrame("EditBox", nil, frame)
+  box:SetPoint("TOPLEFT", 8, -8)
+  box:SetSize(width - 16, height - 16)
+  if box.SetMultiLine then box:SetMultiLine(true) end
+  if box.SetAutoFocus then box:SetAutoFocus(false) end
+  if box.SetFontObject then pcall(box.SetFontObject, box, "ChatFontNormal") end
+  if box.SetTextInsets then box:SetTextInsets(0, 0, 0, 0) end
+  -- Escape has to leave the box, or it is a trap: the player cannot close the window.
+  box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  frame:SetScript("OnMouseUp", function() box:SetFocus() end)
+  return box, frame
+end
+
+-- Export and import ------------------------------------------------------------
+--
+-- Two strings rather than one, because "set up my new install" and "show me your
+-- dashboard" are different asks and only one of them is safe to paste in public.
+function LS:SettingsProfile(body, width, y)
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+  note:SetText("Copy a string, then paste it into Lodestar on another install to rebuild this setup. Neither string carries your characters: that list rebuilds itself as you log in on each one.")
+  y = y - 40
+
+  local shareHeading = text(body, width, 13)
+  shareHeading:SetPoint("TOPLEFT", 0, y)
+  shareHeading:SetTextColor(unpack(self.colors.accent))
+  shareHeading:SetText("Share")
+  y = y - 22
+
+  local shareNote = text(body, width, 10)
+  shareNote:SetPoint("TOPLEFT", 0, y)
+  if self.colors then shareNote:SetTextColor(unpack(self.colors.muted)) end
+  shareNote:SetText("Settings and dashboard layout. Safe to hand to anyone.")
+  y = y - 24
+
+  local shareBtn = button(body, "Copy share string", 200, 30)
+  shareBtn:SetPoint("TOPLEFT", 0, y)
+  paint(shareBtn, "panel")
+  highlight(shareBtn)
+  y = y - 40
+
+  local backupHeading = text(body, width, 13)
+  backupHeading:SetPoint("TOPLEFT", 0, y)
+  backupHeading:SetTextColor(unpack(self.colors.accent))
+  backupHeading:SetText("Backup")
+  y = y - 22
+
+  local backupNote = text(body, width, 10)
+  backupNote:SetPoint("TOPLEFT", 0, y)
+  if self.colors then backupNote:SetTextColor(unpack(self.colors.muted)) end
+  backupNote:SetText("The same, plus what you have finished, ignored and tracked. For moving your own install, not for sharing.")
+  y = y - 32
+
+  local backupBtn = button(body, "Copy backup string", 200, 30)
+  backupBtn:SetPoint("TOPLEFT", 0, y)
+  paint(backupBtn, "panel")
+  y = y - 44
+
+  local pasteHeading = text(body, width, 13)
+  pasteHeading:SetPoint("TOPLEFT", 0, y)
+  pasteHeading:SetTextColor(unpack(self.colors.accent))
+  pasteHeading:SetText("Paste a string")
+  y = y - 24
+
+  local box, boxFrame = self:ProfileBox(body, width, 78, y)
+  y = y - 88
+
+  local status = text(body, width, 10)
+  status:SetPoint("TOPLEFT", 0, y)
+  if self.colors then status:SetTextColor(unpack(self.colors.muted)) end
+  status:SetText("Paste with Ctrl+V, then Load. This replaces the settings the string carries.")
+  local statusY = y
+  y = y - 34
+
+  local function say(message, good)
+    status:SetText(message)
+    if self.colors then
+      status:SetTextColor(unpack(good and self.colors.accent or self.colors.muted))
+    end
+    status:ClearAllPoints()
+    status:SetPoint("TOPLEFT", 0, statusY)
+  end
+
+  -- Copying puts it in the box too. CopyToClipboard is not on every client, and a
+  -- visible string can always be selected by hand.
+  local function copy(kind, what)
+    local out = self:ExportProfile(kind)
+    if not out then
+      say("Lodestar could not build that string.")
+      return
+    end
+    box:SetText(out)
+    if CopyToClipboard then
+      CopyToClipboard(out)
+      say("Copied the " .. what .. " string. Paste it into Lodestar on the other install.", true)
+    else
+      say("Your client cannot copy for you. Click the box, Ctrl+A, then Ctrl+C.", true)
+    end
+  end
+
+  shareBtn:SetScript("OnMouseUp", function() copy("share", "share") end)
+  backupBtn:SetScript("OnMouseUp", function() copy("backup", "backup") end)
+
+  local load = button(body, "Load", 140, 30)
+  load:SetPoint("TOPLEFT", 0, y)
+  paint(load, "panel")
+  highlight(load)
+  load:SetScript("OnMouseUp", function()
+    local ok, err, summary = self:ImportProfile(box:GetText())
+    if not ok then
+      say(err or "that string could not be read.")
+      return
+    end
+    box:SetText("")
+    box:ClearFocus()
+    local said = "Loaded " .. summary.applied .. " settings"
+    if summary.dropped > 0 then
+      -- Silence here would look like the import half-failed.
+      said = said .. ", and skipped " .. summary.dropped .. " tiles this install cannot show"
+    end
+    self:ShowPage("SETTINGS")
+    print("|cff59d8c9Lodestar|r " .. said .. ".")
+  end)
+  y = y - 40
+
+  local warn = text(body, width, 10)
+  warn:SetPoint("TOPLEFT", 0, y)
+  if self.colors then warn:SetTextColor(unpack(self.colors.muted)) end
+  warn:SetText("Loading overwrites what the string covers. Copy a backup string first if you want a way back.")
+  return y - 30
 end
 
 -- The currency list runs to dozens of entries, which is more than a dashboard tile can
@@ -2059,6 +2204,26 @@ function LS:SettingsCurrencies(body, width, y)
   if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
   note:SetText("Pick what the Currencies tile tracks. With nothing picked it follows this expansion, so it keeps up on its own when the next one lands.")
   y = y - 32
+
+  -- These picks are stored on the tile, so without the tile there is nowhere to put
+  -- them and nothing to show them on. Better to say that than to accept clicks that
+  -- quietly do nothing.
+  if not self:DashboardHas("currency") then
+    local missing = text(body, width, 11)
+    missing:SetPoint("TOPLEFT", 0, y)
+    if self.colors then missing:SetTextColor(unpack(self.colors.warn or self.colors.accent)) end
+    missing:SetText("The Currencies tile is not on your dashboard, so there is nothing here to track currencies on. Add the tile and these choices come back.")
+    y = y - 40
+
+    local add = button(body, "Add the Currencies tile", 220, 30)
+    add:SetPoint("TOPLEFT", 0, y)
+    highlight(add)
+    add:SetScript("OnMouseUp", function()
+      self:DashboardAdd("currency")
+      self:ShowPage("SETTINGS")
+    end)
+    return y - 40
+  end
 
   if #catalog == 0 then
     local none = text(body, width, 11)
@@ -2074,6 +2239,36 @@ function LS:SettingsCurrencies(body, width, y)
     self:ResetTrackedCurrencies()
     self:ShowPage("SETTINGS")
   end)
+  y = y - 44
+
+  local showHeading = text(body, width, 12)
+  showHeading:SetPoint("TOPLEFT", 0, y)
+  showHeading:SetTextColor(unpack(self.colors.accent))
+  showHeading:SetText("What each row shows")
+  y = y - 24
+
+  local mode = self:CurrencyDisplay()
+  for _, entry in ipairs(self.currencyDisplayModes) do
+    local key, label = entry[1], entry[2]
+    local on = mode == key
+    local pick = button(body, (on and "ON  •  " or "OFF  •  ") .. label, width, 28)
+    pick:SetPoint("TOPLEFT", 0, y)
+    if on then
+      highlight(pick)
+    else
+      pick.text:SetTextColor(0.62, 0.65, 0.7, 1)
+    end
+    pick:SetScript("OnMouseUp", function()
+      self:SetCurrencyDisplay(key)
+      self:ShowPage("SETTINGS")
+    end)
+    y = y - 32
+  end
+
+  local capNote = text(body, width, 10)
+  capNote:SetPoint("TOPLEFT", 0, y)
+  if self.colors then capNote:SetTextColor(unpack(self.colors.muted)) end
+  capNote:SetText("Currencies the client gives no cap for always show the plain amount, whichever of these is picked.")
   y = y - 40
 
   -- Headers come through the catalog as expansion groups, so the long list stays
@@ -2286,6 +2481,7 @@ function LS:SettingsAddons(body, width, y)
   y = y - 56
 
   y = self:SettingsKeystone(body, width, y)
+  y = self:SettingsBroker(body, width, y)
   y = self:SettingsAnalytics(body, width, y)
   return y
 end
@@ -2332,6 +2528,53 @@ function LS:SettingsAnalytics(body, width, y)
   paint(show, "panel")
   show:SetScript("OnMouseUp", function() self:PrintAnalytics() end)
   return y - 38
+end
+
+-- The datatext bar entry. Shown whether or not a display addon is loaded, because the
+-- setting still describes what would appear if one were: unlike the usage-data toggle,
+-- nothing here is a promise about data leaving the machine.
+function LS:SettingsBroker(body, width, y)
+  local heading = text(body, width, 13)
+  heading:SetPoint("TOPLEFT", 0, y)
+  heading:SetTextColor(unpack(self.colors.accent))
+  heading:SetText("Bars and datatexts")
+  y = y - 24
+
+  local note = text(body, width, 10)
+  note:SetPoint("TOPLEFT", 0, y)
+  if self.colors then note:SetTextColor(unpack(self.colors.muted)) end
+  if self.brokerObject then
+    note:SetText("Lodestar is available to ElvUI and TukUI datatexts, Titan Panel, Chocolate Bar, and anything else that reads LibDataBroker. Click it to open Lodestar, right-click for this setting. Pick what its text reads:")
+  else
+    note:SetText("Lodestar can appear on ElvUI and TukUI datatexts, Titan Panel, Chocolate Bar, and anything else that reads LibDataBroker. None of those is loaded, so there is nowhere to show it yet. This is what it would read:")
+  end
+  y = y - 44
+
+  local mode = self:BrokerMode()
+  for _, entry in ipairs(self.brokerModes) do
+    local on = mode == entry.id
+    local pick = button(body, (on and "ON  •  " or "OFF  •  ") .. entry.label, width, 28)
+    pick:SetPoint("TOPLEFT", 0, y)
+    if on then
+      highlight(pick)
+    else
+      pick.text:SetTextColor(0.62, 0.65, 0.7, 1)
+    end
+    local id = entry.id
+    pick:SetScript("OnMouseUp", function()
+      self:SetBrokerMode(id)
+      self:ShowPage("SETTINGS")
+    end)
+    y = y - 30
+
+    local why = text(body, width, 10)
+    why:SetPoint("TOPLEFT", 12, y)
+    if self.colors then why:SetTextColor(unpack(self.colors.muted)) end
+    why:SetText(entry.note)
+    y = y - 18
+  end
+
+  return y - 12
 end
 
 -- Answering !keys is a chat setting, not a tile setting, so it lives here where every
@@ -2720,6 +2963,28 @@ function LS:SettingsWindow(body, width, y)
     self:ShowPage("SETTINGS")
   end)
   y = y - 40
+
+  local heading = text(body, width, 13)
+  heading:SetPoint("TOPLEFT", 0, y)
+  heading:SetTextColor(unpack(self.colors.accent))
+  heading:SetText("Editing the dashboard")
+  y = y - 24
+
+  local top = self.EditControlsTop and self:EditControlsTop()
+  local place = button(body, top and "Editing controls: above the tiles" or "Editing controls: below the tiles", width, 30)
+  place:SetPoint("TOPLEFT", 0, y)
+  paint(place, "panel")
+  place:SetScript("OnMouseUp", function()
+    self:SetEditControls(top and "bottom" or "top")
+    self:ShowPage("SETTINGS")
+  end)
+  y = y - 36
+
+  local placeNote = text(body, width, 10)
+  placeNote:SetPoint("TOPLEFT", 0, y)
+  if self.colors then placeNote:SetTextColor(unpack(self.colors.muted)) end
+  placeNote:SetText("Where the add, reset, and compact buttons sit while you are editing. Above keeps them in view on a dashboard taller than the window; below keeps your tiles at the top of the page.")
+  y = y - 46
 
   local clear = button(body, "Clear ignored and completed", width, 32)
   clear:SetPoint("TOPLEFT", 0, y)

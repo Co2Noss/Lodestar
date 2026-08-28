@@ -37,6 +37,7 @@ Libs\WagoAnalytics\Shim.lua
 
 Core.lua
 Analytics.lua
+Profile.lua
 PlayerData.lua
 Knowledge.lua
 Waypoints.lua
@@ -61,6 +62,7 @@ Scoring.lua
 Warband.lua
 Themes.lua
 Minimap.lua
+Broker.lua
 Tips.lua
 UI.lua
 Dashboard.lua

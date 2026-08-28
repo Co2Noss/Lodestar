@@ -311,6 +311,18 @@ function LS:DashboardCanvasSize(width)
   return cellW * CANVAS_COLS, cellH * rows, cellW, cellH
 end
 
+-- How far down the tiles you can actually see reach. Tiles for addons that are not
+-- loaded are skipped, because a gap held open for something invisible is still a gap.
+function LS:DashboardVisibleRows()
+  local used = 0
+  for _, entry in ipairs(self:DashboardLayout()) do
+    if self:WidgetAvailable(self:WidgetSpec(entry.id)) then
+      used = math.max(used, (tonumber(entry.y) or 0) + (tonumber(entry.h) or 0))
+    end
+  end
+  return math.min(used, self:DashboardRows())
+end
+
 function LS:RegisterWidget(spec)
   if type(spec) ~= "table" or not spec.id or not spec.title or type(spec.render) ~= "function" then
     return
@@ -488,6 +500,62 @@ function LS:DashboardRemove(id)
   end
 end
 
+-- Add where the player clicked, rather than wherever the next gap happens to be.
+-- FindDashboardSlot already prefers a spot, so the clicked cell is that preference and
+-- a tile too big for it lands as near as it fits instead of refusing.
+function LS:DashboardAddAt(id, cellX, cellY)
+  local spec = self:WidgetSpec(id)
+  if not spec or self:DashboardHas(id) or not self:WidgetAvailable(spec) then return end
+  local wantW, wantH = SpecSpan(spec)
+  cellX = math.max(0, math.min(CANVAS_COLS - 1, math.floor(tonumber(cellX) or 0)))
+  cellY = math.max(0, math.floor(tonumber(cellY) or 0))
+  -- Nudge left so a wide tile dropped near the right edge still starts on the canvas.
+  local x, y = self:FindDashboardSlot(wantW, wantH, math.min(cellX, CANVAS_COLS - wantW), cellY, id)
+  if not x then
+    local rows = self:DashboardRows()
+    local growTo = math.min(MAX_ROWS, math.max(rows, cellY + wantH))
+    if growTo > rows then
+      self:GrowDashboardRows(growTo)
+      x, y = self:FindDashboardSlot(wantW, wantH, cellX, cellY, id)
+    end
+  end
+  if not x then
+    print("|cff59d8c9Lodestar|r The dashboard canvas is full. Remove a widget or Compact up.")
+    return
+  end
+  local placed = { id = id, x = x, y = y, w = wantW, h = wantH }
+  self:ClampDashboardRect(placed)
+  table.insert(self:DashboardLayout(), placed)
+  if self.Count then self:Count("widget.added." .. tostring(id)) end
+  return placed
+end
+
+function LS:DashboardCellFree(x, y)
+  if not (tonumber(x) and tonumber(y)) then return false end
+  if x < 0 or y < 0 or x >= CANVAS_COLS or y >= self:DashboardRows() then return false end
+  return not self:DashboardCollision(nil, math.floor(x), math.floor(y), 1, 1)
+end
+
+-- Which cell the cursor is over. Guarded throughout: this runs from a click handler,
+-- and a nil here should mean "no menu" rather than an error in the middle of editing.
+function LS:DashboardCellFromCursor(canvas, cellW, cellH)
+  if not (canvas and GetCursorPosition and canvas.GetLeft and canvas.GetTop) then return end
+  if not (tonumber(cellW) and tonumber(cellH)) or cellW <= 0 or cellH <= 0 then return end
+  local ok, cx, cy = pcall(GetCursorPosition)
+  if not ok or not tonumber(cx) then return end
+  local scale = 1
+  if canvas.GetEffectiveScale then
+    local fine, got = pcall(canvas.GetEffectiveScale, canvas)
+    if fine and tonumber(got) and got > 0 then scale = got end
+  end
+  local left, top = canvas:GetLeft(), canvas:GetTop()
+  if not (tonumber(left) and tonumber(top)) then return end
+  local x = math.floor((cx / scale - left) / cellW)
+  local y = math.floor((top - cy / scale) / cellH)
+  if x < 0 or y < 0 or x >= CANVAS_COLS or y >= self:DashboardRows() then return end
+  return x, y
+end
+
 function LS:DashboardMove(id, index)
   local layout = self:DashboardLayout()
   local from
@@ -500,6 +568,45 @@ function LS:DashboardMove(id, index)
   table.insert(layout, index, entry)
 end
 
+-- Whether these two rectangles can both be had, with every other tile left where it is.
+-- Checked as a pair rather than one at a time, because a swap moves two tiles at once
+-- and each would look like a collision with the other if they were tested separately.
+local function PairFits(self, moved, movedId, other, otherId)
+  local rows = self:DashboardRows()
+  for _, r in ipairs({ moved, other }) do
+    if r.x < 0 or r.y < 0 or r.x + r.w > CANVAS_COLS or r.y + r.h > rows then return false end
+  end
+  if RectsOverlap(moved, other) then return false end
+  for _, entry in ipairs(self:DashboardLayout()) do
+    if entry.id ~= movedId and entry.id ~= otherId then
+      if RectsOverlap(moved, entry) or RectsOverlap(other, entry) then return false end
+    end
+  end
+  return true
+end
+
+-- Dropping a tile on another one trades places with it, which is what dragging one tile
+-- onto another looks like it should do. Only when both tiles fit in the other's
+-- footprint: a wide tile cannot take a half tile's place, and quietly resizing one to
+-- make it work would lose the size the player chose.
+function LS:TrySwapWidgets(id, want, otherId)
+  local mine, other
+  for _, row in ipairs(self:DashboardLayout()) do
+    if row.id == id then mine = row end
+    if row.id == otherId then other = row end
+  end
+  if not mine or not other then return false end
+
+  local moved = { x = want.x, y = want.y, w = want.w, h = want.h }
+  local swapped = { x = want.fromX, y = want.fromY, w = other.w, h = other.h }
+  if not PairFits(self, moved, id, swapped, otherId) then return false end
+
+  mine.x, mine.y, mine.w, mine.h = moved.x, moved.y, moved.w, moved.h
+  other.x, other.y = swapped.x, swapped.y
+  if self.Count then self:Count("widget.swapped") end
+  return true
+end
+
 function LS:DashboardPlace(id, x, y, w, h)
   for _, entry in ipairs(self:DashboardLayout()) do
     if entry.id == id then
@@ -509,13 +616,34 @@ function LS:DashboardPlace(id, x, y, w, h)
       if w ~= nil then entry.w = w end
       if h ~= nil then entry.h = h end
       self:ClampDashboardRect(entry)
-      if self:DashboardCollision(entry.id, entry.x, entry.y, entry.w, entry.h) then
-        local nx, ny = self:FindDashboardSlot(entry.w, entry.h, entry.x, entry.y, entry.id)
-        if nx then
-          entry.x, entry.y = nx, ny
-        else
-          entry.x, entry.y, entry.w, entry.h = prev.x, prev.y, prev.w, prev.h
+      local hit = self:DashboardCollision(entry.id, entry.x, entry.y, entry.w, entry.h)
+      if hit then
+        local resized = prev.w ~= entry.w or prev.h ~= entry.h
+        local want = {
+          x = entry.x, y = entry.y, w = entry.w, h = entry.h,
+          fromX = prev.x, fromY = prev.y,
+        }
+        -- Put the tile back first, so the swap is judged against the board as it stands
+        -- rather than against a half-applied move.
+        entry.x, entry.y, entry.w, entry.h = prev.x, prev.y, prev.w, prev.h
+        if not resized and self:TrySwapWidgets(id, want, hit) then
+          self.dashboardNote = nil
+          return entry
         end
+        -- No swap available, so say what happened. Sliding a tile somewhere the player
+        -- did not aim for, with no explanation, reads as the drag having been ignored.
+        local other = self:WidgetTitle(self:WidgetSpec(hit)) or hit
+        local nx, ny = self:FindDashboardSlot(want.w, want.h, want.x, want.y, id)
+        if nx then
+          entry.x, entry.y, entry.w, entry.h = nx, ny, want.w, want.h
+          self.dashboardNote = (resized and "Resizing there would overlap " or "That spot is taken by ")
+            .. other .. ", and the two cannot trade places, so this tile moved to the nearest free spot."
+        else
+          self.dashboardNote = "That would overlap " .. other
+            .. ", and there is no room anywhere else at this size. Resize one of them first."
+        end
+      else
+        self.dashboardNote = nil
       end
       return entry
     end
@@ -551,8 +679,13 @@ function LS:WidgetOpts(id)
   return {}
 end
 
+-- Options live on the tile's layout entry, so a tile that is not on the dashboard has
+-- nowhere to keep them. Saying so lets the caller explain itself rather than appearing
+-- to save a choice that went nowhere.
 function LS:SetWidgetOpt(id, key, value)
+  if not self:DashboardHas(id) then return false end
   self:WidgetOpts(id)[key] = value
+  return true
 end
 
 function LS:WidgetOptOn(id, key, default)
@@ -876,6 +1009,18 @@ function LS:SetDashboardEdit(on)
   if self.page == "DASHBOARD" then self:ShowPage("DASHBOARD") end
 end
 
+function LS:EditControlsTop()
+  return not (self.db and self.db.editControls == "bottom")
+end
+
+function LS:SetEditControls(where)
+  where = where == "top" and "top" or "bottom"
+  self.db.editControls = where
+  if self.Count then self:Count("dashboard.editControls." .. where) end
+  if self.page == "DASHBOARD" then self:ShowPage("DASHBOARD") end
+  return where
+end
+
 -- Token price is whatever the client last published. History is samples we saw,
 -- not an invented chart.
 function LS:RequestTokenPrice()
@@ -983,6 +1128,77 @@ function LS:PaintSparkline(parent, history, width, y, colors, style, chartH)
   return y - chartH - 8
 end
 
+-- Clicking bare canvas offers what can go there. Only one of these exists at a time,
+-- so a second click somewhere else moves the menu rather than leaving a trail of them.
+function LS:CloseWidgetPicker()
+  if self.widgetPicker then
+    self.widgetPicker:Hide()
+    self.widgetPicker = nil
+  end
+end
+
+function LS:AvailableWidgetsToAdd()
+  local out = {}
+  for _, spec in ipairs(self.widgetCatalog or {}) do
+    if self:WidgetAvailable(spec) and not self:DashboardHas(spec.id) then
+      table.insert(out, spec)
+    end
+  end
+  return out
+end
+
+function LS:OpenWidgetPicker(canvas, cellX, cellY, cellW, cellH)
+  local w = self.widgets
+  self:CloseWidgetPicker()
+  local specs = self:AvailableWidgetsToAdd()
+
+  local menu = w.panel(canvas)
+  menu:SetFrameStrata("FULLSCREEN_DIALOG")
+  menu:SetWidth(210)
+  w.paint(menu, "panel")
+  if self.colors then menu:SetBackdropBorderColor(unpack(self.colors.accent)) end
+  -- Anchored to the cell, so the menu appears where the click was.
+  menu:SetPoint("TOPLEFT", canvas, "TOPLEFT", cellX * cellW, -cellY * cellH)
+  self.widgetPicker = menu
+
+  if #specs == 0 then
+    menu:SetHeight(52)
+    local none = w.text(menu, 194, 11)
+    none:SetPoint("TOPLEFT", 8, -10)
+    none:SetText("Every widget is already on the dashboard.")
+    local close = w.button(menu, "Close", 60, 20, 10)
+    close:SetPoint("TOPLEFT", 8, -28)
+    close:SetScript("OnMouseUp", function() self:CloseWidgetPicker() end)
+    return menu
+  end
+
+  local heading = w.text(menu, 194, 10)
+  heading:SetPoint("TOPLEFT", 8, -8)
+  if self.colors then heading:SetTextColor(unpack(self.colors.muted)) end
+  heading:SetText("Add here")
+
+  local shown = math.min(#specs, 10)
+  menu:SetHeight(30 + shown * 24 + (#specs > shown and 18 or 0))
+  for i = 1, shown do
+    local spec = specs[i]
+    local dw, dh = SpecSpan(spec)
+    local row = w.button(menu, self:WidgetTitle(spec) .. "  " .. dw .. "×" .. dh, 194, 22, 10)
+    row:SetPoint("TOPLEFT", 8, -22 - (i - 1) * 24)
+    row:SetScript("OnMouseUp", function()
+      self:CloseWidgetPicker()
+      self:DashboardAddAt(spec.id, cellX, cellY)
+      self:ShowPage("DASHBOARD")
+    end)
+  end
+  if #specs > shown then
+    local more = w.text(menu, 194, 10)
+    more:SetPoint("TOPLEFT", 8, -22 - shown * 24)
+    if self.colors then more:SetTextColor(unpack(self.colors.muted)) end
+    more:SetText("and " .. (#specs - shown) .. " more below the canvas")
+  end
+  return menu
+end
+
 function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
   local w = self.widgets
   local spec = self:WidgetSpec(entry.id)
@@ -995,11 +1211,13 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
   chrome:SetSize(width, height)
   w.paint(chrome)
 
-  local title = w.text(chrome, width - (edit and 90 or 16), 12)
+  local titleW = math.max(40, width - (edit and 90 or 16))
+
+  local title = w.text(chrome, titleW, 12)
   title:SetPoint("TOPLEFT", 10, -6)
   title:SetTextColor(unpack(self.colors.accent))
   title:SetText(self:WidgetTitle(spec))
-  if self.FitText then self:FitText(title, width - (edit and 90 or 16), 1) end
+  if self.FitText then self:FitText(title, titleW, 1) end
 
   if edit then
     local remove = w.button(chrome, "Remove", 74, 20, 10)
@@ -1009,6 +1227,9 @@ function LS:RenderWidgetChrome(canvas, entry, cellW, cellH)
       self:DashboardRemove(entry.id)
       self:ShowPage("DASHBOARD")
     end)
+
+    -- Dragging a tile the length of a full canvas is fiddly, so top and bottom are one
+    -- click. Only on a tile wide enough to hold them beside its title.
   end
 
   local body = CreateFrame("Frame", nil, chrome)
@@ -1142,11 +1363,20 @@ function LS:DashboardPage()
   heading:SetText("Dashboard")
   local line = w.text(self.content, width - 120, 11)
   line:SetPoint("TOPLEFT", 0, -32)
-  line:SetText(editing
-    and ("Drag to move. Drag an edge or corner to resize. Widgets cannot overlap. Canvas is "
-      .. CANVAS_COLS .. " × " .. self:DashboardRows() .. " cells, and grows down to "
-      .. MAX_ROWS .. ".")
-    or "Tiles you pick. Edit dashboard to add, move, or resize them.")
+  -- A drop that could not go where it was aimed leaves a note behind, shown once in
+  -- place of the usual hint and then cleared, so it is tied to the drag that caused it.
+  local note = self.dashboardNote
+  self.dashboardNote = nil
+  if editing and note then
+    line:SetText(note)
+    line:SetTextColor(unpack(self.colors.warn or self.colors.accent))
+  else
+    line:SetText(editing
+      and ("Click empty canvas to add a tile there. Drag one tile onto another to trade places. Canvas is "
+        .. CANVAS_COLS .. " × " .. self:DashboardRows() .. " cells, and grows down to "
+        .. MAX_ROWS .. ".")
+      or "Tiles you pick. Edit dashboard to add, move, or resize them.")
+  end
 
   local edit = w.button(self.content, editing and "Done editing" or "Edit dashboard", 110, 26, 11)
   edit:SetPoint("TOPRIGHT", 0, -2)
@@ -1187,9 +1417,25 @@ function LS:DashboardPage()
     return
   end
 
+  -- The editing controls sit above the canvas, where they are visible the moment
+  -- editing starts. Under it is the alternative, for anyone who would rather their
+  -- tiles stayed at the top of the page.
+  local topControls = editing and self:EditControlsTop()
+  local canvasTop = 0
+  if topControls then
+    canvasTop = self:RenderDashboardControls(body, 0) - 12
+  end
+
   local canvasW, canvasH, cellW, cellH = self:DashboardCanvasSize(body.width)
+  -- Outside edit mode the empty rows below the last tile are just blank page, and the
+  -- scrollbar they create suggests there is something further down. The grid keeps its
+  -- full height while editing, since that empty space is where tiles get dropped.
+  if not editing then
+    local used = self:DashboardVisibleRows()
+    if used > 0 then canvasH = math.min(canvasH, used * cellH) end
+  end
   local canvas = w.panel(body)
-  canvas:SetPoint("TOPLEFT", 0, 0)
+  canvas:SetPoint("TOPLEFT", 0, canvasTop)
   canvas:SetSize(canvasW, canvasH)
   w.paint(canvas, "panel")
   if self.colors then
@@ -1197,7 +1443,19 @@ function LS:DashboardPage()
     canvas:SetBackdropColor(bg[1], bg[2], bg[3], 0.35)
   end
   self.dashboardCanvas = canvas
+  self:CloseWidgetPicker()
   if editing then
+    -- Clicking bare canvas adds a tile there, which beats adding from the list below
+    -- and then dragging it up to where you wanted it.
+    if canvas.EnableMouse then canvas:EnableMouse(true) end
+    canvas:SetScript("OnMouseUp", function()
+      local cellX, cellY = self:DashboardCellFromCursor(canvas, cellW, cellH)
+      if not cellX or not self:DashboardCellFree(cellX, cellY) then
+        self:CloseWidgetPicker()
+        return
+      end
+      self:OpenWidgetPicker(canvas, cellX, cellY, cellW, cellH)
+    end)
     local bound = w.text(canvas, canvasW - 16, 10)
     bound:SetPoint("BOTTOMLEFT", 8, 6)
     bound:SetTextColor(unpack(self.colors.muted))
@@ -1212,8 +1470,19 @@ function LS:DashboardPage()
   end
   if self.ReleasePlan then self:ReleasePlan() end
 
-  local y = -canvasH - 10
-  if editing then
+  local y = canvasTop - canvasH - 10
+  if editing and not topControls then
+    y = self:RenderDashboardControls(body, y)
+  end
+
+  body:finish(-y + 10)
+end
+
+-- Adding tiles, resetting, and compacting. Pulled out of DashboardPage so it can be
+-- drawn either above or below the canvas without the two copies drifting apart.
+function LS:RenderDashboardControls(body, y)
+  local w = self.widgets
+  do
     local addHeading = w.text(body, body.width, 12)
     addHeading:SetPoint("TOPLEFT", 0, y)
     addHeading:SetTextColor(unpack(self.colors.accent))
@@ -1258,10 +1527,21 @@ function LS:DashboardPage()
       self:DashboardCompactUp()
       self:ShowPage("DASHBOARD")
     end)
+
+    -- Here as well as in Settings, because someone who wants these controls moved is
+    -- looking at them, not at a settings page.
+    local top = self:EditControlsTop()
+    local place = w.button(body, top and "Move these to the bottom" or "Move these to the top", 190, 28)
+    place:SetPoint("TOPLEFT", 296, y)
+    w.paint(place, "panel")
+    place:SetScript("OnMouseUp", function()
+      self:SetEditControls(top and "bottom" or "top")
+      self:ShowPage("DASHBOARD")
+    end)
     y = y - 36
   end
 
-  body:finish(-y + 10)
+  return y
 end
 
 local function RegisterBuiltins()

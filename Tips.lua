@@ -179,6 +179,22 @@ LS.FAQ = {
     a = "Yes, without Astral Keys or Details. Guilds of WoW, Details, and REKeys ask LibOpenRaid for the guild's keys, and Lodestar embeds that library so your client answers for itself. Lodestar sends nothing on its own; the library replies when another client asks, on login, and when a run ends. Only the key, dungeon, class, and rating go out.",
   },
   {
+    q = "How do I put a tile exactly where I want it?",
+    a = "Edit dashboard, then click the empty canvas where you want it: Lodestar offers the tiles that fit there and drops the one you pick at that spot. Dragging a tile onto another trades their places when both fit where the other was, and says which tile is in the way when they do not. The add, reset, and compact buttons sit above the canvas; the button beside them, or Settings → Layout, moves them under your tiles instead.",
+  },
+  {
+    q = "What are the two numbers on a Mythic+ dungeon?",
+    a = "The large one is your best key level in that dungeon; the smaller one under it is that dungeon's rating, coloured by what the rating is worth rather than by the key level. Hover a dungeon for the rating, your best run, and its time. Edit dashboard → Mythic+ → Rating per dungeon turns the small number off.",
+  },
+  {
+    q = "Why can't I pick currencies?",
+    a = "Because the picks are stored on the Currencies tile, so without that tile on your dashboard there is nowhere to keep them and nothing to show them on. Settings → Currencies says so and has a button to add the tile. Once it is there, each row can show what you have, what you have out of the cap, or how much is left to earn. If you track more currencies than the tile can show, scroll it with the mouse wheel: the bottom line counts the rows above and below.",
+  },
+  {
+    q = "Can I move my settings to another install, or share them?",
+    a = "Settings → Backup & Share. Share carries settings and your dashboard layout and is safe to hand to anyone. Backup adds what you have finished, ignored and tracked, for moving your own install. Copy puts it on the clipboard; paste it into the box on the other install and press Load. Neither string carries your characters: that list rebuilds itself as you log in on each one.",
+  },
+  {
     q = "What usage data does Lodestar collect?",
     a = "Which of its own tiles, goals, pages and settings you use, and which optional addons are loaded, so parts nobody uses can be fixed or dropped instead of guessed about. Never your character, realm, guild, or anything you typed. Nothing is sent at all unless you installed the Wago App and turned data sharing on there; without it these numbers stay on your machine and go away when you log out. If that app is sharing, Settings → Optional Addons → Usage data turns Lodestar's share of it off. /ls analytics prints the lot either way.",
   },

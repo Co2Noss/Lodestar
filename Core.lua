@@ -55,6 +55,16 @@ LS.defaults = {
   -- Turning this off stops Lodestar recording at all; see Analytics.lua for what is
   -- collected, or /ls analytics for the actual contents.
   analytics = true,
+
+  -- What Lodestar's LibDataBroker object reads, for ElvUI, TukUI, Titan Panel and the
+  -- rest. The name is the default because a datatext that changes its own width every
+  -- few seconds shoves everything beside it around.
+  broker = "name",
+
+  -- Where the add/reset/compact controls sit while editing the dashboard. Above the
+  -- canvas by default: a dashboard taller than the window puts them off the bottom of
+  -- the page, where someone who just pressed Edit dashboard will not find them.
+  editControls = "top",
   keystone = {
     reply = true,
     channels = {
@@ -447,6 +457,9 @@ local function RefreshState()
   if LS.RequestTokenPrice then LS:RequestTokenPrice() end
   if LS.RecordTokenPrice then LS:RecordTokenPrice() end
   if LS.RecordAccountGold then LS:RecordAccountGold() end
+  -- The datatext reads from the same scan the window does, so it never shows a number
+  -- older than what Lodestar itself is showing.
+  if LS.UpdateBroker then LS:UpdateBroker() end
   PaintWindow({ full = true })
 end
 
@@ -649,6 +662,9 @@ events:SetScript("OnEvent", function(_, event, arg, ...)
     -- After RefreshState, so the snapshot describes a scanned character rather than
     -- an empty one, and after the print so nothing here can delay the login message.
     if LS.StartAnalytics then pcall(LS.StartAnalytics, LS) end
+    -- At login, because the display addon that carries LibDataBroker may well have
+    -- loaded after Lodestar did.
+    if LS.StartBroker then pcall(LS.StartBroker, LS) end
     return
   end
   if event == "PLAYER_ENTERING_WORLD" then
