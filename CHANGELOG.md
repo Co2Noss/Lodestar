@@ -41,7 +41,7 @@
   HandyNotes or added by another addon. Those are skipped and counted rather than
   imported as holes in the dashboard.
 
-# 1.5.62
+# 1.5.7
 
 - Lodestar counts which of its own tiles, goals, pages, and settings actually get
   used, so the parts nobody touches can be fixed or dropped rather than kept on a

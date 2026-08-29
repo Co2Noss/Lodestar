@@ -102,7 +102,7 @@ LS.CHANGELOG = {
     },
   },
   {
-    version = "1.5.62",
+    version = "1.5.7",
     notes = {
       "Lodestar counts which tiles and goals get used, so the ones nobody uses can be fixed or dropped.",
       "It never records your character, realm, guild, or anything you typed. /ls analytics prints all of it.",
