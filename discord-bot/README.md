@@ -15,7 +15,7 @@ Discord bot for the [Lodestar Guide](https://discord.gg/a7hrHavcwq) server. It b
 - **GitHub feeds** — the bot keeps Discord webhooks named **Lodestar GitHub** (compass icon) in `#git-commits`, `#github-releases`, and `#github-issues`, then posts new activity from `Co2Noss/Lodestar` about once a minute. `#github-issues` is issues only (opened or updated), not pull requests. First poll only sets a watermark so old history is not dumped.
 - **`/help`** — short map of the server.
 
-Roles: **Unverified**, **Member**, **Developer**, **Moderator**, **Support**, **Bot**. New joins get Unverified until they pass the rules. Co2Noss is assigned Developer, Moderator, and Support. Bots get Bot.
+Roles: **Unverified**, **Member**, **Developer**, **Moderator**, **Support**, **Bot**. New joins get Unverified until they pass the rules. Staff Discord IDs are listed in `.env` as `DEVELOPER_USER_IDS`. Bots get Bot.
 
 Custom emojis live in `emojis/` and upload on bot start: `:lodestar:` (the compass), plus WoW-style `:gold:` `:vault:` `:profession:` `:quest:` `:pvp:` `:flask:` `:bag:`. They are original icons, not Blizzard art.
 
@@ -23,21 +23,26 @@ First login also runs setup if `#get-help` is missing, so inviting the bot with 
 
 ## Run it
 
-1. Discord Developer Portal → **Lodestar Support** → **Bot**
+**Secrets never go in `src/config.js`.** Copy `.env.example` to `.env` and fill in your bot token, application ID, guild ID, and staff user IDs. Without a complete `.env` the process exits immediately. See [SECURITY.md](./SECURITY.md).
+
+1. Discord Developer Portal → your application → **Bot**
    - Enable **SERVER MEMBERS INTENT** and **MESSAGE CONTENT INTENT**
-   - Copy the token
-2. Invite the bot with Administrator (or Manage Channels + Manage Roles + Send Messages + Embed Links + Manage Messages + Use Application Commands). Include the `applications.commands` scope.
-3. From this folder:
+   - Copy the token into `.env` as `DISCORD_TOKEN`
+2. Invite the bot to **your** support server with Administrator (or Manage Channels + Manage Roles + Send Messages + Embed Links + Manage Messages + Use Application Commands). Include the `applications.commands` scope.
+3. Set `DISCORD_GUILD_ID` in `.env` to that server's ID. The bot **leaves any other server** it is added to.
+4. From this folder:
 
 ```bash
 cp .env.example .env
-# paste DISCORD_TOKEN=
+# fill DISCORD_TOKEN, DISCORD_CLIENT_ID, DISCORD_GUILD_ID, DEVELOPER_USER_IDS
 npm install
 npm start
 ```
 
-4. Drag the **Lodestar Support** bot role above Developer, Moderator, Support, and Bot in Server Settings → Roles.
-5. Slash commands appear within a few seconds. Rebuild later with `/setup`.
+5. Drag the bot role above Developer, Moderator, Support, and Bot in Server Settings → Roles.
+6. Slash commands appear within a few seconds. Rebuild later with `/setup`.
+
+If this repository was ever public with old defaults in `config.js`, **reset the bot token** in the Developer Portal and update `.env`.
 
 The process must stay running. When it stops, the bot goes offline and tickets stop working. A VPS, Railway, Fly.io, or a home machine is enough. `Dockerfile` is in this folder if you prefer a container.
 

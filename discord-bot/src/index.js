@@ -24,8 +24,13 @@ const github = require("./github");
 const feeds = require("./feeds");
 const { channelSlug } = require("./names");
 
-if (!config.token) {
-  console.error("Missing DISCORD_TOKEN. Copy discord-bot/.env.example to discord-bot/.env and paste the bot token.");
+const missing = config.missing();
+if (missing.length) {
+  console.error(
+    "Missing required environment variables: " + missing.join(", ") + ".\n"
+      + "Copy discord-bot/.env.example to discord-bot/.env and fill it in.\n"
+      + "The bot token and server ID are never stored in the repository."
+  );
   process.exit(1);
 }
 
@@ -97,7 +102,19 @@ function hasChannelSlug(guild, slug) {
   return guild.channels.cache.some((c) => channelSlug(c.name) === slug);
 }
 
+async function rejectForeignGuild(guild, reason) {
+  if (!guild || config.isAllowedGuild(guild)) return false;
+  console.warn(`Leaving unauthorized guild ${guild.name} (${guild.id})${reason ? `: ${reason}` : ""}`);
+  try {
+    await guild.leave();
+  } catch (err) {
+    console.error(`Could not leave guild ${guild.id}:`, err.message);
+  }
+  return true;
+}
+
 async function prepareGuild(guild) {
+  if (await rejectForeignGuild(guild)) return;
   try {
     await guild.commands.set(commands);
     console.log(`Registered commands in ${guild.name}`);
@@ -156,6 +173,7 @@ function bind(client) {
     console.log(`Logged in as ${client.user.tag}`);
     client.user.setActivity("Lodestar support · /faq", { type: ActivityType.Listening });
     for (const guild of client.guilds.cache.values()) {
+      if (await rejectForeignGuild(guild, "configured for a different server")) continue;
       await prepareGuild(guild);
       try {
         const report = [];
@@ -168,15 +186,21 @@ function bind(client) {
     feeds.start(client);
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
+        if (!config.isAllowedGuild(guild)) continue;
         github.syncGuild(guild).catch((err) => console.error("GitHub sync failed:", err));
       }
     }, 15 * 60 * 1000).unref();
   };
   client.once("clientReady", onReady);
 
-  client.on("guildCreate", (guild) => prepareGuild(guild));
+  client.on("guildCreate", (guild) => {
+    rejectForeignGuild(guild, "invited outside the configured server").then((left) => {
+      if (!left) prepareGuild(guild);
+    });
+  });
 
   client.on("guildMemberAdd", async (member) => {
+    if (!config.isAllowedGuild(member.guild)) return;
     const botRole = roleByName(member.guild, "Bot");
     if (member.user.bot) {
       if (botRole && !member.roles.cache.has(botRole.id)) {
@@ -207,6 +231,7 @@ function bind(client) {
   });
 
   client.on("guildMemberUpdate", async (oldMember, newMember) => {
+    if (!config.isAllowedGuild(newMember.guild)) return;
     if (newMember.user.bot) return;
     const role = roleByName(newMember.guild, "Member");
     if (!role) return;
@@ -215,6 +240,7 @@ function bind(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    if (message.guild && !config.isAllowedGuild(message.guild)) return;
     try {
       if (await verification.maybeHoneypot(message)) return;
     } catch (err) {
@@ -255,6 +281,7 @@ function bind(client) {
 }
 
 async function handleInteraction(interaction) {
+  if (interaction.guild && !config.isAllowedGuild(interaction.guild)) return;
   if (interaction.isAutocomplete()) {
     const typed = interaction.options.getFocused().toLowerCase();
     const choices = faqChoices()

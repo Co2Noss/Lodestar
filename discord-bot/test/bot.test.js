@@ -359,3 +359,24 @@ describe("github feeds", () => {
     assert.equal(resolveHookRecord({}, "git-commits"), null);
   });
 });
+
+describe("config", () => {
+  const config = require("../src/config");
+
+  it("parses github link pairs from env format", () => {
+    assert.deepEqual(config.parseGithubLinks("111:Alice,222:bob"), {
+      111: "Alice",
+      222: "bob",
+    });
+    assert.deepEqual(config.parseGithubLinks(""), {});
+  });
+
+  it("treats only the configured guild as allowed", () => {
+    if (!config.guildId) {
+      assert.equal(config.isAllowedGuild({ id: "anything" }), false);
+      return;
+    }
+    assert.equal(config.isAllowedGuild({ id: config.guildId }), true);
+    assert.equal(config.isAllowedGuild({ id: "someone-elses-server" }), false);
+  });
+});
