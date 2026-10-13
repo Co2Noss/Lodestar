@@ -590,6 +590,31 @@ function LS:WeeklyResetKey()
   return tostring(math.floor(now / 604800))
 end
 
+function LS:WeeklyResetLabel()
+  local secs = Safe(C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset)
+  if type(secs) ~= "number" or secs <= 0 then return end
+  local days = math.floor(secs / 86400)
+  local hours = math.floor((secs % 86400) / 3600)
+  if days > 0 then return string.format("resets in %dd %dh", days, hours) end
+  if hours > 0 then return string.format("resets in %dh", hours) end
+  local mins = math.floor(secs / 60)
+  return string.format("resets in %dm", math.max(1, mins))
+end
+
+function LS:VaultSlotRewardIlvl(slot)
+  if not slot then return end
+  local current = RewardItemLevels(slot.id)
+  return current
+end
+
+-- locked = empty, progress = started, unlocked = filled. Hue follows state, not row.
+function LS:VaultSlotVisualState(slot)
+  if not slot then return "locked" end
+  if slot.complete then return "unlocked" end
+  if (slot.progress or 0) > 0 then return "progress" end
+  return "locked"
+end
+
 function LS:HasUnclaimedVault()
   if Safe(C_WeeklyRewards and C_WeeklyRewards.HasAvailableRewards) then return true end
   if Safe(C_WeeklyRewards and C_WeeklyRewards.HasGeneratedRewards) then return true end

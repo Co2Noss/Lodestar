@@ -87,13 +87,41 @@ LS.TIPS = {
     settingsTab = "CURRENCIES",
     highlight = "tab:CURRENCIES",
   },
+  {
+    id = "vault_grid",
+    title = "Great Vault grid",
+    body = "Edit dashboard → add or resize Great Vault → Slot grid shows all nine slots with progress bars and reward item level when filled. Click a slot to open that row on the Great Vault page.",
+    page = "DASHBOARD",
+    highlight = "edit",
+  },
+  {
+    id = "planning_gear",
+    title = "Gear page",
+    body = "Planning → Gear uses a character-panel layout: gear columns around your model, rarity borders and item level on each slot, and a stats panel with DR brackets. Use Settings on that panel to pick which stats show. Install SpecBiS Tooltip for BiS gearing.",
+    page = "GEAR",
+  },
 }
 
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.6.1",
+    notes = {
+      "Planning → Gear shows your primary stat and Stamina, and every stat carries its percentage like the character sheet.",
+      "Track opens your stats in a small window you can move, resize from its corner grip, and close.",
+      "A 3D model switch in the stats settings swaps the character model for your spec icon on low-end machines.",
+      "With SpecBiS Tooltip installed, a BiS list under the character panel shows each slot's BiS status and where it drops.",
+      "!keys no longer answers in guild or officer chat, where the game blocks it. Guild tools still see your key.",
+      "Updated for patch 12.1.5.",
+    },
+  },
+  {
     version = "1.6",
     notes = {
+      "Great Vault tile: slot grid with progress, item level, and reset timer.",
+      "Tonight tile replaces Next on the dashboard: top recommendations in compact cards.",
+      "Planning → Gear: armory layout with ilvl, enchants, gems, DR stat bars, and SpecBiS Tooltip BiS lists.",
+      "Gear cards on Today's Plan use View gear only (no duplicate Details).",
       "Each Mythic+ dungeon icon now carries that dungeon's own rating under its key level.",
       "The Currencies tile fits more in: smaller rows, and an amount column measured from the amounts themselves rather than a fixed share of the tile",
       "**Fixed:** picking currencies in Settings did nothing at all when the Currencies tile was not on the dashboard, because the picks are stored on the tile. The page now says so and offers to add the tile.",
@@ -129,17 +157,6 @@ LS.CHANGELOG = {
       "Completed tasks fill in when Lodestar can tell the work is done, with expansion-specific profession names.",
     },
   },
-  {
-    version = "1.5.5",
-    notes = {
-      "Changelog is its own left-menu page, under Settings and above FAQ.",
-      "The Guild tile shows your rank from the client. Edit dashboard can turn that line off.",
-      "Help copies Discord and GitHub from the click itself, with those marks from addon media.",
-      "Spare knowledge on a finished tree stays off Today. All expansions still tracks weeklies and treasures.",
-      "Professions and gold default to this expansion. Settings → Goals can switch to All expansions or focus an older one. Reputation starts on this expansion.",
-      "Clicking the Professions page no longer opens a profession window on other pages.",
-    },
-  },
 }
 
 -- In-game FAQ. Keep this in step with the wiki FAQ page.
@@ -165,12 +182,12 @@ LS.FAQ = {
     a = "HandyNotes by itself has no coordinates. You need a notes pack (Midnight, Silvermoon, and many others). Lodestar ranks rares that pack is currently showing, not treasures or city marks.",
   },
   {
-    q = "Why did !keys not answer in guild chat?",
-    a = "The game blocks addons from sending chat while you are in a dungeon, raid, encounter or PvP match. Lodestar checks first, so instead of an error it prints the key to your own chat frame with the reason. You can still link it yourself from the Mythic+ tile.",
+    q = "Why does !keys not answer in guild chat?",
+    a = "The game blocks addons from sending to guild and officer chat, so Lodestar only answers in party, raid, instance and whispers. Guild tools such as Guilds of WoW and Details still see your key through LibOpenRaid. In dungeons, raids and PvP matches the game blocks the rest too; Lodestar prints the key to your own chat frame instead. You can always link it yourself from the Mythic+ tile.",
   },
   {
     q = "Why does !keys say I have no key?",
-    a = "Lodestar reads your keystone from the client, not from another addon, so it answers !keys on its own. Settings → Optional Addons picks the channels it answers on. If another keystone addon already answers in your guild, turn that one channel off and keep the rest. The Mythic+ tile always names the key in your bags.",
+    a = "Lodestar reads your keystone from the client, not from another addon, so it answers !keys on its own. Settings → Optional Addons picks the channels it answers on. If another keystone addon already answers in your group, turn that one channel off and keep the rest. The Mythic+ tile always names the key in your bags.",
   },
   {
     q = "Does my guild's keystone list see my key?",
@@ -327,6 +344,8 @@ LS.OPTIONAL_ADDONS = {
     ready = function()
       return C_AddOns and C_AddOns.IsAddOnLoaded and (C_AddOns.IsAddOnLoaded("EllesmereUI") or C_AddOns.IsAddOnLoaded("EllesmereUIBlizzardSkin"))
     end },
+  { name = "SpecBiS Tooltip", addon = "SpecBisTooltip",
+    ready = function(self) return self.HasSpecBisTooltip and self:HasSpecBisTooltip() end },
   { name = "Great Vault Key Info", addon = "GreatVaultKeyInfo" },
 }
 

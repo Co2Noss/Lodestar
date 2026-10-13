@@ -74,8 +74,9 @@ local function ItemFacts(itemID, link)
     icon = instantIcon
     classID, subclassID = c, sc
   end
-  if GetItemInfo then
-    local ok, n, itemLink, q, level, _, _, _, _, _, tex, _, c, sc, _, expac = pcall(GetItemInfo, key)
+  local info = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if info then
+    local ok, n, itemLink, q, level, _, _, _, _, _, tex, _, c, sc, _, expac = pcall(info, key)
     if ok then
       name = n or name
       quality = q or quality
@@ -122,8 +123,9 @@ local function Better(a, b)
 end
 
 local function BagCount(itemID, fallback)
-  if itemID and GetItemCount then
-    local n = GetItemCount(itemID)
+  local count = (C_Item and C_Item.GetItemCount) or GetItemCount
+  if itemID and count then
+    local n = count(itemID)
     if tonumber(n) then return tonumber(n) end
   end
   return fallback or 0

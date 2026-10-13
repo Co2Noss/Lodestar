@@ -565,6 +565,27 @@ end
 UnitName = function() return "Testchar" end
 GetRealmName = function() return "Testrealm" end
 UnitLevel = function() return 90 end
+CR_CRIT_SPELL = 11
+CR_HASTE_SPELL = 20
+CR_MASTERY = 26
+CR_VERSATILITY_DAMAGE_DONE = 29
+CR_LIFESTEAL = 17
+CR_AVOIDANCE = 21
+CR_SPEED = 14
+CombatRatings = {
+  [CR_CRIT_SPELL] = 4500,
+  [CR_HASTE_SPELL] = 5200,
+  [CR_MASTERY] = 4800,
+  [CR_VERSATILITY_DAMAGE_DONE] = 4100,
+  [CR_LIFESTEAL] = 200,
+  [CR_AVOIDANCE] = 150,
+  [CR_SPEED] = 100,
+}
+GetCombatRating = function(id) return CombatRatings[id] or 0 end
+issecretvalue = function() return false end
+C_Secrets = {
+  ShouldUnitStatsBeSecret = function() return false end,
+}
 GetMaxLevelForPlayerExpansion = function() return 90 end
 GetExpansionLevel = function() return 11 end
 NUM_BAG_SLOTS = 4
@@ -587,6 +608,7 @@ GetAverageItemLevel = function()
   return AverageItemLevel or 0, EquippedItemLevel or 0, 0
 end
 EquipmentLinks, EquipmentQuality, EquipmentTexture = {}, {}, {}
+ItemUpgradeByLink = {}
 GetInventoryItemLink = function(_, slot) return EquipmentLinks[slot] end
 GetInventoryItemQuality = function(_, slot) return EquipmentQuality[slot] end
 GetInventoryItemTexture = function(_, slot) return EquipmentTexture[slot] end
@@ -650,7 +672,11 @@ GetPersonalRatedInfo = function(index)
 end
 UnitClass = function() return "Mage", "MAGE" end
 GetSpecialization = function() return 1 end
-GetSpecializationInfo = function() return 62, "Arcane" end
+GetSpecializationInfo = function() return 62, "Arcane", nil, nil, "DAMAGER", 4 end
+UnitStat = function(unit, index)
+  local vals = { 12000, 8500, 48000, 11000 }
+  return vals[index] or 0, vals[index] or 0
+end
 GetProfessions = function() return 1, 2, 3, 4, 5 end
 GetProfessionInfo = function(index)
   if index == 1 then return "Alchemy", 136240, 100, 100, nil, nil, 171, 0, nil, nil, "Alchemy" end
@@ -1400,6 +1426,19 @@ C_Item = {
     local row = ItemInfoByLink[link]
     if row and row.ilvl then return row.ilvl end
     return 305
+  end,
+  GetItemInfo = function(link)
+    local row = ItemInfoRow(link)
+    if row and row.name then return GetItemInfo(link) end
+    if type(link) ~= "string" or link == "" then return end
+    return "Test Item"
+  end,
+  GetItemCount = function(itemID)
+    return GetItemCount(itemID)
+  end,
+  GetItemUpgradeInfo = function(link)
+    if type(link) ~= "string" or link == "" then return end
+    return ItemUpgradeByLink[link]
   end,
   GetItemStats = function(link, into)
     return GetItemStats(link, into)

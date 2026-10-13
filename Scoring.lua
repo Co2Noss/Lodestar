@@ -50,12 +50,19 @@ function LS:GetRecommendations()
   end
 
   if self.db.goals.ENDGAME then
-    for _, vault in ipairs(self:GetVaultRecommendations()) do
-      consider(vault, vault.score)
+    if self.GetVaultRecommendations then
+      for _, vault in ipairs(self:GetVaultRecommendations()) do
+        consider(vault, vault.score)
+      end
+    end
+    if self.GetGearRecommendations then
+      for _, gear in ipairs(self:GetGearRecommendations()) do
+        consider(gear, gear.score)
+      end
     end
   end
 
-  if self.db.goals.CRAFTING then
+  if self.db.goals.CRAFTING and self.GetProfessionRecommendations then
     for _, profession in ipairs(self:GetProfessionRecommendations()) do
       consider(profession, profession.score)
     end
@@ -167,15 +174,16 @@ end
 -- jump around as scores change; the work inside each tab is still ranked best first.
 local CATEGORY_ORDER = {
   ["Great Vault"] = 1,
-  ["Professions"] = 2,
-  ["Mounts"] = 3,
-  ["Reputation"] = 4,
-  ["Gold"] = 5,
-  ["Solo content"] = 6,
-  ["Questing"] = 7,
-  ["PvP"] = 8,
-  ["Housing"] = 9,
-  ["Battle Pets"] = 10,
+  ["Gear"] = 2,
+  ["Professions"] = 3,
+  ["Mounts"] = 4,
+  ["Reputation"] = 5,
+  ["Gold"] = 6,
+  ["Solo content"] = 7,
+  ["Questing"] = 8,
+  ["PvP"] = 9,
+  ["Housing"] = 10,
+  ["Battle Pets"] = 11,
 }
 
 -- Weekly work disappears at reset. Long-term work waits. Everything else is for today.

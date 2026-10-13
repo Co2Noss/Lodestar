@@ -560,10 +560,11 @@ end
 
 LS.GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 LS.GEAR_SLOT_LABELS = {
-  [1] = "Head", [2] = "Neck", [3] = "Shoulder", [5] = "Chest",
+  [1] = "Head", [2] = "Neck", [3] = "Shoulder", [4] = "Shirt", [5] = "Chest",
   [6] = "Waist", [7] = "Legs", [8] = "Feet", [9] = "Wrist",
   [10] = "Hands", [11] = "Finger", [12] = "Finger", [13] = "Trinket",
   [14] = "Trinket", [15] = "Back", [16] = "Main Hand", [17] = "Off Hand",
+  [19] = "Tabard",
 }
 
 -- Permanent enchants this expansion. Matches the client's item-link enchant
@@ -623,15 +624,17 @@ local function ItemLevelOf(link, loc)
     local ok, level = pcall(GetDetailedItemLevelInfo, link)
     if ok and tonumber(level) then return tonumber(level) end
   end
-  if link and GetItemInfo then
-    local ok, _, _, _, level = pcall(GetItemInfo, link)
+  local info = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if link and info then
+    local ok, _, _, _, level = pcall(info, link)
     if ok and tonumber(level) then return tonumber(level) end
   end
 end
 
 local function ItemInfo(link)
-  if not link or not GetItemInfo then return end
-  local ok, name, _, quality, level, _, _, _, _, equipLoc, texture = pcall(GetItemInfo, link)
+  local info = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if not link or not info then return end
+  local ok, name, _, quality, level, _, _, _, _, equipLoc, texture = pcall(info, link)
   if not ok then return end
   return name, quality, level, equipLoc, texture
 end

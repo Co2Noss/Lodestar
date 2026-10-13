@@ -10,6 +10,7 @@ local workspaces = {
       { "TODAY", "Today's Plan", "Interface\\Minimap\\Minimap-Waypoint-MapPin-Tracked" },
       { "WEEKLY", "Weekly Plan", "Interface\\Icons\\INV_Misc_PocketWatch_01" },
       { "LONGTERM", "Long-Term Goals", "Interface\\Icons\\INV_BannerPVP_03" },
+      { "GEAR", "Gear", "Interface\\Icons\\INV_Chest_Chain_06" },
     } },
   { name = "TRACKING", items = {
       { "PROGRESS", "Progress", "Interface\\Icons\\Achievement_General" },
@@ -26,6 +27,20 @@ local workspaces = {
 }
 
 local SIDE_EXPANDED, SIDE_COLLAPSED, SIDE_GAP = 180, 52, 16
+
+local PLAN_CATEGORY_ICONS = {
+  ["Great Vault"] = "Interface\\Icons\\Achievement_Dungeon_TheNighthold",
+  ["Gear"] = "Interface\\Icons\\INV_Chest_Chain_06",
+  ["Professions"] = "Interface\\Icons\\Trade_Engineering",
+  ["Mounts"] = "Interface\\Icons\\Ability_Mount_RidingHorse",
+  ["Reputation"] = "Interface\\Icons\\Achievement_Reputation_01",
+  ["Gold"] = "Interface\\Icons\\INV_Misc_Coin_01",
+  ["Solo content"] = "Interface\\Icons\\Ability_Rogue_Sprint",
+  ["Questing"] = "Interface\\Icons\\INV_Misc_Map_01",
+  ["PvP"] = "Interface\\Icons\\Achievement_PVP_A_16",
+  ["Housing"] = "Interface\\Icons\\INV_Misc_Key_05",
+  ["Battle Pets"] = "Interface\\Icons\\INV_Pet_BabyCloudSerpent",
+}
 
 local goalList = {
   { "ENDGAME", "Great Vault & endgame" },
@@ -598,6 +613,17 @@ function LS:TabStrip(tabs, selectedID, onChoose, y, parent, width)
     local row = math.floor((i - 1) / perRow)
     local nav = button(parent, tab[2], tabWidth, height)
     nav:SetPoint("TOPLEFT", inset + col * (tabWidth + gap), y - row * (height + gap))
+    local iconPath = tab[3]
+    if iconPath then
+      local icon = nav:CreateTexture(nil, "ARTWORK")
+      icon:SetSize(16, 16)
+      icon:SetPoint("LEFT", 8, 0)
+      icon:SetTexture(iconPath)
+      nav.text:ClearAllPoints()
+      nav.text:SetPoint("LEFT", 28, 0)
+      nav.text:SetPoint("RIGHT", -6, 0)
+      nav.text:SetJustifyH("LEFT")
+    end
     if tab[1] == chosen[1] then
       highlight(nav)
     else
@@ -647,6 +673,8 @@ function LS:ShowPage(page)
     self:VaultPage()
   elseif page == "PROFESSIONS" then
     self:ProfessionsPage()
+  elseif page == "GEAR" then
+    if self.GearPage then self:GearPage() else self:Today() end
   elseif page == "WARBAND" then
     self:WarbandPage()
   elseif page == "SETTINGS" then
@@ -805,10 +833,18 @@ function LS:ActivityCard(parent, activity, y, width)
   end
 
   local actions = {}
-  if activity.open then
-    table.insert(actions, { activity.openLabel or "Open", activity.open })
+  local gearActivity = activity.gearSlot or (activity.id and activity.id:sub(1, 8) == "gear_up_")
+  if gearActivity then
+    local slot = activity.gearSlot or tonumber(activity.id:match("gear_up_(%d+)"))
+    table.insert(actions, { "View gear", function()
+      if self.ShowGear then self:ShowGear(slot) end
+    end })
+  else
+    if activity.open then
+      table.insert(actions, { activity.openLabel or "Open", activity.open })
+    end
+    table.insert(actions, { "Details", function() self:ShowDetails(activity.id) end })
   end
-  table.insert(actions, { "Details", function() self:ShowDetails(activity.id) end })
   if self.page == "PROGRESS" then
     table.insert(actions, 1, { "Untrack", function()
       self.db.tracked[activity.id] = nil
@@ -1126,7 +1162,7 @@ end
 function LS:RenderPlan(groups, pageKey, title)
   local tabs = {}
   for _, group in ipairs(groups) do
-    table.insert(tabs, { group.name, group.name })
+    table.insert(tabs, { group.name, group.name, PLAN_CATEGORY_ICONS[group.name] })
   end
   local chosen = self:PickTab(tabs, self:PageTab(pageKey))
   local group = groups[1]
@@ -1349,6 +1385,10 @@ function LS:Today()
 end
 
 function LS:ShowDetails(id)
+  if type(id) == "string" and id:sub(1, 8) == "gear_up_" and self.ShowGear then
+    self:ShowGear(tonumber(id:match("gear_up_(%d+)")))
+    return
+  end
   self.detailID = id
   self:ShowPage("DETAILS")
 end

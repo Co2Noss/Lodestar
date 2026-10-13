@@ -21,7 +21,7 @@ function LS:DefaultDashboardWidgets()
     { id = "stats", x = 0, y = 0, w = 6, h = 4 },
     { id = "shortcuts", x = 6, y = 0, w = 6, h = 4 },
     { id = "professions", x = 0, y = 4, w = 6, h = 4 },
-    { id = "next", x = 6, y = 4, w = 6, h = 4 },
+    { id = "tonight", x = 6, y = 4, w = 6, h = 4 },
   }
 end
 
@@ -271,7 +271,7 @@ function LS:MigrateStockDashboard()
   if not (RectIs(byId.stats, "stats", 0, 0, 12, 4)
       and RectIs(byId.shortcuts, "shortcuts", 0, 4, 12, 2)
       and RectIs(byId.professions, "professions", 0, 6, 12, 3)
-      and RectIs(byId.next, "next", 0, 9, 12, 5)) then
+      and RectIs(byId.tonight, "tonight", 0, 9, 12, 5)) then
     return
   end
   self.db.dashboard.widgets = self:DefaultDashboardWidgets()
@@ -281,9 +281,21 @@ end
 function LS:DropRetiredDashboardWidgets()
   local layout = WidgetList(self)
   if type(layout) ~= "table" then return end
+  local hasTonight = false
+  for _, entry in ipairs(layout) do
+    if entry.id == "tonight" then hasTonight = true end
+  end
   for i = #layout, 1, -1 do
-    if layout[i].id == "gold" then
+    local id = layout[i].id
+    if id == "gold" then
       table.remove(layout, i)
+    elseif id == "next" then
+      if not hasTonight then
+        layout[i].id = "tonight"
+        hasTonight = true
+      else
+        table.remove(layout, i)
+      end
     end
   end
 end
@@ -350,15 +362,44 @@ end
 function LS:QualityColor(quality)
   quality = tonumber(quality)
   if quality == nil then return end
+  local qualityColor = (C_Item and C_Item.GetItemQualityColor) or GetItemQualityColor
+  if qualityColor then
+    local ok, r, g, b = pcall(qualityColor, quality)
+    if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+      return r, g, b
+    end
+  end
   if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
     local c = ITEM_QUALITY_COLORS[quality]
-    if c.GetRGB then return c:GetRGB() end
-    if c.r then return c.r, c.g, c.b end
+    if type(c.r) == "number" and type(c.g) == "number" and type(c.b) == "number" then
+      return c.r, c.g, c.b
+    end
+    if c.GetRGB then
+      local r, g, b = c:GetRGB()
+      if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+        return r, g, b
+      end
+    end
   end
-  if GetItemQualityColor then
-    local ok, r, g, b = pcall(GetItemQualityColor, quality)
-    if ok and r then return r, g, b end
+end
+
+function LS:QualityColorMixin(quality)
+  quality = tonumber(quality)
+  if quality == nil then return end
+  if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
+    return ITEM_QUALITY_COLORS[quality]
   end
+end
+
+-- Midnight FontStrings accept a ColorMixin; older builds want r, g, b, a.
+function LS:SetFontQualityColor(fontString, quality)
+  if not fontString or not fontString.SetTextColor then return end
+  quality = tonumber(quality)
+  if quality == nil then return end
+  local c = self:QualityColorMixin(quality)
+  if c and pcall(fontString.SetTextColor, fontString, c) then return end
+  local r, g, b = self:QualityColor(quality)
+  if r and g and b then pcall(fontString.SetTextColor, fontString, r, g, b, 1) end
 end
 
 function LS:PaintWidgetTip(owner, fill)
@@ -841,8 +882,9 @@ function LS:FormatTokenMoney(copper, opts)
       local ok, value = pcall(GetMoneyString, copper, true)
       if ok and type(value) == "string" then str = value end
     end
-    if not str and GetCoinTextureString then
-      local ok, value = pcall(GetCoinTextureString, copper, 14)
+    local coinString = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString
+    if not str and coinString then
+      local ok, value = pcall(coinString, copper, 14)
       if ok and type(value) == "string" then str = value end
     end
     if str then
@@ -1544,6 +1586,161 @@ function LS:RenderDashboardControls(body, y)
   return y
 end
 
+local VAULT_GRID_ROWS = {
+  { key = "activities", short = "M+", unit = "dungeons",
+    art = "evergreen-weeklyrewards-category-dungeons" },
+  { key = "raid", short = "Raid", unit = "bosses",
+    art = "evergreen-weeklyrewards-category-raids" },
+  { key = "world", short = "World", unit = "world",
+    art = "evergreen-weeklyrewards-category-world" },
+}
+
+local VAULT_STATE_COLORS = {
+  locked = { role = "muted", alpha = 0.35 },
+  progress = { role = "accent", alpha = 0.85 },
+  unlocked = { role = "accent", alpha = 1.0 },
+}
+
+local function VaultStateColor(self, state)
+  local row = VAULT_STATE_COLORS[state] or VAULT_STATE_COLORS.locked
+  local c = self.colors and self.colors[row.role] or self.colors.muted
+  return c[1], c[2], c[3], row.alpha
+end
+
+local function TryAtlas(tex, name)
+  if tex and tex.SetAtlas and C_Texture and C_Texture.GetAtlasInfo then
+    local ok = pcall(tex.SetAtlas, tex, name)
+    if ok then return true end
+  end
+  if tex and tex.SetTexture then pcall(tex.SetTexture, tex, name) end
+end
+
+-- Nine vault slots in three rows, the way the client's own vault page reads at a
+-- glance. Summary text alone hid which slot was one run short of an upgrade.
+function LS:PaintVaultGrid(parent, width, height)
+  local w = self.widgets
+  height = height or 200
+  local pad = 10
+  local topH = 18
+  local btnH = (self:WidgetOptOn("vault", "chest", true) or self:WidgetOptOn("vault", "open", true)) and 26 or 0
+  local bodyH = height - topH - btnH - 8
+  local rowH = math.max(36, math.floor(bodyH / 3) - 4)
+
+  local heading = w.text(parent, width - pad * 2, 11)
+  heading:SetPoint("TOPLEFT", pad, -6)
+  heading:SetTextColor(unpack(self.colors.accent))
+  local reset = self:WeeklyResetLabel()
+  heading:SetText(reset and ("Great Vault  ·  " .. reset) or "Great Vault")
+
+  local y = -topH - 4
+  for _, spec in ipairs(VAULT_GRID_ROWS) do
+    local row = self.vault and self.vault.rows and self.vault.rows[spec.key]
+    local slots = row and row.slots or {}
+    local filled = 0
+    for _, slot in ipairs(slots) do if slot.complete then filled = filled + 1 end end
+
+    local labelW = math.min(54, math.floor(width * 0.18))
+    local gap = 4
+    local slotW = math.max(28, math.floor((width - pad * 2 - labelW - gap * 3) / math.max(#slots, 3)))
+
+    local rowLabel = w.text(parent, labelW, 10)
+    rowLabel:SetPoint("TOPLEFT", pad, y)
+    rowLabel:SetTextColor(unpack(self.colors.muted))
+    rowLabel:SetText(spec.short .. "\n" .. filled .. "/" .. #slots)
+
+    local art = parent:CreateTexture(nil, "ARTWORK")
+    art:SetSize(labelW, math.min(rowH - 4, 28))
+    art:SetPoint("TOPLEFT", pad, y - 14)
+    TryAtlas(art, spec.art)
+
+    for i, slot in ipairs(slots) do
+      local x = pad + labelW + gap + (i - 1) * (slotW + gap)
+      local tileTop = y - 2
+      local state = self:VaultSlotVisualState(slot)
+      local sr, sg, sb, sa = VaultStateColor(self, state)
+
+      local bg = parent:CreateTexture(nil, "BACKGROUND")
+      bg:SetSize(slotW, rowH - 2)
+      bg:SetPoint("TOPLEFT", x, tileTop)
+      if bg.SetColorTexture then bg:SetColorTexture(0, 0, 0, 0.45) end
+
+      local track = parent:CreateTexture(nil, "ARTWORK")
+      track:SetHeight(3)
+      track:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT", 2, 2)
+      track:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -2, 2)
+      if track.SetColorTexture then track:SetColorTexture(sr, sg, sb, 0.18) end
+
+      local pct = 0
+      if slot.threshold and slot.threshold > 0 then
+        pct = math.min(1, (slot.progress or 0) / slot.threshold)
+      end
+      if state == "unlocked" then pct = 1 end
+
+      local fill = parent:CreateTexture(nil, "ARTWORK")
+      fill:SetHeight(3)
+      fill:SetPoint("BOTTOMLEFT", track, "BOTTOMLEFT", 0, 0)
+      if fill.SetColorTexture then fill:SetColorTexture(sr, sg, sb, sa) end
+      fill:SetWidth(math.max(1, (slotW - 4) * pct))
+
+      local cap = w.text(parent, slotW - 4, 9)
+      cap:SetPoint("TOPLEFT", x + 2, tileTop - 4)
+      cap:SetTextColor(unpack(self.colors.muted))
+      local need = slot.threshold or 0
+      cap:SetText(spec.unit .. " " .. tostring(need))
+
+      local center = w.text(parent, slotW - 4, state == "unlocked" and 14 or 11)
+      center:SetPoint("TOP", bg, "TOP", 0, -16)
+      if center.SetJustifyH then center:SetJustifyH("CENTER") end
+      center:SetWidth(slotW - 4)
+      if state == "unlocked" then
+        local ilvl = self:VaultSlotRewardIlvl(slot)
+        center:SetText(ilvl and tostring(ilvl) or "✓")
+        center:SetTextColor(sr, sg, sb, 1)
+      else
+        center:SetText(string.format("%d/%d", slot.progress or 0, slot.threshold or 0))
+        if state == "progress" then
+          center:SetTextColor(unpack(self.colors.accent))
+        else
+          center:SetTextColor(unpack(self.colors.muted))
+        end
+      end
+
+      local hit = CreateFrame("Button", nil, parent)
+      hit:SetSize(slotW, rowH - 2)
+      hit:SetPoint("TOPLEFT", x, tileTop)
+      hit:EnableMouse(true)
+      self:HoverTip(hit, function(tip)
+        if tip.ClearLines then tip:ClearLines() end
+        tip:SetText((slot.label or "Vault") .. " slot " .. tostring(slot.index or i))
+        for _, line in ipairs(self:VaultSlotTooltipLines(slot) or {}) do
+          if tip.AddLine then tip:AddLine(line) end
+        end
+      end)
+      hit:SetScript("OnMouseUp", function()
+        self:SetPageTab("VAULT", spec.key)
+        self:ShowPage("VAULT")
+      end)
+    end
+    y = y - rowH - 2
+  end
+
+  local footY = y - 2
+  if self:WidgetOptOn("vault", "chest", true) then
+    local vault = w.button(parent, "Vault", 70, 24, 10)
+    vault:SetPoint("TOPLEFT", pad, footY)
+    w.paint(vault, "panel")
+    w.highlight(vault)
+    vault:SetScript("OnMouseUp", function() self:OpenGreatVault() end)
+  end
+  if self:WidgetOptOn("vault", "open", true) then
+    local open = w.button(parent, "Open", 70, 24, 10)
+    open:SetPoint("TOPLEFT", pad + (self:WidgetOptOn("vault", "chest", true) and 78 or 0), footY)
+    w.paint(open, "panel")
+    open:SetScript("OnMouseUp", function() self:ShowPage("VAULT") end)
+  end
+  return height
+end
+
 local function RegisterBuiltins()
   LS:RegisterWidget({
     id = "stats",
@@ -1778,43 +1975,86 @@ local function RegisterBuiltins()
   })
 
   LS:RegisterWidget({
-    id = "next",
-    title = "Next",
+    id = "tonight",
+    title = "Tonight",
     defaultSize = "half",
+    defaultH = 5,
     sizes = { half = true, wide = true },
     tooltip = function(self, tip)
       if tip.ClearLines then tip:ClearLines() end
-      local recs = self:GetRecommendations()
-      if recs[1] then
-        tip:SetText(recs[1].title or "Next")
-        if tip.AddLine and recs[1].why then tip:AddLine(recs[1].why, 1, 1, 1, true) end
-      else
-        tip:SetText("Next")
-        if tip.AddLine then tip:AddLine("Nothing is currently worth ranking.") end
+      tip:SetText("Tonight")
+      if tip.AddLine then
+        tip:AddLine("Top recommendations ranked for right now.")
+        local key = self.KeystoneLabel and self:KeystoneLabel()
+        if key then tip:AddLine("Key: " .. key) end
       end
     end,
-    render = function(self, parent, width)
+    render = function(self, parent, width, height)
       if self.dashboardEdit then
-        return self:PaintEditIdle(parent, width)
+        return self:PaintWidgetSettings(parent, width, "tonight", "How many to show.", {
+          { "three", "Three rows", true },
+          { "key", "Your key", true },
+        })
       end
       local w = self.widgets
+      height = height or 120
+      local showKey = self:WidgetOptOn("tonight", "key", true)
+      local limit = self:WidgetOptOn("tonight", "three", true) and 3 or 1
+      local y = -4
+
+      if showKey then
+        local label = self.KeystoneLabel and self:KeystoneLabel()
+        local keyLine = w.text(parent, width - 20, 10)
+        keyLine:SetPoint("TOPLEFT", 12, y)
+        if self.colors then keyLine:SetTextColor(unpack(self.colors.muted)) end
+        keyLine:SetText(label and ("Key: " .. label) or "No keystone in bags")
+        y = y - 16
+      end
+
       local recs = self:GetRecommendations()
       if #recs == 0 then
         local none = w.text(parent, width - 20, 11)
-        none:SetPoint("TOPLEFT", 12, -8)
-        if self:GoalsChosen() then
-          none:SetText("Nothing is currently worth ranking. That changes as the week does.")
-          return 36
-        end
-        none:SetText("Every goal is off, so there is nothing to weigh against.")
-        local pick = w.button(parent, "Choose my goals", 180, 28)
-        pick:SetPoint("TOPLEFT", 12, -36)
-        w.highlight(pick)
-        pick:SetScript("OnMouseUp", function() self:ShowPage("WELCOME") end)
-        return 72
+        none:SetPoint("TOPLEFT", 12, y)
+        none:SetText("Nothing ranked right now.")
+        return height
       end
-      local _, h = self:ActivityCard(parent, recs[1], -4, width - 16)
-      return (h or 104) + 8
+
+      local rowH = math.max(34, math.floor((height + y - 8) / limit) - 4)
+      for i = 1, math.min(limit, #recs) do
+        local rec = recs[i]
+        local card = w.panel(parent)
+        card:SetPoint("TOPLEFT", 8, y)
+        card:SetSize(width - 16, rowH)
+        w.paint(card, "panel")
+
+        local stripe = card:CreateTexture(nil, "ARTWORK")
+        stripe:SetWidth(3)
+        stripe:SetPoint("TOPLEFT", 0, 0)
+        stripe:SetPoint("BOTTOMLEFT", 0, 0)
+        if stripe.SetColorTexture and self.colors then
+          stripe:SetColorTexture(unpack(self.colors.accent))
+        end
+
+        local title = w.text(card, width - 36, math.min(12, rowH - 18))
+        title:SetPoint("TOPLEFT", 10, -6)
+        title:SetText(rec.title or "Recommendation")
+        if self.FitText then self:FitText(title, width - 36, 1) end
+
+        if rec.why and rowH >= 40 then
+          local why = w.text(card, width - 36, 10)
+          why:SetPoint("TOPLEFT", 10, -20)
+          if self.colors then why:SetTextColor(unpack(self.colors.muted)) end
+          why:SetText(rec.why)
+          if self.FitText then self:FitText(why, width - 36, 2) end
+        end
+
+        card:EnableMouse(true)
+        card:SetScript("OnMouseUp", function()
+          if rec.open then rec.open() else self:ShowDetails(rec.id) end
+        end)
+        y = y - rowH - 4
+      end
+      return height
     end,
   })
 
@@ -1822,15 +2062,18 @@ local function RegisterBuiltins()
     id = "vault",
     title = "Great Vault",
     defaultSize = "half",
+    defaultH = 8,
     sizes = { half = true, wide = true },
-    render = function(self, parent, width)
+    render = function(self, parent, width, height)
       if self.dashboardEdit then
-        return self:PaintWidgetSettings(parent, width, "vault", "Buttons on this tile.", {
-          { "chest", "Vault", true },
-          { "open", "Open", true },
+        return self:PaintWidgetSettings(parent, width, "vault", "What this tile shows.", {
+          { "grid", "Slot grid", true },
+          { "chest", "Vault button", true },
+          { "open", "Open page", true },
         })
       end
       local w = self.widgets
+      height = height or 200
       if self.IsEndgameLevel and not self:IsEndgameLevel() then
         local cap = self:EndgameLevel()
         parent:EnableMouse(true)
@@ -1839,11 +2082,10 @@ local function RegisterBuiltins()
         local line = w.text(parent, width - 24, 11)
         line:SetPoint("TOPLEFT", 12, -8)
         line:SetText(string.format("Opens at level %d. Level and enjoy the game until then.", cap))
-        local hint = w.text(parent, width - 24, 10)
-        hint:SetPoint("TOPLEFT", 12, -28)
-        hint:SetTextColor(unpack(self.colors.muted))
-        hint:SetText("Train professions along the way if you want them.")
         return 52
+      end
+      if self:WidgetOptOn("vault", "grid", true) and height >= 120 then
+        return self:PaintVaultGrid(parent, width, height)
       end
       local filled, total, upgradable = self:VaultSlotCounts()
       parent:EnableMouse(true)
@@ -1851,14 +2093,15 @@ local function RegisterBuiltins()
       parent:SetScript("OnLeave", function() LS:HideVaultTooltip() end)
       local showChest = self:WidgetOptOn("vault", "chest", true)
       local showOpen = self:WidgetOptOn("vault", "open", true)
+      local reset = self:WeeklyResetLabel()
       local line = w.text(parent, width - ((showChest or showOpen) and 100 or 24), 11)
       line:SetPoint("TOPLEFT", 12, -8)
-      line:SetText(string.format("%d of %d slots filled. %d can still be improved.",
-        filled, total, upgradable))
+      line:SetText(string.format("%d of %d filled. %d can improve.%s",
+        filled, total, upgradable, reset and ("  " .. reset) or ""))
       local hint = w.text(parent, width - ((showChest or showOpen) and 100 or 24), 10)
       hint:SetPoint("TOPLEFT", 12, -28)
       hint:SetTextColor(unpack(self.colors.muted))
-      hint:SetText("Hover for named keys and reward item levels.")
+      hint:SetText("Edit dashboard → turn Slot grid on, or make the tile taller.")
       if showChest then
         local vault = w.button(parent, "Vault", 70, 24, 10)
         vault:SetPoint("TOPRIGHT", -10, -8)

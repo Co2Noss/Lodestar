@@ -103,10 +103,10 @@ function LS:KeystoneAnnouncement()
 end
 
 -- Reply on the channel the question was asked on. Whispers go back to the asker,
--- everything else answers where the room can see it.
+-- everything else answers where the room can see it. Guild and officer are left
+-- out: the client blocks addon sends there, and guild tools already read keys
+-- through LibOpenRaid.
 local CHANNELS = {
-  CHAT_MSG_GUILD = "GUILD",
-  CHAT_MSG_OFFICER = "OFFICER",
   CHAT_MSG_PARTY = "PARTY",
   CHAT_MSG_PARTY_LEADER = "PARTY",
   CHAT_MSG_RAID = "RAID",
@@ -116,12 +116,10 @@ local CHANNELS = {
   CHAT_MSG_WHISPER = "WHISPER",
 }
 
--- Guild, officer, party, raid, instance, and whisper in the order they are offered
--- in Settings. Party leader and raid leader fold into their channel, because nobody
--- wants to answer a raid but not a raid lead.
+-- Party, raid, instance, and whisper in the order they are offered in Settings.
+-- Party leader and raid leader fold into their channel, because nobody wants to
+-- answer a raid but not a raid lead.
 LS.KEYSTONE_CHANNELS = {
-  { "GUILD", "Guild" },
-  { "OFFICER", "Officer" },
   { "PARTY", "Party" },
   { "RAID", "Raid" },
   { "INSTANCE_CHAT", "Instance" },

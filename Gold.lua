@@ -295,8 +295,9 @@ function LS:GetItemPrice(itemID)
       local ok, price = pcall(RECrystallize_PriceCheckItemID, itemID)
       if ok and type(price) == "number" and price > 0 then return price end
     end
-    if RECrystallize_PriceCheck and GetItemInfo then
-      local link = select(2, GetItemInfo(itemID))
+    local info = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if RECrystallize_PriceCheck and info then
+      local link = select(2, info(itemID))
       if link then
         local ok, price = pcall(RECrystallize_PriceCheck, link)
         if ok and type(price) == "number" and price > 0 then return price end

@@ -15,8 +15,8 @@ ADDON = os.path.dirname(HERE)
 # Load order must match the .toc.
 FILES = [
     "Core.lua", "Analytics.lua", "Profile.lua", "Themes.lua", "Catalog.lua", "Mounts.lua", "Collections.lua", "Completion.lua", "Keystone.lua", "Reputation.lua", "Gold.lua", "Knowledge.lua", "Waypoints.lua", "Rares.lua", "PlayerData.lua",
-    "Vault.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
-    "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua",
+    "Vault.lua", "Gear.lua", "StatDR.lua", "Delves.lua", "Prey.lua", "PvP.lua", "Pets.lua", "Housing.lua", "Readiness.lua", "Quests.lua", "Professions.lua", "Scoring.lua", "Warband.lua",
+    "Tips.lua", "UI.lua", "Dashboard.lua", "Widgets.lua", "Compact.lua", "Minimap.lua", "Broker.lua",
 ]
 
 WALK_TEXTS = """
@@ -1076,7 +1076,7 @@ s.exec("""
   __LS:ScanVault()
 """)
 check("the plan still groups into categories", s.eval("#(select(1, __LS:GetCategories()))") > 0)
-for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "PROGRESS", "IGNORED", "COMPLETED",
+for name in ["TODAY", "DASHBOARD", "WEEKLY", "LONGTERM", "GEAR", "PROGRESS", "IGNORED", "COMPLETED",
              "VAULT", "PROFESSIONS", "WARBAND", "SETTINGS", "CHANGELOG", "FAQ", "HELP", "WELCOME", "DETAILS"]:
     s.exec(f"__LS:ShowPage('{name}')")
     s.timers()
@@ -1143,6 +1143,56 @@ slot_tip = s.eval("table.concat(GameTooltip._lines or {}, '\\n')")
 check("a Great Vault slot tooltip is scoped to that slot",
       "Dungeons slot" in slot_tip and "Current:" in slot_tip
       and "Raid  " not in slot_tip, slot_tip)
+s.exec("""
+  C_DateAndTime.GetSecondsUntilWeeklyReset = function() return 518400 end
+  local slot = __LS.vault.rows.activities.slots[1]
+  __LS._vaultVisual = __LS:VaultSlotVisualState(slot)
+  __LS._vaultReset = __LS:WeeklyResetLabel()
+""")
+check("the vault grid knows locked, progress and unlocked states",
+      s.eval("__LS._vaultVisual") in ("locked", "progress", "unlocked"))
+check("the vault reset label reads in days and hours",
+      s.eval("__LS._vaultReset") == "resets in 6d 0h")
+s.exec("""
+  local waist = "|Hitem:99920:0:0:0:0:0:0:0:90:0|h[Waist]|h|r"
+  EquipmentLinks[6] = waist
+  ItemInfoByLink[waist] = { name = "Waist", quality = 4, ilvl = 305, equipLoc = "INVTYPE_WAIST", icon = 132511 }
+  ItemUpgradeByLink[waist] = { currentLevel = 2, maxLevel = 6, maxItemLevel = 318, trackString = "Hero" }
+  __LS._gearRecs = __LS:GetGearRecommendations()
+""")
+check("gear upgrades rank from equipped items",
+      s.eval("#__LS._gearRecs") > 0
+      and s.eval("__LS._gearRecs[1].category") == "Gear"
+      and s.eval("__LS._gearRecs[1].gearSlot") == 6)
+s.exec("""
+  __LS:ShowGear(6)
+""")
+s.timers()
+gear_page = s.texts()
+check("gear details open the gear page instead of a dead activity",
+      "Character stats" in gear_page and "0% penalty" in gear_page
+      and "That activity is no longer on your plan." not in gear_page, gear_page)
+check("the gear page shows upgrade info for the focused slot",
+      "Hero 2/6" in gear_page or "2/6" in gear_page, gear_page)
+check("the gear page uses armory slot columns",
+      "BiS gearing" in gear_page or "SpecBiS Tooltip" in gear_page, gear_page)
+check("gear activities offer View gear without a duplicate Details button",
+      s.eval("""(function()
+        local parent = CreateFrame("Frame")
+        local card = select(1, __LS:ActivityCard(parent, __LS._gearRecs[1], 0, 400))
+        local labels = {}
+        for _, r in ipairs(card.regions or {}) do
+          if r.text_value and (r.text_value:find("View gear") or r.text_value == "Details") then
+            table.insert(labels, r.text_value)
+          end
+        end
+        local view, details = 0, 0
+        for _, label in ipairs(labels) do
+          if label == "View gear" then view = view + 1 end
+          if label == "Details" then details = details + 1 end
+        end
+        return view == 1 and details == 0
+      end)()""") is True)
 s.exec("__LS:ShowPage('DASHBOARD')")
 s.timers()
 s.exec("OpenedGreatVault = false; WeeklyRewardsFrame.shown = false")
@@ -2965,7 +3015,7 @@ s.exec("OwnedKeystone = { mapID = 2, level = 9 }")
 check("the clickable link comes from the keystone item itself",
       s.eval("__LS:KeystoneLink()") == KEY_LINK, s.eval("__LS:KeystoneLink()"))
 s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
 check("the !keys reply links the key so it is hoverable and clickable",
       s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: " + KEY_LINK,
       s.eval("ChatSent[1] and ChatSent[1].msg"))
@@ -2988,25 +3038,25 @@ s.timers()
 check("a bag link for a different key is not linked as the current one",
       s.eval("__LS:KeystoneLink()") is None, s.eval("__LS:KeystoneLink()"))
 s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
 check("a key with no link still answers in plain text rather than staying silent",
       s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: The Rookery +12",
       s.eval("ChatSent[1] and ChatSent[1].msg"))
 s.exec("BagContents[0] = nil; OwnedKeystone = { mapID = 403, level = 12 }; ChatSent = {}; TimeNow = TimeNow + 60")
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
-check("!keys in guild chat answers with the key from the client",
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
+check("!keys in raid chat answers with the key from the client",
       s.eval("ChatSent[1] and ChatSent[1].msg") == "Lodestar: The Rookery +12"
-      and s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD",
+      and s.eval("ChatSent[1] and ChatSent[1].channel") == "RAID",
       s.eval("ChatSent[1] and ChatSent[1].msg"))
 check("a repeated !keys inside the throttle window does not answer twice",
       s.eval("#ChatSent") == 1)
 s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
 s.fire("CHAT_MSG_WHISPER", "!keys", "Friend")
-check("!keys in a whisper answers the asker, not the guild",
+check("!keys in a whisper answers the asker, not the group",
       s.eval("ChatSent[1] and ChatSent[1].channel") == "WHISPER"
       and s.eval("ChatSent[1] and ChatSent[1].target") == "Friend")
 s.exec("ChatSent = {}")
-s.fire("CHAT_MSG_GUILD", "what keys does everyone have", "Someone")
+s.fire("CHAT_MSG_RAID", "what keys does everyone have", "Someone")
 check("ordinary chat is not treated as a command",
       s.eval("#ChatSent") == 0)
 s.exec("ChatSent = {}; OwnedKeystone = nil; TimeNow = TimeNow + 60")
@@ -3027,13 +3077,17 @@ s.exec("""
   __LS:SetKeystoneReply(true)
   ChatSent = {}
   TimeNow = TimeNow + 60
-  __LS:SetKeystoneChannel("GUILD", false)
 """)
 s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
-check("a guild that does not want the reply can turn just that channel off",
+s.fire("CHAT_MSG_OFFICER", "!keys", "Someone")
+check("!keys in guild or officer chat never sends, the client blocks it there",
+      s.eval("#ChatSent") == 0)
+s.exec('__LS:SetKeystoneChannel("RAID", false)')
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
+check("a group that does not want the reply can turn just that channel off",
       s.eval("#ChatSent") == 0)
 s.fire("CHAT_MSG_PARTY", "!keys", "Someone")
-check("turning guild off leaves party answering",
+check("turning raid off leaves party answering",
       s.eval("ChatSent[1] and ChatSent[1].channel") == "PARTY",
       s.eval("ChatSent[1] and ChatSent[1].channel"))
 s.exec('ChatSent = {}; TimeNow = TimeNow + 60; __LS:SetKeystoneChannel("PARTY", false)')
@@ -3044,14 +3098,14 @@ check("party leader follows the party channel setting",
 # The game blocks addon chat in dungeons, raids, encounters and PvP matches. Sending
 # anyway is a protected-function error, so ask first and answer locally instead.
 s.exec("""
-  __LS:SetKeystoneChannel("GUILD", true)
+  __LS:SetKeystoneChannel("RAID", true)
   __LS:SetKeystoneChannel("PARTY", true)
   ChatSent = {}
   Printed = {}
   TimeNow = TimeNow + 60
   ChatLockdown = true
 """)
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
 check("a chat lockdown does not turn into a blocked-function error",
       s.eval("#ChatSent") == 0)
 check("the key is still answered locally, with the reason",
@@ -3072,9 +3126,9 @@ check("party still answers on a realm where that flag is set",
       s.eval("ChatSent[1] and ChatSent[1].channel") == "PARTY",
       s.eval("ChatSent[1] and ChatSent[1].channel"))
 s.exec("ChatSent = {}; TimeNow = TimeNow + 60")
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
 check("answers resume once the restriction lifts",
-      s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD",
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "RAID",
       s.eval("ChatSent[1] and ChatSent[1].channel"))
 # On a restricted map the chat text itself is a secret value. Doing string work on
 # one is an error, so it has to be checked before the command is parsed at all.
@@ -3082,17 +3136,17 @@ s.exec("ChatSent = {}; TimeNow = TimeNow + 60; SecretChatText = '!keys'")
 check("secret chat text is left alone instead of erroring the handler",
       s.eval("""(function()
         local ok = pcall(function()
-          __LS:HandleChatCommand("CHAT_MSG_GUILD", "!keys", "Someone")
+          __LS:HandleChatCommand("CHAT_MSG_RAID", "!keys", "Someone")
         end)
         return ok and #ChatSent == 0
       end)()""") is True)
 s.exec("SecretChatText = nil; ChatSent = {}; TimeNow = TimeNow + 60")
-s.fire("CHAT_MSG_GUILD", "!keys", "Someone")
+s.fire("CHAT_MSG_RAID", "!keys", "Someone")
 check("readable chat text is still answered",
-      s.eval("ChatSent[1] and ChatSent[1].channel") == "GUILD")
+      s.eval("ChatSent[1] and ChatSent[1].channel") == "RAID")
 s.exec('ChatSent = {}; TimeNow = TimeNow + 60; __LS:SetKeystoneChannel("PARTY", false)')
 s.exec("""
-  __LS:SetKeystoneChannel("GUILD", true)
+  __LS:SetKeystoneChannel("RAID", true)
   __LS:SetKeystoneChannel("PARTY", true)
   __LS:SetPageTab("SETTINGS", "ADDONS")
   __LS:ShowPage("SETTINGS")
@@ -3100,18 +3154,20 @@ s.exec("""
 s.timers()
 keys_settings = s.texts()
 check("Settings lists every channel the !keys reply can answer on",
-      all(name in keys_settings for name in ["Mythic+ keys", "Guild", "Officer", "Party", "Raid", "Instance", "Whisper"]),
+      all(name in keys_settings for name in ["Mythic+ keys", "Party", "Raid", "Instance", "Whisper"]),
       keys_settings)
+check("Settings no longer offers guild or officer for !keys",
+      "ON  •  Guild" not in keys_settings and "ON  •  Officer" not in keys_settings, keys_settings)
 check("Settings names the key it can currently see",
       "The Rookery +12" in keys_settings, keys_settings)
-s.click("ON  •  Guild")
+s.click("ON  •  Raid")
 check("clicking a channel in Settings turns that channel off",
-      s.eval('__LS:KeystoneChannelOn("GUILD")') is False)
+      s.eval('__LS:KeystoneChannelOn("RAID")') is False)
 check("turning a channel off leaves the others alone",
       s.eval('__LS:KeystoneChannelOn("PARTY")') is True)
-s.click("OFF  •  Guild")
+s.click("OFF  •  Raid")
 check("clicking it again turns the channel back on",
-      s.eval('__LS:KeystoneChannelOn("GUILD")') is True)
+      s.eval('__LS:KeystoneChannelOn("RAID")') is True)
 s.click("ON  •  Answer !keys in chat")
 off_texts = s.texts()
 check("turning the reply off hides the channel list",

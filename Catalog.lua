@@ -80,6 +80,11 @@ function LS:ActivityLabel(id)
       return label .. " knowledge"
     end
   end
+  local gearSlot = id:match("^gear_up_(%d+)$")
+  if gearSlot and self.GEAR_SLOT_LABELS then
+    local label = self.GEAR_SLOT_LABELS[tonumber(gearSlot)] or "gear"
+    return "Upgrade " .. label
+  end
   return "That activity"
 end
 
@@ -96,8 +101,8 @@ function LS:FindActivity(id)
     end
   end
   local lists = {
-    self:GetVaultRecommendations(),
-    self:GetProfessionRecommendations(),
+    self.GetVaultRecommendations and self:GetVaultRecommendations() or {},
+    self.GetProfessionRecommendations and self:GetProfessionRecommendations() or {},
     self.GetMountRecommendations and self:GetMountRecommendations() or {},
     self.GetCollectionRecommendations and self:GetCollectionRecommendations() or {},
     self.GetReputationRecommendations and self:GetReputationRecommendations() or {},
@@ -109,6 +114,7 @@ function LS:FindActivity(id)
     self.GetPvPRecommendations and self:GetPvPRecommendations() or {},
     self.GetHousingRecommendations and self:GetHousingRecommendations() or {},
     self.GetPetRecommendations and self:GetPetRecommendations() or {},
+    self.GetGearRecommendations and self:GetGearRecommendations() or {},
   }
   local function search(want)
     for _, list in ipairs(lists) do

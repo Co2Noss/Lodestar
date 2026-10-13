@@ -1,3 +1,38 @@
+# 1.6.1
+
+- The Great Vault tile can show a **slot grid**: three rows for Mythic+, Raid, and
+  World, each slot with progress, reward item level when filled, and a click through
+  to that row on the Great Vault page. **Edit dashboard → Great Vault → Slot grid**
+  turns it off, or make the tile taller if you still see the summary line.
+- A **Tonight** tile ranks your top recommendations in compact cards, with your
+  keystone named when you have one. It replaces **Next** on the default dashboard.
+- **Planning → Gear** is a character-panel view: equipped slots, upgrade tracks,
+  per-item stats, and secondary-stat diminishing returns with bracket progress bars
+  (SimC conversion tables, same approach as TrueStatValues). Gear cards open here.
+- **Today's Plan**, **Weekly Plan**, and **Long-Term Goals** show category icons on
+  their tabs.
+- With the **Endgame** goal on, Lodestar scans equipped gear for crest upgrades via
+  the client's item-upgrade API and ranks them under **Planning → Gear**.
+- **Planning → Gear** shows your primary stat and Stamina above the secondary stats,
+  and every stat carries its percentage the way the character sheet does (27.40% crit,
+  not just the rating).
+- **Track** on the stats panel opens the same stats in a small window you can move,
+  resize from the grip in its corner, and close. It sizes itself to fit every row and
+  reopens where you left it.
+- Settings on the stats panel has a **3D model** switch. Turned off, the character
+  model is replaced by your spec icon, which is much lighter on low-end machines.
+- With **SpecBiS Tooltip** installed, a BiS list sits under the character panel: each
+  slot, whether what you wear is BiS for your spec, and where the BiS piece drops.
+  SpecBiS does not share its item list with other addons, so Lodestar reads what its
+  tooltip says about your equipped items.
+- **Fixed:** opening Gear from Today's Plan threw a `SetDrawLayer` error.
+- `!keys` no longer answers in guild or officer chat. The client blocks addons from
+  sending there, so the reply only ever errored. Guild tools still see your key
+  through LibOpenRaid; party, raid, instance, and whispers answer as before.
+- Updated for patch 12.1.5. Item names, qualities, counts and coin strings now come
+  from `C_Item` and `C_CurrencyInfo`, since the old global versions were removed in
+  this patch and the gear page, Readiness, and gold tiles were quietly losing them.
+
 # 1.6
 
 - Each Mythic+ dungeon icon now carries that dungeon's own rating under its key level,

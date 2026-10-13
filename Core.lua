@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.5.7"
+LS.version = "1.6.1"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -48,9 +48,6 @@ LS.defaults = {
   tokenHistory = {},
   goldHistory = {},
   seenTips = {},
-  -- Answering !keys is on, but every channel is a separate choice. A guild that
-  -- already has a keystone addon does not want a second reply, while the same
-  -- player may still want it in party.
   -- Anonymous counts of which tiles and goals get used, so the dead ones can be found.
   -- Turning this off stops Lodestar recording at all; see Analytics.lua for what is
   -- collected, or /ls analytics for the actual contents.
@@ -65,11 +62,12 @@ LS.defaults = {
   -- canvas by default: a dashboard taller than the window puts them off the bottom of
   -- the page, where someone who just pressed Edit dashboard will not find them.
   editControls = "top",
+  gear = {
+    stats = { crit = true, haste = true, mastery = true, vers = true, leech = false, avoid = false, speed = false },
+  },
   keystone = {
     reply = true,
     channels = {
-      GUILD = true,
-      OFFICER = true,
       PARTY = true,
       RAID = true,
       INSTANCE_CHAT = true,
@@ -180,6 +178,15 @@ local function migrate(db)
     end
   end
   if LS.SeedSeenTips then LS:SeedSeenTips(db) end
+  db.gear = db.gear or {}
+  db.gear.stats = db.gear.stats or {
+    primary = true, stamina = true,
+    crit = true, haste = true, mastery = true, vers = true,
+    leech = false, avoid = false, speed = false,
+  }
+  if db.gear.statSettingsOpen == nil then db.gear.statSettingsOpen = false end
+  if db.gear.showModel == nil then db.gear.showModel = true end
+  db.gear.statTrack = db.gear.statTrack or {}
 end
 
 -- Skill-line and reputation headers use these region names instead of EXPANSION_NAME*.
@@ -457,6 +464,7 @@ local function RefreshState()
   if LS.RequestTokenPrice then LS:RequestTokenPrice() end
   if LS.RecordTokenPrice then LS:RecordTokenPrice() end
   if LS.RecordAccountGold then LS:RecordAccountGold() end
+  if LS.RefreshStatDR then LS:RefreshStatDR() end
   -- The datatext reads from the same scan the window does, so it never shows a number
   -- older than what Lodestar itself is showing.
   if LS.UpdateBroker then LS:UpdateBroker() end
@@ -583,8 +591,6 @@ for _, name in ipairs({
       "TRACKED_HOUSE_CHANGED",
       "VIEW_HOUSES_LIST_RECIEVED",
       "CHALLENGE_MODE_COMPLETED",
-      "CHAT_MSG_GUILD",
-      "CHAT_MSG_OFFICER",
       "CHAT_MSG_PARTY",
       "CHAT_MSG_PARTY_LEADER",
       "CHAT_MSG_RAID",
@@ -592,6 +598,10 @@ for _, name in ipairs({
       "CHAT_MSG_INSTANCE_CHAT",
       "CHAT_MSG_INSTANCE_CHAT_LEADER",
       "CHAT_MSG_WHISPER",
+      "COMBAT_RATING_UPDATE",
+      "UNIT_STATS",
+      "PLAYER_LEVEL_UP",
+      "PLAYER_SPECIALIZATION_CHANGED",
     }) do
   pcall(events.RegisterEvent, events, name)
 end
@@ -633,6 +643,12 @@ events:SetScript("OnEvent", function(_, event, arg, ...)
     if LS.RefreshWidgetTooltip then LS:RefreshWidgetTooltip() end
     return
   end
+  if event == "COMBAT_RATING_UPDATE" or event == "UNIT_STATS"
+      or event == "PLAYER_LEVEL_UP" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+    if LS.RefreshStatDR then LS:RefreshStatDR() end
+    if LS.RefreshStatTrack then LS:RefreshStatTrack() end
+    return
+  end
   if event == "PLAYER_HOUSE_LIST_UPDATED" or event == "VIEW_HOUSES_LIST_RECIEVED" then
     if LS.RememberHouseList then LS:RememberHouseList(arg) end
   elseif event == "CURRENT_HOUSE_INFO_UPDATED" or event == "CURRENT_HOUSE_INFO_RECIEVED" then
@@ -652,6 +668,9 @@ events:SetScript("OnEvent", function(_, event, arg, ...)
     if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
     if LS.RequestHousingInfo then LS:RequestHousingInfo() end
     RefreshState()
+    if LS.db.gear and LS.db.gear.statTrackOpen and LS.ToggleStatTrack then
+      LS:ToggleStatTrack(true)
+    end
     if LS.db.welcomed then
       print("|cff59d8c9Lodestar " .. LS.version .. "|r loaded. /ls or /lodestar to open.")
     else

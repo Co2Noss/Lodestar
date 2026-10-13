@@ -167,7 +167,7 @@ function LS:AnalyticsSnapshot()
 
   local keystone = self.db.keystone or {}
   self:Flag("keystone.reply", keystone.reply)
-  for _, channel in ipairs({ "GUILD", "OFFICER", "PARTY", "RAID", "INSTANCE_CHAT", "WHISPER" }) do
+  for _, channel in ipairs({ "PARTY", "RAID", "INSTANCE_CHAT", "WHISPER" }) do
     self:Flag("keystone.channel." .. channel, keystone.channels and keystone.channels[channel])
   end
   if self.KeystoneSharingOn then

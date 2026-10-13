@@ -74,6 +74,7 @@ local function ProfessionCompletionActivity(prof, id)
     }
   end
   if id == "kp_spend_" .. sid
+    and LS.CanSpendKnowledge
     and not LS:CanSpendKnowledge(prof)
     and (prof.spent or 0) > 0
     and (prof.unspent or 0) == 0 then
@@ -87,6 +88,7 @@ local function ProfessionCompletionActivity(prof, id)
   if id == "kp_catchup_" .. sid
     and prof.catchUp
     and prof.catchUp.ready
+    and LS.ProfessionTreesFull
     and LS:ProfessionTreesFull(prof) then
     return {
       id = id,

@@ -20,14 +20,14 @@ local addonName, LS = ...
 local SHARE_KEYS = {
   "goals", "dashboard", "theme", "colors", "goldSource", "waypointSource",
   "focusExpansion", "currentExpansionOnly", "sidebarCollapsed",
-  "repExpansions", "repGroups", "repFactions", "keystone", "editControls",
+  "repExpansions", "repGroups", "repFactions", "keystone", "editControls", "gear",
 }
 
 -- Yours alone: window geometry, what you have finished, and what you are tracking.
 local BACKUP_KEYS = {
   "compact", "frame", "minimap", "analytics", "collapsed", "pageTab", "welcomed",
   "completed", "completedAuto", "completedBlock", "completedSnapshot",
-  "dismissed", "tracked", "knowledge", "seenTips", "tokenHistory", "goldHistory",
+  "dismissed", "tracked", "knowledge", "seenTips", "tokenHistory", "goldHistory", "broker",
 }
 
 local PREFIX = "LODESTAR"
