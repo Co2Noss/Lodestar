@@ -105,6 +105,13 @@ LS.TIPS = {
 -- Last five version blocks for Changelog. Keep this in step with CHANGELOG.md.
 LS.CHANGELOG = {
   {
+    version = "1.6.2",
+    notes = {
+      "/ls resize puts the window back to its default size and position, keeping every other setting.",
+      "Fixed: after a UI scale or resolution change the window could fill the screen with its header and resize grip out of reach. It now shrinks to fit.",
+    },
+  },
+  {
     version = "1.6.1",
     notes = {
       "Planning → Gear shows your primary stat and Stamina, and every stat carries its percentage like the character sheet.",
@@ -146,15 +153,6 @@ LS.CHANGELOG = {
       "!keys no longer errors, and stays quiet where the game blocks chat.",
       "Item level and Readiness numbers sit on a dimmed icon, not a black box.",
       "Settings → Currencies reaches every currency, past the tile's first eight.",
-    },
-  },
-  {
-    version = "1.5.6",
-    notes = {
-      "W2UI theme. Auto follows W2UI when it is loaded.",
-      "All The Things ranks tracked mounts, appearances, achievements, and watched quests.",
-      "Can I Mog It nudges learnable appearances already in your bags.",
-      "Completed tasks fill in when Lodestar can tell the work is done, with expansion-specific profession names.",
     },
   },
 }
@@ -274,7 +272,7 @@ LS.HELP = {
   },
   {
     title = "Commands",
-    body = "/ls or /lodestar — open or close the window\n/ls compact — toggle compact mode\n/ls compact single — toggle single-recommendation compact mode\n/ls theme auto — follow W2UI, GW2 UI, RealUI, ElvUI, or Ellesmere when loaded\n/ls debug — disable every other addon and reload\n/ls debug off — restore those addons (this character only)\n/ls reset — wipe saved settings and reload",
+    body = "/ls or /lodestar — open or close the window\n/ls compact — toggle compact mode\n/ls compact single — toggle single-recommendation compact mode\n/ls theme auto — follow W2UI, GW2 UI, RealUI, ElvUI, or Ellesmere when loaded\n/ls debug — disable every other addon and reload\n/ls debug off — restore those addons (this character only)\n/ls resize — reset only the window size and position\n/ls reset — wipe saved settings and reload",
   },
   {
     title = "The window",

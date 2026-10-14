@@ -1,3 +1,13 @@
+# 1.6.2
+
+- `/ls resize` puts the Lodestar window back to its default size in the middle of the
+  screen, without touching any other setting. `/ls reset` wipes everything, which is
+  far more than a window that ended up the wrong size needs.
+- **Fixed:** after a UI scale or resolution change, the window could be larger than
+  the screen. The game cannot pull a frame that size back on-screen, so it filled the
+  screen with its header and resize grip out of reach. The saved size now shrinks to
+  fit the screen on load and whenever the scale or resolution changes.
+
 # 1.6.1
 
 - The Great Vault tile can show a **slot grid**: three rows for Mythic+, Raid, and

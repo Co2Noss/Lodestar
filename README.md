@@ -396,6 +396,7 @@ position are saved. Escape closes the main window; compact mode stays up.
 - `/ls debug off` — turn those addons back on (this character only)
 - `/ls analytics` — print every usage number Lodestar has recorded this session
 - `/ls analytics off` / `/ls analytics on` — stop or resume recording them
+- `/ls resize` — put the window back to its default size in the middle of the screen, keeping every other setting
 - `/ls reset`
 
 ## Waypoints

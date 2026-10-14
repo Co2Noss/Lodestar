@@ -509,6 +509,25 @@ s.exec("__LS:ShowPage('TODAY'); __LS:ShowPage('SETTINGS')")
 s.timers()
 check("leaving Settings and coming back restores the last tab",
       s.eval("__LS:SettingsTab()[1]") == "LAYOUT")
+s.exec("""
+  __LS.db.frame = { point = "TOPLEFT", relative = "TOPLEFT", x = -400, y = 0, width = 3000, height = 2000 }
+  __LS:ApplyFrameLayout()
+""")
+theme_before = s.eval("__LS.db.theme")
+check("a saved size larger than the screen is fitted to it",
+      s.eval("__LS.frame:GetWidth()") <= 1880 and s.eval("__LS.frame:GetHeight()") <= 1040,
+      (s.eval("__LS.frame:GetWidth()"), s.eval("__LS.frame:GetHeight()")))
+s.exec("SlashCmdList.LODESTAR('resize')")
+s.timers()
+check("/ls resize puts the window back to its default size and centre",
+      s.eval("__LS.db.frame.width") == 960 and s.eval("__LS.db.frame.height") == 680
+      and s.eval("__LS.db.frame.point") == "CENTER" and s.eval("__LS.db.frame.x") == 0
+      and s.eval("__LS.frame:GetWidth()") == 960, s.eval("__LS.frame:GetWidth()"))
+check("/ls resize keeps every other setting",
+      s.eval("__LS.db.theme") == theme_before
+      and s.eval("__LS:SettingsTab()[1]") == "LAYOUT")
+check("/ls resize leaves the window open",
+      s.eval("__LS.frame:IsShown()") is True)
 
 print()
 print("-- FAQ and Help --")
@@ -527,6 +546,7 @@ check("Help is its own workspace under Settings",
       s.eval("__LS.page") == "HELP")
 check("Help has commands and debug isolation",
       "/ls or /lodestar" in help
+      and "/ls resize" in help
       and "/ls debug" in help
       and "If something errors" in help, help)
 check("Help has Discord and GitHub support with icons",

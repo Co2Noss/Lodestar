@@ -18,7 +18,7 @@ Lodestar is a decision engine for World of Warcraft. It looks at your Great Vaul
 **CurseForge:** [Lodestar Guide](https://www.curseforge.com/wow/addons/lodestar-guide)
 **GitHub:** [Co2Noss/Lodestar](https://github.com/Co2Noss/Lodestar)
 **Wiki:** [Lodestar wiki](https://github.com/Co2Noss/Lodestar/wiki)
-**Latest release:** [v1.6.1](https://github.com/Co2Noss/Lodestar/releases/tag/v1.6.1)
+**Latest release:** [v1.6.2](https://github.com/Co2Noss/Lodestar/releases/tag/v1.6.2)
 **Discord:** [Lodestar Guide](https://discord.gg/a7hrHavcwq)
 **PayPal:** [paypal.me/Co2Noss](http://paypal.me/Co2Noss)
 **Ko-fi:** [ko-fi.com/co2noss](https://ko-fi.com/co2noss)
@@ -97,6 +97,7 @@ The window is draggable and resizable. Size and position are saved.
 | `/ls theme auto` | Follow W2UI, GW2 UI, RealUI, ElvUI, or Ellesmere when loaded (`blizzard`, `elvui`, `ellesmere`, `gw2`, `w2ui`, `realui`, `minimal` also work) |
 | `/ls debug` | Disable every other addon and reload, to see if an error is Lodestar |
 | `/ls debug off` | Restore the addons `/ls debug` turned off |
+| `/ls resize` | Reset only the window size and position |
 | `/ls reset` | Wipe saved settings and reload |
 
 Treasure cards with a known location have a **Waypoint** button. Settings chooses Auto (TomTom when loaded), TomTom, or the client's single map pin. HandyNotes rares get the same button; treasures and other map marks stay off that card. Bountiful delves pin from the map POIs when the client names them. Midnight gathering farms have a **Map** button for the zone circuit.

@@ -280,12 +280,28 @@ function LS:SaveFrameLayout()
   }
 end
 
+-- Clamping to the screen cannot pull back a frame larger than the screen, which is
+-- what a UI scale or resolution change leaves behind. Fit the size first.
+local function FitToScreen(width, height)
+  local screenW = UIParent and UIParent:GetWidth() or 0
+  local screenH = UIParent and UIParent:GetHeight() or 0
+  if screenW > 0 then width = math.max(320, math.min(width, screenW - 40)) end
+  if screenH > 0 then height = math.max(240, math.min(height, screenH - 40)) end
+  return width, height
+end
+
 function LS:ApplyFrameLayout()
   local saved = self.db and self.db.frame
-  if not saved then return end
+  if not saved or not self.frame then return end
   self.frame:ClearAllPoints()
   self.frame:SetPoint(saved.point or "CENTER", UIParent, saved.relative or saved.point or "CENTER", saved.x or 0, saved.y or 0)
-  self.frame:SetSize(saved.width or 960, saved.height or 680)
+  self.frame:SetSize(FitToScreen(saved.width or 960, saved.height or 680))
+end
+
+function LS:ResetFrameLayout()
+  if not self.db then return end
+  self.db.frame = { point = "CENTER", relative = "CENTER", x = 0, y = 0, width = 960, height = 680 }
+  self:ApplyFrameLayout()
 end
 
 function LS:CreateUI()
@@ -2998,8 +3014,7 @@ function LS:SettingsWindow(body, width, y)
   local reset = button(body, "Reset size and position", width, 32)
   reset:SetPoint("TOPLEFT", 0, y)
   reset:SetScript("OnMouseUp", function()
-    self.db.frame = { point = "CENTER", relative = "CENTER", x = 0, y = 0, width = 960, height = 680 }
-    self:ApplyFrameLayout()
+    self:ResetFrameLayout()
     self:ShowPage("SETTINGS")
   end)
   y = y - 40

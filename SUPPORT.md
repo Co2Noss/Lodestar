@@ -28,6 +28,7 @@ The same details as a Discord ticket. A `/ls debug` result (still happens vs gon
 | `/ls compact` | Compact mode |
 | `/ls debug` | Isolate Lodestar |
 | `/ls debug off` | Restore other addons |
+| `/ls resize` | Reset only the window size and position |
 | `/ls reset` | Wipe saved settings and reload |
 
 Download: [CurseForge](https://www.curseforge.com/wow/addons/lodestar-guide) · [GitHub releases](https://github.com/Co2Noss/Lodestar/releases)

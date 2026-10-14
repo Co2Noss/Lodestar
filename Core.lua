@@ -1,6 +1,6 @@
 local addonName, LS = ...
 _G.Lodestar = LS
-LS.version = "1.6.1"
+LS.version = "1.6.2"
 -- TGA rather than PNG: the client only resolves PNG when the path carries the
 -- extension, and a same-named PNG shadows the TGA. One unambiguous format avoids both.
 LS.MEDIA = "Interface\\AddOns\\Lodestar\\Media\\Logo.tga"
@@ -602,6 +602,8 @@ for _, name in ipairs({
       "UNIT_STATS",
       "PLAYER_LEVEL_UP",
       "PLAYER_SPECIALIZATION_CHANGED",
+      "UI_SCALE_CHANGED",
+      "DISPLAY_SIZE_CHANGED",
     }) do
   pcall(events.RegisterEvent, events, name)
 end
@@ -641,6 +643,11 @@ events:SetScript("OnEvent", function(_, event, arg, ...)
   end
   if event == "MODIFIER_STATE_CHANGED" then
     if LS.RefreshWidgetTooltip then LS:RefreshWidgetTooltip() end
+    return
+  end
+  if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+    LS:ApplyFrameLayout()
+    if LS.frame and LS.frame:IsShown() and LS.page then LS:ShowPage(LS.page) end
     return
   end
   if event == "COMBAT_RATING_UPDATE" or event == "UNIT_STATS"
@@ -739,6 +746,10 @@ SlashCmdList.LODESTAR = function(msg)
     print("|cff59d8c9Lodestar|r usage data: " .. (LS:AnalyticsOn() and "on" or "off"))
   elseif msg == "debug" or msg:match("^debug%s") then
     LS:DebugCommand(msg:match("^debug%s*(.*)$"))
+  elseif msg == "resize" then
+    LS:ResetFrameLayout()
+    if LS.frame:IsShown() then LS:ShowPage(LS.page or LS:LandingPage()) else LS:Toggle() end
+    print("|cff59d8c9Lodestar|r window size and position reset. Your other settings are untouched.")
   elseif msg == "reset" then
     LodestarDB = nil
     ReloadUI()

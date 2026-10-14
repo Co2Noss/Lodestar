@@ -351,6 +351,7 @@ function EnableLibDeflate()
 end
 
 UIParent = new("Frame", "UIParent")
+UIParent:SetSize(1920, 1080)
 Minimap = new("Frame", "Minimap")
 Minimap:SetSize(140, 140)
 WeeklyRewardsFrame = new("Frame", "WeeklyRewardsFrame")
